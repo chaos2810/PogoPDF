@@ -1,3 +1,13 @@
+import { LangProvider } from "./app/LangProvider";
+import { ThemeProvider } from "./app/ThemeProvider";
+import { Router } from "./app/router";
+
 export default function App() {
-  return <div style={{ padding: 24 }}>PogoPDF</div>;
+  return (
+    <LangProvider>
+      <ThemeProvider>
+        <Router />
+      </ThemeProvider>
+    </LangProvider>
+  );
 }
