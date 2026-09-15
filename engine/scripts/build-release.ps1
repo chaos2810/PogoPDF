@@ -23,7 +23,15 @@ try {
     & $postject dist/engine.exe NODE_SEA_BLOB dist/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite
     if ($LASTEXITCODE -ne 0) { throw "postject failed with exit code $LASTEXITCODE" }
 
-    Write-Output "Built dist/engine.exe - copy to ../src-tauri/binaries/engine-x86_64-pc-windows-msvc.exe"
+    # Stage the plain-named exe that build.rs embeds into the app binary.
+    # ($ErrorActionPreference = "Stop" makes a failed copy throw.)
+    $dest = Join-Path $PSScriptRoot "..\..\src-tauri\binaries\engine.exe"
+    Copy-Item dist/engine.exe $dest -Force
+
+    $sha = (Get-FileHash -Algorithm SHA256 $dest).Hash.ToLower()
+    Write-Output "Built dist/engine.exe -> src-tauri/binaries/engine.exe"
+    Write-Output "size: $((Get-Item $dest).Length) bytes"
+    Write-Output "sha256: $sha"
 }
 finally {
     Pop-Location

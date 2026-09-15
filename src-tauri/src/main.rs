@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod engine_blob;
 mod rpc;
 mod sidecar;
 
@@ -14,7 +15,8 @@ use sidecar::SidecarState;
 ///
 /// Dev: run the TypeScript entry through `tsx` from the `engine/` package dir
 /// so Node resolves the engine's own `node_modules`.
-/// Release: an `engine.exe` bundled next to the main executable (Task 11).
+/// Release: extract the embedded engine blob to the per-user cache and run the
+/// cached executable (single-file install; no sidecar next to the app).
 fn engine_launch_spec() -> Result<(String, String), String> {
     if cfg!(debug_assertions) {
         let engine_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -26,18 +28,13 @@ fn engine_launch_spec() -> Result<(String, String), String> {
             .unwrap_or_else(|_| "node --import tsx src/engine.ts".to_string());
         Ok((cmd, cwd))
     } else {
-        let exe_dir = std::env::current_exe()
-            .map_err(|e| format!("cannot resolve executable path: {e}"))?
+        let engine_path = engine_blob::ensure_engine_exe()?;
+        let cmd = engine_path.to_string_lossy().to_string();
+        let cwd = engine_path
             .parent()
-            .ok_or_else(|| "cannot resolve executable directory".to_string())?
-            .to_path_buf();
-        if !exe_dir.join("engine.exe").exists() {
-            return Err("bundled engine.exe not found next to the application".to_string());
-        }
-        Ok((
-            "engine.exe".to_string(),
-            exe_dir.to_string_lossy().to_string(),
-        ))
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        Ok((cmd, cwd))
     }
 }
 

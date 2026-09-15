@@ -1,12 +1,14 @@
-# Sidecar binaries
+# Engine binary staging area
 
-Tauri expects external binaries here named `<name>-<target-triple><.exe>`.
-For Windows x64: `engine-x86_64-pc-windows-msvc.exe`.
+`build.rs` embeds `engine.exe` from this directory into the app binary; the file
+is **not** shipped beside `pogopdf.exe` and Tauri's `externalBin` is no longer
+used.
 
-Build it with: `powershell engine/scripts/build-release.ps1` (from the repo
-root), then copy `engine/dist/engine.exe` to
-`src-tauri/binaries/engine-x86_64-pc-windows-msvc.exe`.
+Build it with `powershell engine/scripts/build-release.ps1` (from the repo
+root), which stages the plain-named `engine.exe` here and prints its SHA-256.
+If the file is absent, `build.rs` embeds an empty placeholder blob so
+`cargo check`/`cargo test`/`tauri dev` still work.
 
-Tauri renames the sidecar to `engine.exe` and places it next to the main
-executable in the installed app, matching `engine_launch_spec` in
-`src-tauri/src/main.rs`.
+At runtime the release app extracts the embedded engine to
+`%LOCALAPPDATA%\PogoPDF\bin\engine-<hash>.exe`, verifies it, and reuses the
+cache on later launches. See `DEVELOPING.md` ("Packaging") for details.

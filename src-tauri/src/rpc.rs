@@ -1,6 +1,7 @@
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -36,10 +37,19 @@ impl EngineProcess {
         cwd: &str,
         on_notification: impl Fn(Value) + Send + 'static,
     ) -> Result<Self, String> {
-        let parts: Vec<&str> = engine_cmd.split_whitespace().collect();
-        let (program, args) = parts
-            .split_first()
-            .ok_or_else(|| "empty engine command".to_string())?;
+        // Release passes an absolute path that may contain spaces (per-user
+        // cache under %LOCALAPPDATA%), so treat an existing file as the whole
+        // program; otherwise fall back to the historical whitespace split that
+        // dev commands like `node --import tsx src/engine.ts` rely on.
+        let (program, args): (&str, Vec<&str>) = if Path::new(engine_cmd).is_file() {
+            (engine_cmd, Vec::new())
+        } else {
+            let parts: Vec<&str> = engine_cmd.split_whitespace().collect();
+            let (program, args) = parts
+                .split_first()
+                .ok_or_else(|| "empty engine command".to_string())?;
+            (program, args.to_vec())
+        };
 
         let mut command = Command::new(program);
         command

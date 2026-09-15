@@ -105,25 +105,27 @@ There is no automated UI driver in this repo, so exercise these by hand in
 
 ## Packaging (release)
 
-Release packages the engine as a single executable using Node's
+Release produces a **single-file install**: the engine is embedded inside
+`pogopdf.exe` and there is no `engine.exe` beside it. The engine is still built
+as a standalone executable using Node's
 [Single Executable Application](https://nodejs.org/api/single-executable-applications.html)
-(SEA) support, then bundles it with the Tauri app.
+(SEA) support, but the build compresses it and links it into the app binary.
 
-### 1. Build the engine sidecar
+### 1. Build the engine executable
 
 From the repo root (requires Node >= 20 on the build machine; developed on
 v24.18.0):
 
 ```
 powershell engine/scripts/build-release.ps1
-Copy-Item engine/dist/engine.exe src-tauri/binaries/engine-x86_64-pc-windows-msvc.exe
 ```
 
 The script bundles `engine/src/engine.ts` (plus the workspace `@pogopdf/contracts`
 package and all npm dependencies) to `engine/dist/engine.cjs` with esbuild,
 generates a SEA blob via `node --experimental-sea-config`, copies the current
-`node.exe`, and injects the blob with `postject`. The result is
-`engine/dist/engine.exe` — a standalone engine with no external Node runtime
+`node.exe`, injects the blob with `postject`, and stages the result at
+`src-tauri/binaries/engine.exe`. It prints the size and SHA-256 of the staged
+file. The result is a standalone engine with no external Node runtime
 dependency. You can smoke-test it directly:
 
 ```
@@ -131,11 +133,11 @@ dependency. You can smoke-test it directly:
 # {"jsonrpc":"2.0","id":1,"result":{"pong":true}}
 ```
 
-Tauri's `externalBin` requires the sidecar to be named with the target triple
-(`engine-x86_64-pc-windows-msvc.exe`); `src-tauri/binaries/README.md` documents
-this. Tauri then places it next to the app executable as `engine.exe`, which is
-where the release branch of `engine_launch_spec` (in `src-tauri/src/main.rs`)
-looks for it.
+`src-tauri/build.rs` runs before the Rust shell compiles: it zstd-compresses
+`src-tauri/binaries/engine.exe`, records its raw size and SHA-256, and embeds
+both into the app binary. If the file is absent the build still succeeds with an
+empty placeholder blob (so `cargo check`/`test`/`tauri dev` work without the
+~90 MB engine), but a release app built that way has no engine to run.
 
 ### 2. Build the installers
 
@@ -147,8 +149,21 @@ npx tauri build
 This runs `npm run build -w ui` first, compiles the Rust shell in release mode,
 and produces the installers listed in `tauri.conf.json` (`msi`, `nsis`) under
 `src-tauri/target/release/bundle/`. The first run downloads the WiX and NSIS
-toolchains and can take several minutes. If the sidecar from step 1 is stale or
-missing, the build fails — rebuild it first.
+toolchains and can take several minutes. If the staged engine from step 1 is
+stale or missing, the release build still succeeds but bundles an app that
+cannot start its engine — rebuild the engine first.
+
+### Runtime extraction
+
+On first launch the release app decompresses the embedded engine to
+`%LOCALAPPDATA%\PogoPDF\bin\engine-<hash>.exe`, verifies the written bytes
+against the embedded SHA-256, and renames the verified temp file into place.
+The cache is reused on subsequent launches while the app's recorded engine size
+matches; a new engine build produces a new hash-named file. Keeping the engine
+out of the install directory means the installer ships one executable instead of
+two, and the per-user cache avoids re-extracting on every run. Closing the app
+still kills the engine (see the zombie-process guard); there should be no
+lingering `engine.exe` process afterwards.
 
 ### Icons
 
