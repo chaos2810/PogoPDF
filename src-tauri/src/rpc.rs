@@ -80,6 +80,9 @@ impl EngineProcess {
                     None => on_notification(value),
                 }
             }
+            // Engine stdout closed (EOF/error): drop all parked senders so every
+            // waiting call() resolves with Err instead of hanging forever.
+            reader_pending.lock().unwrap().clear();
         });
 
         Ok(Self {
@@ -104,10 +107,14 @@ impl EngineProcess {
             "method": method,
             "params": params,
         });
-        writeln!(self.stdin, "{request}").map_err(|e| format!("engine stdin write failed: {e}"))?;
-        self.stdin
-            .flush()
-            .map_err(|e| format!("engine stdin flush failed: {e}"))?;
+        if let Err(e) = writeln!(self.stdin, "{request}") {
+            self.pending.lock().unwrap().remove(&id);
+            return Err(format!("engine stdin write failed: {e}"));
+        }
+        if let Err(e) = self.stdin.flush() {
+            self.pending.lock().unwrap().remove(&id);
+            return Err(format!("engine stdin flush failed: {e}"));
+        }
 
         let response = rx.await.map_err(|_| "engine closed".to_string())?;
         if let Some(error) = response.get("error") {
@@ -120,5 +127,7 @@ impl EngineProcess {
         let _ = self.child.kill();
         let _ = self.child.wait();
         self.reader.take();
+        // Drop any in-flight senders even if the reader thread has not observed EOF yet.
+        self.pending.lock().unwrap().clear();
     }
 }
