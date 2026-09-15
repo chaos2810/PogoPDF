@@ -6,9 +6,37 @@ import { Home } from "../components/Home";
 import { Settings } from "../components/Settings";
 import { CommandPalette } from "../components/CommandPalette";
 import { MergeScreen } from "../tools/MergeScreen";
+import { SplitScreen } from "../tools/organize/SplitScreen";
+import { ExtractPagesScreen } from "../tools/organize/ExtractPagesScreen";
+import { DeletePagesScreen } from "../tools/organize/DeletePagesScreen";
+import { OrganizeGridScreen } from "../tools/organize/OrganizeGridScreen";
+import { RotateScreen } from "../tools/organize/RotateScreen";
+import { RotateCustomScreen } from "../tools/organize/RotateCustomScreen";
+import { ReverseScreen } from "../tools/organize/ReverseScreen";
+import { AddBlankPageScreen } from "../tools/organize/AddBlankPageScreen";
+import { NupScreen } from "../tools/organize/NupScreen";
+import { BookletScreen } from "../tools/organize/BookletScreen";
+import { DividePagesScreen } from "../tools/organize/DividePagesScreen";
+import { CombineSinglePageScreen } from "../tools/organize/CombineSinglePageScreen";
+import { AlternateMixScreen } from "../tools/organize/AlternateMixScreen";
+import { DuplexCollateScreen } from "../tools/organize/DuplexCollateScreen";
 
 const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
+  [TOOL_IDS.split]: SplitScreen,
+  [TOOL_IDS.extractPages]: ExtractPagesScreen,
+  [TOOL_IDS.deletePages]: DeletePagesScreen,
+  [TOOL_IDS.organize]: OrganizeGridScreen,
+  [TOOL_IDS.rotate]: RotateScreen,
+  [TOOL_IDS.rotateCustom]: RotateCustomScreen,
+  [TOOL_IDS.reverse]: ReverseScreen,
+  [TOOL_IDS.addBlankPage]: AddBlankPageScreen,
+  [TOOL_IDS.nup]: NupScreen,
+  [TOOL_IDS.booklet]: BookletScreen,
+  [TOOL_IDS.dividePages]: DividePagesScreen,
+  [TOOL_IDS.combineSinglePage]: CombineSinglePageScreen,
+  [TOOL_IDS.alternateMix]: AlternateMixScreen,
+  [TOOL_IDS.duplexCollate]: DuplexCollateScreen,
 };
 
 export function Router() {

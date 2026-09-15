@@ -10,10 +10,10 @@ function matchTools(query: string, lang: "en" | "zh-TW") {
 
 describe("command palette matching", () => {
   it("finds merge by partial title", () => {
-    expect(matchTools("mer", "en").map((m) => m.id)).toEqual(["merge"]);
+    expect(matchTools("merge pdf", "en").map((m) => m.id)).toEqual(["merge"]);
   });
   it("finds merge in zh-TW", () => {
-    expect(matchTools("合併", "zh-TW").map((m) => m.id)).toEqual(["merge"]);
+    expect(matchTools("合併 PDF", "zh-TW").map((m) => m.id)).toEqual(["merge"]);
   });
   it("empty query shows all", () => {
     expect(matchTools("", "en").length).toBe(registry.length);

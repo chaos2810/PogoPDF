@@ -15,11 +15,7 @@ export const en = {
 
   "tool.merge.title": "Merge PDF",
   "tool.merge.desc": "Combine multiple PDFs into one file",
-  "tool.merge.drop": "Drop PDFs here — or click to browse",
-  "tool.merge.dropActive": "Release to add files",
-  "tool.merge.remove": "Remove file",
   "tool.merge.cta": "Merge PDFs",
-  "tool.merge.addMore": "Add more files",
   "tool.merge.bookmarks": "Keep bookmarks",
 
   "tool.common.drop": "Drop PDFs here — or click to browse",
