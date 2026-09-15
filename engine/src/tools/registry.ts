@@ -3,6 +3,7 @@ import type { RpcCtx } from "../rpc/dispatcher";
 import { registerMergeTool } from "./merge/register";
 import { registerSimpleOrganizeTools } from "./organize/register-simple";
 import { registerBatchOrganizeTools } from "./organize/register-batch";
+import { registerGridOrganizeTools } from "./organize/register-grid";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -19,4 +20,5 @@ export function registerTools(tools: ToolRegistry) {
   registerMergeTool(tools);
   registerSimpleOrganizeTools(tools);
   registerBatchOrganizeTools(tools);
+  registerGridOrganizeTools(tools);
 }

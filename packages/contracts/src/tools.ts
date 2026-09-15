@@ -54,6 +54,7 @@ export type DeletePagesInput = z.infer<typeof DeletePagesInputSchema>;
 
 export const OrganizeInputSchema = z
   .object({
+    filePath: z.string().min(1),
     pages: z
       .array(
         z

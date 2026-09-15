@@ -59,11 +59,12 @@ describe("DeletePagesInputSchema", () => {
 describe("OrganizeInputSchema", () => {
   it("accepts ordered page descriptors", () => {
     expect(OrganizeInputSchema.safeParse({
+      filePath: PDF,
       pages: [{ srcIndex: 0 }, { srcIndex: 2, rotate: 90 }],
     }).success).toBe(true);
   });
   it("rejects an empty pages array", () => {
-    expect(OrganizeInputSchema.safeParse({ pages: [] }).success).toBe(false);
+    expect(OrganizeInputSchema.safeParse({ filePath: PDF, pages: [] }).success).toBe(false);
   });
 });
 
