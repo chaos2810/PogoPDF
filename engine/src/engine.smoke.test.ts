@@ -108,6 +108,7 @@ describe("engine stdio smoke", () => {
         }) + "\n"
       );
       const result = await mergePromise;
+      expect(result.result.jobId).toBe("123e4567-e89b-12d3-a456-426614174000");
       expect(result.result.outputPath).toBeTruthy();
       // pdf-lib treats a string as base64, so read the produced file as bytes.
       const outPath = result.result.outputPath as string;

@@ -54,6 +54,12 @@ describe("JobQueue", () => {
     await done1;              // j1 unaffected
     expect(q.isCancelled("j2")).toBe(false); // id cleaned up
   });
+
+  it("cancelling an unknown id does not leak the cancelled flag", async () => {
+    const q = new JobQueue();
+    q.cancel("no-such-job");
+    expect(q.isCancelled("no-such-job")).toBe(false);
+  });
 });
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }

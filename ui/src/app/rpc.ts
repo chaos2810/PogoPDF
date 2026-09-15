@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { JobResultSchema, type JobResult } from "@pogopdf/contracts";
 
 export type ProgressPayload = {
   jobId: string;
@@ -35,10 +36,10 @@ function parseEngineError(raw: unknown): Error {
   return new Error(String(raw));
 }
 
-export async function startJob(toolId: string, input: unknown): Promise<{ outputPath: string }> {
+export async function startJob(toolId: string, input: unknown): Promise<JobResult> {
   const jobId = crypto.randomUUID();
   const result = await callEngine("job.start", { jobId, toolId, input });
-  return result as { outputPath: string };
+  return JobResultSchema.parse(result);
 }
 
 export function onProgress(cb: (p: ProgressPayload) => void): () => void {

@@ -7,7 +7,9 @@ import {
   JobStartParamsSchema,
   JobCancelParamsSchema,
   PROGRESS_METHOD,
+  TOOL_ERROR_CODES,
 } from "@pogopdf/contracts";
+import type { JobResult, JobStartParams } from "@pogopdf/contracts";
 import { createDispatcher } from "./rpc/dispatcher";
 import type { RpcCtx } from "./rpc/dispatcher";
 import { JobQueue } from "./queue";
@@ -39,11 +41,15 @@ export function startEngine(options: {
   const temp = new TempWorkspace(mkdtempSync(join(tmpdir(), "pogopdf-")));
 
   dispatcher.register("job.start", async (params) => {
-    const p = JobStartParamsSchema.parse(params);
+    // Params are already validated by the dispatcher (registered with schema).
+    const p = params as JobStartParams;
     const tool = tools.get(p.toolId);
-    if (!tool) throw Object.assign(new Error("Unknown tool"), { code: -32601 });
-    let outputPath: string | undefined;
-    return new Promise<{ outputPath: string }>((resolve, reject) => {
+    if (!tool) {
+      throw Object.assign(new Error("Unknown tool"), {
+        code: TOOL_ERROR_CODES.INVALID_INPUT,
+      });
+    }
+    return new Promise<JobResult>((resolve, reject) => {
       queue.enqueue({
         jobId: p.jobId,
         run: async (ctx) => {
@@ -58,27 +64,38 @@ export function startEngine(options: {
           };
           const outDir = temp.dirFor(p.jobId);
           try {
-            outputPath = await tool.run(p.input, patched, outDir);
+            const outputPath = await tool.run(p.input, patched, outDir);
             patched.notifyProgress({
               jobId: p.jobId,
               percent: 100,
               stage: "done",
               pagesDone: 0,
             });
+            return outputPath;
           } catch (e) {
+            // Covers tool failures and CANCELLED throws (the cancel RPC only
+            // signals; the running tool observes ctx.cancelled() and throws).
             temp.cleanup(p.jobId);
             throw e;
           }
         },
-        onDone: (err) => (err ? reject(err) : resolve({ outputPath: outputPath! })),
+        onDone: (err, outputPath) =>
+          err
+            ? reject(err)
+            : resolve({ jobId: p.jobId, outputPath: outputPath as string }),
       });
     });
   }, JobStartParamsSchema);
 
+  // Cancellation only signals the queue. The running tool throws CANCELLED,
+  // and the run wrapper above cleans the temp dir. Deleting the dir here would
+  // race a live job (Windows EBUSY/EPERM on open handles, ENOENT for tools
+  // writing incrementally).
+  // Successful job dirs are intentionally left in place so the UI can Save As;
+  // the OS temp dir reclaims them, and cleanupAll() runs on engine exit.
   dispatcher.register("job.cancel", (params) => {
     const p = JobCancelParamsSchema.parse(params);
     queue.cancel(p.jobId);
-    temp.cleanup(p.jobId);
     return { cancelled: true };
   }, JobCancelParamsSchema);
 

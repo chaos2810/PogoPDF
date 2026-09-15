@@ -3,13 +3,14 @@ import type { RpcCtx } from "./rpc/dispatcher";
 
 type Job = {
   jobId: string;
-  run: (ctx: RpcCtx) => Promise<void>;
-  onDone?: (err: unknown) => void;
+  run: (ctx: RpcCtx) => Promise<unknown>;
+  onDone?: (err: unknown, result?: unknown) => void;
 };
 
 export class JobQueue {
   private jobs: Job[] = [];
   private running = false;
+  private currentJobId: string | null = null;
   private cancelledIds = new Set<string>();
   private idleResolvers: (() => void)[] = [];
 
@@ -28,6 +29,12 @@ export class JobQueue {
           code: TOOL_ERROR_CODES.CANCELLED,
         })
       );
+      // Queued jobs never reach drain's finally, so clear the flag here.
+      this.cancelledIds.delete(jobId);
+    }
+    // An unknown id matches nothing and never reaches drain's cleanup, so drop
+    // the flag to avoid a permanent entry in cancelledIds.
+    if (queued.length === 0 && jobId !== this.currentJobId) {
       this.cancelledIds.delete(jobId);
     }
   }
@@ -46,16 +53,18 @@ export class JobQueue {
     this.running = true;
     while (this.jobs.length > 0) {
       const job = this.jobs.shift()!;
+      this.currentJobId = job.jobId;
       const ctx: RpcCtx = {
         cancelled: () => this.cancelledIds.has(job.jobId),
         notifyProgress: () => {}, // engine patches this per-job
       };
       try {
-        await job.run(ctx);
-        job.onDone?.(undefined);
+        const result = await job.run(ctx);
+        job.onDone?.(undefined, result);
       } catch (e) {
         job.onDone?.(e);
       } finally {
+        this.currentJobId = null;
         this.cancelledIds.delete(job.jobId);
       }
     }
