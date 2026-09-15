@@ -1,5 +1,15 @@
 {
   "name": "pogo-pdf",
   "private": true,
-  "workspaces": ["packages/*", "engine", "ui"]
+  "workspaces": [
+    "packages/*",
+    "engine",
+    "ui"
+  ],
+  "scripts": {
+    "app": "tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
 }
