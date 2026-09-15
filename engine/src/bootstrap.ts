@@ -1,7 +1,8 @@
 import { createInterface } from "node:readline";
-import { mkdtempSync } from "node:fs";
+import { copyFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import {
   JobStartParamsSchema,
   JobCancelParamsSchema,
@@ -12,6 +13,21 @@ import type { RpcCtx } from "./rpc/dispatcher";
 import { JobQueue } from "./queue";
 import { TempWorkspace } from "./temp";
 import type { ToolRegistry } from "./tools/registry";
+
+export const FileCopyParamsSchema = z.object({
+  src: z.string().min(1),
+  dest: z.string().min(1),
+});
+
+export function registerFileCopy(
+  dispatcher: ReturnType<typeof createDispatcher>
+): void {
+  dispatcher.register("file.copy", (params) => {
+    const p = FileCopyParamsSchema.parse(params);
+    copyFileSync(p.src, p.dest);
+    return { copied: true };
+  }, FileCopyParamsSchema);
+}
 
 export function startEngine(options: {
   send: (msg: unknown) => void;
@@ -67,6 +83,8 @@ export function startEngine(options: {
   }, JobCancelParamsSchema);
 
   dispatcher.register("engine.ping", async () => ({ pong: true }));
+
+  registerFileCopy(dispatcher);
 
   const rl = createInterface({ input: process.stdin });
   rl.on("line", (line) => dispatcher.handle(line));
