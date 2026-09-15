@@ -5,6 +5,7 @@ import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
 import { startJob, onProgress, pickPdfs } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
+import { basename } from "./paths";
 
 type Phase = "pick" | "running" | "done" | "error";
 
@@ -15,16 +16,31 @@ export function MergeScreen() {
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState<string>("");
   const [outputPath, setOutputPath] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   useEffect(() => onProgress((p) => setPercent(p.percent)), []);
 
   useEffect(() => {
-    const un = getCurrentWindow().listen<{ paths: string[] }>("tauri://drag-drop", (e) => {
-      const pdfs = e.payload.paths.filter((p) => p.toLowerCase().endsWith(".pdf"));
+    const win = getCurrentWindow();
+    const isPdf = (p: string) => p.toLowerCase().endsWith(".pdf");
+    const addFiles = (paths: string[]) => {
+      const pdfs = paths.filter(isPdf);
       if (pdfs.length > 0) setFiles((prev) => [...new Set([...prev, ...pdfs])]);
+    };
+    const unEnter = win.listen<{ paths: string[] }>("tauri://drag-enter", (e) => {
+      if (e.payload.paths.some(isPdf)) setIsDragActive(true);
+    });
+    const unOver = win.listen("tauri://drag-over", () => setIsDragActive(true));
+    const unLeave = win.listen("tauri://drag-leave", () => setIsDragActive(false));
+    const unDrop = win.listen<{ paths: string[] }>("tauri://drag-drop", (e) => {
+      setIsDragActive(false);
+      addFiles(e.payload.paths);
     });
     return () => {
-      void un.then((f) => f());
+      void unEnter.then((f) => f());
+      void unOver.then((f) => f());
+      void unLeave.then((f) => f());
+      void unDrop.then((f) => f());
     };
   }, []);
 
@@ -45,7 +61,7 @@ export function MergeScreen() {
   };
 
   return (
-    <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
+    <main style={{ padding: 24, width: "100%", maxWidth: 720, margin: "0 auto" }}>
       <button
         onClick={() => navigate({ kind: "home" })}
         style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}
@@ -66,27 +82,51 @@ export function MergeScreen() {
             }}
             style={{
               width: "100%", padding: "28px 12px", borderRadius: "var(--radius-tile)",
-              border: `2px dashed var(--border)`, background: "var(--bg)",
-              color: "var(--muted)", fontSize: 14, cursor: "pointer",
+              border: isDragActive ? "2px solid var(--accent)" : "2px dashed var(--border)",
+              background: isDragActive ? "color-mix(in srgb, var(--accent) 12%, var(--bg))" : "var(--bg)",
+              color: isDragActive ? "var(--accent)" : "var(--muted)",
+              fontSize: 14, fontWeight: isDragActive ? 700 : 400, cursor: "pointer",
             }}
           >
-            {t("tool.merge.drop", lang)}
+            {t(isDragActive ? "tool.merge.dropActive" : "tool.merge.drop", lang)}
           </button>
-          {files.length > 0 && (
-            <ul style={{ listStyle: "none", padding: 0, marginTop: 12 }}>
-              {files.map((f) => (
-                <li key={f} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px" }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f}</span>
-                  <button
-                    onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
-                    style={{ border: "none", background: "none", color: "var(--danger)", cursor: "pointer" }}
+
+          <div style={{ minHeight: files.length > 0 ? 180 : 0, marginTop: 12 }}>
+            {files.length > 0 && (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {files.map((f, i) => (
+                  <li
+                    key={f}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "10px 8px",
+                      borderBottom: i < files.length - 1 ? "1px solid var(--border)" : "none",
+                    }}
                   >
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <span
+                      title={f}
+                      style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    >
+                      {basename(f)}
+                    </span>
+                    <button
+                      onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
+                      aria-label={t("tool.merge.remove", lang)}
+                      title={t("tool.merge.remove", lang)}
+                      style={{
+                        flexShrink: 0, border: "none", background: "none",
+                        color: "var(--danger)", cursor: "pointer", fontSize: 14,
+                        padding: "4px 6px", lineHeight: 1,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {files.length > 0 && (
             <button
               onClick={async () => {

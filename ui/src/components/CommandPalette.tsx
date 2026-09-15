@@ -35,7 +35,7 @@ export function CommandPalette() {
       onClick={() => setOpen(false)}
       style={{
         position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)",
-        display: "flex", justifyContent: "center", paddingTop: 96,
+        display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 96,
       }}
     >
       <div

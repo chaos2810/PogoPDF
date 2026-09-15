@@ -17,6 +17,8 @@ export const zhTW: Record<Key, string> = {
   "tool.merge.title": "合併 PDF",
   "tool.merge.desc": "將多個 PDF 合併為一個檔案",
   "tool.merge.drop": "拖放 PDF 到此處 — 或點擊瀏覽",
+  "tool.merge.dropActive": "放開以加入檔案",
+  "tool.merge.remove": "移除檔案",
   "tool.merge.cta": "合併 PDF",
   "tool.merge.addMore": "新增檔案",
   "tool.merge.bookmarks": "保留書籤",

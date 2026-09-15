@@ -4,7 +4,7 @@ import { t } from "@pogopdf/i18n";
 export function Settings() {
   const { theme, setTheme, lang, setLang } = useApp();
   return (
-    <main style={{ padding: 24, maxWidth: 640, margin: "0 auto" }}>
+    <main style={{ padding: 24, width: "100%", maxWidth: 640, margin: "0 auto" }}>
       <h1 style={{ fontSize: 20, fontWeight: 800 }}>{t("nav.settings", lang)}</h1>
 
       <section style={{ marginTop: 20 }}>
