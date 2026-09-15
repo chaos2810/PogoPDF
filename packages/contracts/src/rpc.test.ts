@@ -24,6 +24,10 @@ describe("RpcNotificationSchema", () => {
     const n = RpcNotificationSchema.safeParse({ jsonrpc: "2.0", method: "progress" });
     expect(n.success).toBe(true);
   });
+  it("rejects a payload carrying an id (requests are not notifications)", () => {
+    const n = RpcNotificationSchema.safeParse({ jsonrpc: "2.0", id: 1, method: "progress" });
+    expect(n.success).toBe(false);
+  });
 });
 
 describe("RpcErrorResponseSchema", () => {
