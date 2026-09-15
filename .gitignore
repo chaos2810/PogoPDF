@@ -6,3 +6,4 @@ node_modules/
 dist/
 target/
 *.local
+engine/src/testing/.fixtures/

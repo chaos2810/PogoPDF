@@ -34,7 +34,11 @@ export function startEngine(options: {
           const patched: RpcCtx = {
             ...ctx,
             notifyProgress: (prog) =>
-              send({ jsonrpc: "2.0", method: PROGRESS_METHOD, params: prog }),
+              send({
+                jsonrpc: "2.0",
+                method: PROGRESS_METHOD,
+                params: { ...(prog as object), jobId: p.jobId },
+              }),
           };
           const outDir = temp.dirFor(p.jobId);
           try {
