@@ -76,6 +76,7 @@ export function MergeScreen() {
           padding: 20, boxShadow: "var(--shadow-card)",
         }}>
           <button
+            data-testid="merge-dropzone"
             onClick={async () => {
               const picked = await pickPdfs(true);
               setFiles((prev) => [...new Set([...prev, ...picked])]);
@@ -97,6 +98,7 @@ export function MergeScreen() {
                 {files.map((f, i) => (
                   <li
                     key={f}
+                    data-testid="merge-file-row"
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
                       padding: "10px 8px",
@@ -104,12 +106,14 @@ export function MergeScreen() {
                     }}
                   >
                     <span
+                      data-testid="merge-file-name"
                       title={f}
                       style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere", wordBreak: "break-word" }}
                     >
                       {basename(f)}
                     </span>
                     <button
+                      data-testid="merge-file-remove"
                       onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
                       aria-label={t("tool.merge.remove", lang)}
                       title={t("tool.merge.remove", lang)}

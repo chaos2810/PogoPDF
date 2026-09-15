@@ -3,17 +3,30 @@
 //
 // Usage: npm run shots   (from the repo root, or `npm run shots -w @pogopdf/ui`)
 //
+// For every state the harness writes three artifacts to ui/screenshots/ (all
+// gitignored): <name>.png, <name>.metrics.json (raw layout numbers), and one
+// aggregate report.json (per-state invariants + evidence). It also writes the
+// vision-review brief to .superpowers/sdd/visual-audit-brief.md.
+//
+// Exit code is non-zero if any layout invariant fails (CI gate), listing the
+// failures. The PNGs still get written so a human/vision agent can inspect.
+//
 // Starts Vite itself when nothing is listening on the dev port and tears it
 // down afterwards; reuses an already-running dev server otherwise.
 // Requires a local Chromium browser: Edge (preferred) or Chrome. No browser is
 // downloaded — puppeteer-core drives the system binary.
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { setTimeout as sleep } from "node:timers/promises";
+
+import { collectPageMetrics, evaluateState, evaluateDragover } from "./metrics.mjs";
+import { writeAuditBrief, STATES } from "./write-audit-prompt.mjs";
+
+const KNOWN_STATES = new Set(STATES.map((s) => s.name));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const uiDir = resolve(__dirname, "..");
@@ -159,11 +172,26 @@ async function main() {
   });
 
   const page = await browser.newPage();
+  const mock = (fn, ...args) => page.evaluate(fn, ...args);
+
+  // Capture a state: PNG + metrics JSON. `collectPageMetrics` is serialized into
+  // the page, so it must stay self-contained (see scripts/metrics.mjs).
+  const captures = new Map();
   const shot = async (name) => {
     await page.screenshot({ path: join(shotsDir, `${name}.png`) });
-    console.log(`  ✓ ${name}.png`);
+    const raw = await page.evaluate(collectPageMetrics);
+    writeFileSync(
+      join(shotsDir, `${name}.metrics.json`),
+      JSON.stringify(raw, null, 2),
+      "utf8"
+    );
+    if (!KNOWN_STATES.has(name)) {
+      console.warn(`  ! ${name} has no entry in the audit matrix (scripts/write-audit-prompt.mjs)`);
+    }
+    const { invariants, evidence } = evaluateState(name, raw);
+    captures.set(name, { raw, invariants, evidence });
+    console.log(`  ✓ ${name}.png (+ .metrics.json)`);
   };
-  const mock = (fn, ...args) => page.evaluate(fn, ...args);
 
   try {
     // --- home ---
@@ -261,7 +289,49 @@ async function main() {
     }
   }
 
+  // --- cross-state invariant + report.json ---
+  const dragover = evaluateDragover(captures.get("merge-empty")?.raw, captures.get("merge-dragover")?.raw);
+  const dragoverCapture = captures.get("merge-dragover");
+  if (dragoverCapture) {
+    dragoverCapture.invariants["dragover-state-visible"] = dragover.pass;
+    dragoverCapture.evidence.dragoverEvidence = dragover;
+  }
+
+  const states = [...captures.entries()].map(([name, c]) => ({
+    name,
+    invariants: c.invariants,
+    evidence: c.evidence,
+  }));
+
+  const failures = [];
+  for (const s of states) {
+    for (const [key, val] of Object.entries(s.invariants)) {
+      if (val === false) failures.push(`${s.name}: ${key}`);
+    }
+  }
+
+  const report = {
+    generatedAt: new Date().toISOString(),
+    screenshotCount: states.length,
+    allPass: failures.length === 0,
+    failures,
+    dragover: dragover,
+    states,
+  };
+
+  writeFileSync(join(shotsDir, "report.json"), JSON.stringify(report, null, 2), "utf8");
+  const brief = writeAuditBrief({ report });
+
   console.log(`\nScreenshots written to ${shotsDir}`);
+  console.log(`Metrics report: ${join(shotsDir, "report.json")}`);
+  console.log(`Vision brief:   ${brief}`);
+
+  if (failures.length > 0) {
+    console.error(`\nINVARIANT FAILURES (${failures.length}):`);
+    for (const f of failures) console.error(`  ✗ ${f}`);
+    process.exit(1);
+  }
+  console.log(`\nAll invariants PASS (${states.length} states).`);
 }
 
 main().catch((err) => {
