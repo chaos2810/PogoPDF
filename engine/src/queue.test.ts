@@ -36,6 +36,24 @@ describe("JobQueue", () => {
     expect(onDone).toHaveBeenCalledTimes(2);
     expect((onDone.mock.calls[0][0] as Error).message).toBe("boom");
   });
+
+  it("cancelling a queued job rejects it with CANCELLED", async () => {
+    const q = new JobQueue();
+    let active = 0;
+    const done1 = new Promise<unknown>((res) =>
+      q.enqueue({ jobId: "j1", run: async () => { active = 1; await sleep(30); }, onDone: res })
+    );
+    const done2 = new Promise<unknown>((res) =>
+      q.enqueue({ jobId: "j2", run: async () => { active = 2; }, onDone: res })
+    );
+    q.cancel("j2");           // j2 still queued while j1 runs
+    await q.idle();
+    const err2 = await done2;
+    expect((err2 as { code?: number }).code).toBe(-32005); // TOOL_ERROR_CODES.CANCELLED
+    expect(active).toBe(1);   // j2 never ran
+    await done1;              // j1 unaffected
+    expect(q.isCancelled("j2")).toBe(false); // id cleaned up
+  });
 });
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }

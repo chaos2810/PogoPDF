@@ -1,3 +1,4 @@
+import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import type { RpcCtx } from "./rpc/dispatcher";
 
 type Job = {
@@ -19,7 +20,20 @@ export class JobQueue {
 
   cancel(jobId: string) {
     this.cancelledIds.add(jobId);
+    const queued = this.jobs.filter((j) => j.jobId === jobId);
     this.jobs = this.jobs.filter((j) => j.jobId !== jobId);
+    for (const j of queued) {
+      j.onDone?.(
+        Object.assign(new Error(`Job ${jobId} cancelled while queued`), {
+          code: TOOL_ERROR_CODES.CANCELLED,
+        })
+      );
+      this.cancelledIds.delete(jobId);
+    }
+  }
+
+  isCancelled(jobId: string): boolean {
+    return this.cancelledIds.has(jobId);
   }
 
   async idle(): Promise<void> {
