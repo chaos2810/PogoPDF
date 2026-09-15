@@ -1,6 +1,5 @@
 docs/
 .superpowers/
-dist-2.8.8/
 AGENTS.md
 .server-logs/
 node_modules/
