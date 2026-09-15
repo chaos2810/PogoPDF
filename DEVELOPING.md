@@ -99,9 +99,10 @@ There is no automated UI driver in this repo, so exercise these by hand in
 - [ ] Install from `src-tauri/target/release/bundle/msi/` (or `.../nsis/`).
 - [ ] Launch PogoPDF from the Start Menu.
 - [ ] Merge two PDFs and confirm the output opens correctly.
-- [ ] Close and confirm no `engine.exe` process is left in Task Manager.
+- [ ] Close and confirm no `engine-*` process is left in Task Manager (for
+      example, `Get-Process engine*` in PowerShell).
 - [ ] Start a large merge, close the window mid-progress, and confirm no
-      `engine.exe` process remains in Task Manager.
+      `engine-*` process remains in Task Manager.
 
 ## Packaging (release)
 

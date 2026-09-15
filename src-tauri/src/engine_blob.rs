@@ -37,7 +37,8 @@ pub fn ensure_engine_exe() -> Result<PathBuf, String> {
     let raw = zstd::bulk::decompress(ENGINE_BLOB_ZSTD, generated::ENGINE_RAW_SIZE as usize)
         .map_err(|e| format!("failed to decompress embedded engine: {e}"))?;
 
-    let tmp = cache_dir.join(format!("engine-{}.exe.tmp", short_hash()));
+    // Per-process temp name so two concurrent first launches never share a file.
+    let tmp = cache_dir.join(format!("engine-{}.exe.{}.tmp", short_hash(), std::process::id()));
     write_verify_rename(&tmp, &target, &raw)?;
     Ok(target)
 }
@@ -63,7 +64,9 @@ fn is_valid_cached(path: &std::path::Path) -> Result<bool, String> {
 
 /// Write the decompressed bytes to `tmp`, verify the bytes on disk against the
 /// embedded hash, then rename into `target`. A stale or corrupted target is
-/// replaced; the verified temp file always wins.
+/// replaced; the verified temp file always wins. If the rename fails because a
+/// concurrent instance won the race (the temp is gone, the target is now valid),
+/// this instance falls back to the winner's file and drops its own temp.
 fn write_verify_rename(
     tmp: &std::path::Path,
     target: &std::path::Path,
@@ -94,13 +97,19 @@ fn write_verify_rename(
         ));
     }
 
+    // std::fs::rename uses MOVEFILE_REPLACE_EXISTING on Windows, so this
+    // overwrites a stale or corrupt target when `tmp` is present.
     match std::fs::rename(tmp, target) {
         Ok(()) => Ok(()),
-        Err(_) if target.exists() => {
-            std::fs::remove_file(target).map_err(|e| format!("failed to replace {target:?}: {e}"))?;
-            std::fs::rename(tmp, target).map_err(|e| format!("failed to rename into {target:?}: {e}"))
-        }
-        Err(e) => Err(format!("failed to rename into {target:?}: {e}")),
+        Err(e) => match is_valid_cached(target) {
+            // Another instance won the race and left a valid engine; `tmp` is
+            // redundant (it may already be gone, hence ignoring the remove error).
+            Ok(true) => {
+                let _ = std::fs::remove_file(tmp);
+                Ok(())
+            }
+            _ => Err(format!("failed to rename into {target:?}: {e}")),
+        },
     }
 }
 

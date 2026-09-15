@@ -11,6 +11,37 @@ use tauri::{Emitter, Manager, RunEvent};
 
 use sidecar::SidecarState;
 
+/// Show a native error box before exiting. Release builds run under the
+/// `windows` subsystem (no console), so a panic during startup would otherwise
+/// leave the user staring at nothing.
+#[cfg(windows)]
+fn show_fatal_error(msg: &str) {
+    #[link(name = "user32")]
+    extern "system" {
+        fn MessageBoxW(
+            hwnd: *mut core::ffi::c_void,
+            text: *const u16,
+            caption: *const u16,
+            utype: u32,
+        ) -> i32;
+    }
+    use std::os::windows::ffi::OsStrExt;
+
+    let text: Vec<u16> = std::ffi::OsStr::new(msg).encode_wide().chain([0]).collect();
+    let caption: Vec<u16> = std::ffi::OsStr::new("PogoPDF")
+        .encode_wide()
+        .chain([0])
+        .collect();
+    unsafe {
+        MessageBoxW(std::ptr::null_mut(), text.as_ptr(), caption.as_ptr(), 0x10); // MB_ICONERROR
+    }
+}
+
+#[cfg(not(windows))]
+fn show_fatal_error(msg: &str) {
+    eprintln!("PogoPDF fatal error: {msg}");
+}
+
 /// Resolve `(command, working directory)` for the engine sidecar.
 ///
 /// Dev: run the TypeScript entry through `tsx` from the `engine/` package dir
@@ -75,8 +106,15 @@ fn main() {
                 }
             }
         })
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .build(tauri::generate_context!());
+
+    let app = match app {
+        Ok(app) => app,
+        Err(e) => {
+            show_fatal_error(&format!("PogoPDF failed to start:\n\n{e}"));
+            std::process::exit(1);
+        }
+    };
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
