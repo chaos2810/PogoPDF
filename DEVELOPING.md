@@ -90,6 +90,9 @@ There is no automated UI driver in this repo, so exercise these by hand in
 - [ ] Toggle the UI language and confirm strings change.
 - [ ] Close the window and confirm no `node.exe` (engine) process is left in
       Task Manager.
+- [ ] Start a large merge, close the window mid-job, and confirm the engine
+      exits immediately (no lingering `node.exe`) rather than after the job
+      finishes. This exercises the sidecar read/write lock split.
 
 ### Installed build
 

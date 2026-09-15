@@ -44,9 +44,8 @@ fn engine_launch_spec() -> Result<(String, String), String> {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .manage(SidecarState {
-            engine: tokio::sync::Mutex::new(None),
+            engine: tokio::sync::RwLock::new(None),
         })
         .setup(|app| {
             let (cmd, cwd) =
@@ -59,7 +58,7 @@ fn main() {
             .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
 
             let state = app.state::<SidecarState>();
-            *state.engine.blocking_lock() = Some(engine);
+            *state.engine.blocking_write() = Some(engine);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -71,8 +70,10 @@ fn main() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 let state = window.app_handle().state::<SidecarState>();
-                let engine = state.engine.blocking_lock().take();
-                if let Some(mut engine) = engine {
+                // Short blocking write guard: take the handle out so a running
+                // job.start RPC cannot delay window teardown.
+                let engine = state.engine.blocking_write().take();
+                if let Some(engine) = engine {
                     engine.kill();
                 }
             }
@@ -83,8 +84,8 @@ fn main() {
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
             let state = handle.state::<SidecarState>();
-            let engine = state.engine.blocking_lock().take();
-            if let Some(mut engine) = engine {
+            let engine = state.engine.blocking_write().take();
+            if let Some(engine) = engine {
                 engine.kill();
             }
         }

@@ -17,11 +17,14 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// without an `id` are notifications forwarded via the `on_notification`
 /// callback captured at spawn time.
 pub struct EngineProcess {
-    child: Child,
-    stdin: ChildStdin,
+    // Interior mutability so `call` and `kill` can take `&self`. This lets the
+    // sidecar state hand out shared `Arc<EngineProcess>` handles instead of
+    // holding a lock for the whole (possibly long) engine call.
+    child: Mutex<Child>,
+    stdin: Mutex<ChildStdin>,
     next_id: AtomicU64,
     pending: Arc<Mutex<HashMap<u64, tokio::sync::oneshot::Sender<Value>>>>,
-    reader: Option<std::thread::JoinHandle<()>>,
+    reader: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 impl EngineProcess {
@@ -86,17 +89,21 @@ impl EngineProcess {
         });
 
         Ok(Self {
-            child,
-            stdin,
+            child: Mutex::new(child),
+            stdin: Mutex::new(stdin),
             next_id: AtomicU64::new(1),
             pending,
-            reader: Some(reader),
+            reader: Mutex::new(Some(reader)),
         })
     }
 
     /// Send a request and await its response. The engine's JSON-RPC error
     /// object is returned as a JSON string so the UI can parse `{code,message}`.
-    pub async fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
+    ///
+    /// Takes `&self`: the stdin lock is held only for the write+flush, never
+    /// across the `await`, so concurrent calls (e.g. `job.cancel` while a
+    /// `job.start` is in flight) can be written without waiting for the job.
+    pub async fn call(&self, method: &str, params: Value) -> Result<Value, String> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.pending.lock().unwrap().insert(id, tx);
@@ -107,13 +114,18 @@ impl EngineProcess {
             "method": method,
             "params": params,
         });
-        if let Err(e) = writeln!(self.stdin, "{request}") {
-            self.pending.lock().unwrap().remove(&id);
-            return Err(format!("engine stdin write failed: {e}"));
-        }
-        if let Err(e) = self.stdin.flush() {
-            self.pending.lock().unwrap().remove(&id);
-            return Err(format!("engine stdin flush failed: {e}"));
+        {
+            let mut stdin = self.stdin.lock().unwrap();
+            if let Err(e) = writeln!(*stdin, "{request}") {
+                drop(stdin);
+                self.pending.lock().unwrap().remove(&id);
+                return Err(format!("engine stdin write failed: {e}"));
+            }
+            if let Err(e) = stdin.flush() {
+                drop(stdin);
+                self.pending.lock().unwrap().remove(&id);
+                return Err(format!("engine stdin flush failed: {e}"));
+            }
         }
 
         let response = rx.await.map_err(|_| "engine closed".to_string())?;
@@ -123,11 +135,101 @@ impl EngineProcess {
         Ok(response.get("result").cloned().unwrap_or(Value::Null))
     }
 
-    pub fn kill(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        self.reader.take();
+    /// Kill the child, wait for it to exit, and drop every parked sender. Takes
+    /// `&self` so callers holding an `Arc` can kill without a mutable borrow.
+    pub fn kill(&self) {
+        // Dropping stdin signals the engine watchdog (`process.stdin.on("end")`)
+        // to exit even before the kill lands; both paths are fine.
+        {
+            let mut child = self.child.lock().unwrap();
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.reader.lock().unwrap().take();
         // Drop any in-flight senders even if the reader thread has not observed EOF yet.
         self.pending.lock().unwrap().clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    // Writes a tiny Node mock engine that answers every request immediately
+    // except `slow`, which delays. Returns the temp script path (spawn's command
+    // string is whitespace-split, so the path must not contain spaces — the
+    // system temp dir satisfies that on this machine).
+    fn write_mock_script(name: &str) -> std::path::PathBuf {
+        let script = r#"
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+rl.on("line", (line) => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  const respond = (result) =>
+    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\n");
+  if (msg.method === "slow") setTimeout(() => respond({ done: true }), 1500);
+  else respond({ echo: msg.method });
+});
+process.stdin.on("end", () => process.exit(0));
+"#;
+        let path = std::env::temp_dir().join(format!("pogo-mock-{name}-{}.cjs", std::process::id()));
+        std::fs::write(&path, script).expect("write mock script");
+        path
+    }
+
+    fn spawn_mock(name: &str) -> EngineProcess {
+        let path = write_mock_script(name);
+        let cmd = format!("node {}", path.display());
+        EngineProcess::spawn(&cmd, ".", |_| {}).expect("spawn mock engine")
+    }
+
+    // Critical 1: a long-running call must not block a second call, because
+    // `call` takes `&self` and the stdin lock is released before the await.
+    #[tokio::test]
+    async fn concurrent_call_is_not_serialized_behind_in_flight_call() {
+        let engine = Arc::new(spawn_mock("concurrent"));
+
+        let slow_engine = Arc::clone(&engine);
+        let slow = tokio::spawn(async move { slow_engine.call("slow", Value::Null).await });
+
+        // Let the slow request reach the engine and park on its response.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let start = Instant::now();
+        let fast = engine.call("job.cancel", Value::Null).await;
+        assert!(fast.is_ok(), "concurrent call failed: {fast:?}");
+        assert!(
+            start.elapsed() < Duration::from_millis(800),
+            "concurrent call waited on the slow call (elapsed {:?})",
+            start.elapsed()
+        );
+
+        slow.await.unwrap().unwrap();
+        engine.kill();
+    }
+
+    // Critical 1: kill takes `&self` and must return promptly even with a call
+    // in flight, so window-destroy teardown is not stalled by a running job.
+    #[tokio::test]
+    async fn kill_returns_promptly_while_call_in_flight() {
+        let engine = Arc::new(spawn_mock("kill"));
+
+        let slow_engine = Arc::clone(&engine);
+        let slow = tokio::spawn(async move { slow_engine.call("slow", Value::Null).await });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let start = Instant::now();
+        engine.kill();
+        assert!(
+            start.elapsed() < Duration::from_millis(800),
+            "kill stalled while a call was in flight (elapsed {:?})",
+            start.elapsed()
+        );
+
+        // The parked call resolves with Err rather than hanging.
+        assert!(slow.await.unwrap().is_err());
     }
 }

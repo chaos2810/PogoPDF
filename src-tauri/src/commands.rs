@@ -9,9 +9,13 @@ pub async fn rpc_call(
     method: String,
     params: Value,
 ) -> Result<Value, String> {
-    let mut guard = state.engine.lock().await;
-    let engine = guard
-        .as_mut()
+    // Clone the handle under a short read guard, then drop the guard before
+    // awaiting: a long job.start must not block job.cancel or app shutdown.
+    let engine = state
+        .engine
+        .read()
+        .await
+        .clone()
         .ok_or_else(|| "engine not running".to_string())?;
     engine.call(&method, params).await
 }
