@@ -42,7 +42,10 @@ export async function startJob(toolId: string, input: unknown): Promise<{ output
 }
 
 export function onProgress(cb: (p: ProgressPayload) => void): () => void {
-  const un = listen<ProgressPayload>("engine://progress", (e) => cb(e.payload));
+  const un = listen<{ jsonrpc: "2.0"; method: string; params: ProgressPayload }>(
+    "engine://progress",
+    (e) => cb(e.payload.params)
+  );
   return () => {
     void un.then((f) => f());
   };

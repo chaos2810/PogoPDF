@@ -15,7 +15,8 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async () => () => {}),
 }));
 
-import { startJob, pickPdfs, saveAsPdf, callEngine } from "./rpc";
+import { startJob, pickPdfs, saveAsPdf, callEngine, onProgress } from "./rpc";
+import { listen } from "@tauri-apps/api/event";
 
 describe("rpc wrappers", () => {
   it("startJob returns outputPath", async () => {
@@ -36,5 +37,29 @@ describe("rpc wrappers", () => {
       message: "merge exploded",
       code: -32000,
     });
+  });
+
+  it("onProgress unwraps JSON-RPC notification params", async () => {
+    type Handler = (e: { payload: unknown }) => void;
+    let handler: Handler | undefined;
+    vi.mocked(listen).mockImplementationOnce(
+      (async (_event: string, cb: Handler) => {
+        handler = cb;
+        return () => {};
+      }) as unknown as typeof listen
+    );
+    const received: unknown[] = [];
+    onProgress((p) => received.push(p));
+
+    handler!({
+      payload: {
+        jsonrpc: "2.0",
+        method: "progress",
+        params: { jobId: "j1", percent: 42, stage: "merging", pagesDone: 1 },
+      },
+    });
+
+    expect(received).toEqual([{ jobId: "j1", percent: 42, stage: "merging", pagesDone: 1 }]);
+    expect((received[0] as { percent?: number }).percent).toBe(42);
   });
 });
