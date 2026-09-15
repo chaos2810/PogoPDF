@@ -97,6 +97,8 @@ There is no automated UI driver in this repo, so exercise these by hand in
 - [ ] Launch PogoPDF from the Start Menu.
 - [ ] Merge two PDFs and confirm the output opens correctly.
 - [ ] Close and confirm no `engine.exe` process is left in Task Manager.
+- [ ] Start a large merge, close the window mid-progress, and confirm no
+      `engine.exe` process remains in Task Manager.
 
 ## Packaging (release)
 
