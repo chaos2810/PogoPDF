@@ -1,0 +1,5 @@
+{
+  "name": "pogo-pdf",
+  "private": true,
+  "workspaces": ["packages/*", "engine", "ui"]
+}
