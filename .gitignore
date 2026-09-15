@@ -5,5 +5,6 @@ AGENTS.md
 node_modules/
 dist/
 target/
+ui/screenshots/
 *.local
 engine/src/testing/.fixtures/

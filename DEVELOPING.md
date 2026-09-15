@@ -76,6 +76,27 @@ npm run typecheck -w @pogopdf/ui
 
 From `src-tauri/` you can also run `cargo check` and `cargo test`.
 
+## Visual verification (screenshots)
+
+For visual/layout work there is a repeatable screenshot harness:
+
+```
+npm run shots
+```
+
+It starts Vite itself (and tears it down), opens
+`http://localhost:5173/?mock=1` at 1280x800 in the system Edge or Chrome via
+`puppeteer-core`, drives the UI through the dev-only Tauri mock
+(`ui/src/dev/mock-tauri.ts`), and writes PNGs to `ui/screenshots/` (gitignored).
+Reusing an already-running `npm run dev -w ui` also works. The mock installs a
+fake `window.__TAURI_INTERNALS__` (canned `invoke` results, captured
+`engine://progress` and drag handlers) and exposes `window.__mockSetFiles`,
+`__mockProgress`, `__mockDragEnter`/`__mockDragLeave`/`__mockDrop`, and
+`__mockJobControl` for scripted states. It is loaded only when `import.meta.env.DEV`
+and `?mock=1` are both present, so it never ships: after `npm run build -w ui`,
+grep `ui/dist` for `POGOPDF_MOCK_MODE` and it must be absent. No Chromium is
+downloaded — the harness drives an installed browser.
+
 ## Manual QA checklist
 
 There is no automated UI driver in this repo, so exercise these by hand in
