@@ -54,8 +54,9 @@ lingering `node` process afterwards.
 ### Rebuilding the engine bundle (not needed for dev)
 
 `engine/package.json` has a `build` script that produces `dist/engine.cjs` via
-esbuild. It is only used for release packaging (see below); dev runs the
-TypeScript entry directly, so you do not need to run it day to day:
+esbuild. It is only used as an intermediate step for release packaging (see
+below); dev runs the TypeScript entry directly, so you do not need to run it day
+to day:
 
 ```
 npm run build -w @pogopdf/engine
@@ -90,17 +91,65 @@ There is no automated UI driver in this repo, so exercise these by hand in
 - [ ] Close the window and confirm no `node.exe` (engine) process is left in
       Task Manager.
 
+### Installed build
+
+- [ ] Install from `src-tauri/target/release/bundle/msi/` (or `.../nsis/`).
+- [ ] Launch PogoPDF from the Start Menu.
+- [ ] Merge two PDFs and confirm the output opens correctly.
+- [ ] Close and confirm no `engine.exe` process is left in Task Manager.
+
 ## Packaging (release)
 
-Release packaging is handled in Task 11. In short:
+Release packages the engine as a single executable using Node's
+[Single Executable Application](https://nodejs.org/api/single-executable-applications.html)
+(SEA) support, then bundles it with the Tauri app.
+
+### 1. Build the engine sidecar
+
+From the repo root (requires Node >= 20 on the build machine; developed on
+v24.18.0):
+
+```
+powershell engine/scripts/build-release.ps1
+Copy-Item engine/dist/engine.exe src-tauri/binaries/engine-x86_64-pc-windows-msvc.exe
+```
+
+The script bundles `engine/src/engine.ts` (plus the workspace `@pogopdf/contracts`
+package and all npm dependencies) to `engine/dist/engine.cjs` with esbuild,
+generates a SEA blob via `node --experimental-sea-config`, copies the current
+`node.exe`, and injects the blob with `postject`. The result is
+`engine/dist/engine.exe` — a standalone engine with no external Node runtime
+dependency. You can smoke-test it directly:
+
+```
+'{"jsonrpc":"2.0","id":1,"method":"engine.ping"}' | .\engine\dist\engine.exe
+# {"jsonrpc":"2.0","id":1,"result":{"pong":true}}
+```
+
+Tauri's `externalBin` requires the sidecar to be named with the target triple
+(`engine-x86_64-pc-windows-msvc.exe`); `src-tauri/binaries/README.md` documents
+this. Tauri then places it next to the app executable as `engine.exe`, which is
+where the release branch of `engine_launch_spec` (in `src-tauri/src/main.rs`)
+looks for it.
+
+### 2. Build the installers
 
 ```
 npx tauri build
 ```
 
 (run from the repo root)
-This runs `npm run build -w ui` first, then produces the installers listed in
-`tauri.conf.json` (`msi`, `nsis`). Release builds expect a bundled engine
-sidecar next to the executable: `engine.exe`. The release branch of
-`engine_launch_spec` resolves it from the executable's own directory and errors
-if it is missing.
+This runs `npm run build -w ui` first, compiles the Rust shell in release mode,
+and produces the installers listed in `tauri.conf.json` (`msi`, `nsis`) under
+`src-tauri/target/release/bundle/`. The first run downloads the WiX and NSIS
+toolchains and can take several minutes. If the sidecar from step 1 is stale or
+missing, the build fails — rebuild it first.
+
+### Icons
+
+The icon set in `src-tauri/icons/` is generated with the Tauri CLI from a single
+source PNG:
+
+```
+npx tauri icon path\to\source.png
+```
