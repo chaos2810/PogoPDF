@@ -164,7 +164,7 @@ matches; a new engine build produces a new hash-named file. Keeping the engine
 out of the install directory means the installer ships one executable instead of
 two, and the per-user cache avoids re-extracting on every run. Closing the app
 still kills the engine (see the zombie-process guard); there should be no
-lingering `engine.exe` process afterwards.
+lingering `engine-*` process afterwards (`Get-Process engine*`).
 
 ### Icons
 
