@@ -4,12 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import {
+  JobResultSchema,
   JobStartParamsSchema,
   JobCancelParamsSchema,
+  MultiFileResultSchema,
   PROGRESS_METHOD,
   TOOL_ERROR_CODES,
 } from "@pogopdf/contracts";
-import type { JobResult, JobStartParams } from "@pogopdf/contracts";
+import type {
+  JobResult,
+  JobStartParams,
+  MultiFileResult,
+} from "@pogopdf/contracts";
 import { createDispatcher } from "./rpc/dispatcher";
 import type { RpcCtx } from "./rpc/dispatcher";
 import { JobQueue } from "./queue";
@@ -49,7 +55,7 @@ export function startEngine(options: {
         code: TOOL_ERROR_CODES.INVALID_INPUT,
       });
     }
-    return new Promise<JobResult>((resolve, reject) => {
+    return new Promise<JobResult | MultiFileResult>((resolve, reject) => {
       queue.enqueue({
         jobId: p.jobId,
         run: async (ctx) => {
@@ -64,14 +70,14 @@ export function startEngine(options: {
           };
           const outDir = temp.dirFor(p.jobId);
           try {
-            const outputPath = await tool.run(p.input, patched, outDir);
+            const result = await tool.run(p.input, patched, outDir);
             patched.notifyProgress({
               jobId: p.jobId,
               percent: 100,
               stage: "done",
               pagesDone: 0,
             });
-            return outputPath;
+            return result;
           } catch (e) {
             // Covers tool failures and CANCELLED throws (the cancel RPC only
             // signals; the running tool observes ctx.cancelled() and throws).
@@ -79,10 +85,26 @@ export function startEngine(options: {
             throw e;
           }
         },
-        onDone: (err, outputPath) =>
-          err
-            ? reject(err)
-            : resolve({ jobId: p.jobId, outputPath: outputPath as string }),
+        onDone: (err, result) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          // Multi-output tools (e.g. split) return string[]; everything else
+          // returns a single path.
+          if (Array.isArray(result)) {
+            resolve(
+              MultiFileResultSchema.parse({
+                jobId: p.jobId,
+                outputPaths: result,
+              })
+            );
+          } else {
+            resolve(
+              JobResultSchema.parse({ jobId: p.jobId, outputPath: result })
+            );
+          }
+        },
       });
     });
   }, JobStartParamsSchema);

@@ -122,4 +122,48 @@ describe("engine stdio smoke", () => {
       child.kill();
     }
   }, 30000);
+
+  it("split a job into multiple outputs", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    await makePdf(join(work, "f", "five.pdf"), 5);
+
+    const child = startEngine();
+    try {
+      const splitPromise = rpcLine(child, 3);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "job.start",
+          params: {
+            jobId: "223e4567-e89b-12d3-a456-426614174000",
+            toolId: "split",
+            input: {
+              filePath: join(work, "f", "five.pdf"),
+              mode: "ranges",
+              ranges: "1-2,4,5",
+            },
+          },
+        }) + "\n"
+      );
+      const result = await splitPromise;
+      expect(result.result.jobId).toBe("223e4567-e89b-12d3-a456-426614174000");
+      expect(result.result.outputPath).toBeUndefined();
+      const outputPaths = result.result.outputPaths as string[];
+      expect(Array.isArray(outputPaths)).toBe(true);
+      expect(outputPaths).toHaveLength(3);
+      const pageCounts: number[] = [];
+      for (const p of outputPaths) {
+        expect(existsSync(p)).toBe(true);
+        pageCounts.push((await PDFDocument.load(readFileSync(p))).getPageCount());
+      }
+      expect(pageCounts).toEqual([2, 1, 1]);
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
 });
