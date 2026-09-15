@@ -11,4 +11,6 @@ If the file is absent, `build.rs` embeds an empty placeholder blob so
 
 At runtime the release app extracts the embedded engine to
 `%LOCALAPPDATA%\PogoPDF\bin\engine-<hash>.exe`, verifies it, and reuses the
-cache on later launches. See `DEVELOPING.md` ("Packaging") for details.
+cache on later launches. It records the engine size and SHA-256 at build time
+(`build.rs`); a new engine build produces a new hash-named file. See
+`engine/scripts/build-release.ps1` for the staging details.
