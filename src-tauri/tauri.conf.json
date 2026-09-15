@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PogoPDF",
+  "version": "0.1.0",
+  "identifier": "com.pogopdf.app",
+  "build": {
+    "beforeDevCommand": "npm run dev -w ui",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build -w ui",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "PogoPDF",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "targets": ["msi", "nsis"]
+  }
+}

@@ -1,0 +1,70 @@
+use serde_json::Value;
+use tauri::State;
+
+use crate::sidecar::SidecarState;
+
+#[tauri::command]
+pub async fn rpc_call(
+    state: State<'_, SidecarState>,
+    method: String,
+    params: Value,
+) -> Result<Value, String> {
+    let mut guard = state.engine.lock().await;
+    let engine = guard
+        .as_mut()
+        .ok_or_else(|| "engine not running".to_string())?;
+    engine.call(&method, params).await
+}
+
+#[tauri::command]
+pub async fn dialog_open_pdf(app: tauri::AppHandle, multiple: bool) -> Result<Vec<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("PDF Files", &["pdf"])
+        .blocking_pick_files();
+
+    let paths: Vec<String> = picked
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+
+    Ok(if multiple {
+        paths
+    } else {
+        paths.into_iter().take(1).collect()
+    })
+}
+
+#[tauri::command]
+pub async fn dialog_save(
+    app: tauri::AppHandle,
+    default_name: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(default_name)
+        .add_filter("PDF Files", &["pdf"])
+        .blocking_save_file();
+
+    Ok(picked
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub fn reveal(path: String) -> Result<(), String> {
+    std::process::Command::new("explorer")
+        .arg("/select,")
+        .arg(&path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("failed to open explorer: {e}"))
+}
