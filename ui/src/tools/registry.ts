@@ -1,3 +1,5 @@
+import { TOOL_IDS } from "@pogopdf/contracts";
+
 export type Category = "organize" | "convertTo" | "convertFrom" | "edit" | "secure" | "utility";
 
 export type ToolMeta = {
@@ -9,5 +11,5 @@ export type ToolMeta = {
 };
 
 export const registry: ToolMeta[] = [
-  { id: "merge", titleKey: "tool.merge.title", descKey: "tool.merge.desc", category: "organize", icon: "Combine" },
+  { id: TOOL_IDS.merge, titleKey: "tool.merge.title", descKey: "tool.merge.desc", category: "organize", icon: "Combine" },
 ];

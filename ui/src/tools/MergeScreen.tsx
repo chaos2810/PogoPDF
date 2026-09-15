@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { TOOL_IDS } from "@pogopdf/contracts";
 import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
 import { startJob, onProgress, pickPdfs } from "../app/rpc";
@@ -34,7 +35,7 @@ export function MergeScreen() {
     setPhase("running");
     setPercent(0);
     try {
-      const result = await startJob("merge", { filePaths: files });
+      const result = await startJob(TOOL_IDS.merge, { filePaths: files });
       setOutputPath(result.outputPath);
       setPhase("done");
     } catch (e) {
