@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import type { RpcCtx } from "../rpc/dispatcher";
 import { registerMergeTool } from "./merge/register";
+import { registerSimpleOrganizeTools } from "./organize/register-simple";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -11,4 +12,5 @@ export type ToolRegistry = Map<string, ToolEntry>;
 
 export function registerTools(tools: ToolRegistry) {
   registerMergeTool(tools);
+  registerSimpleOrganizeTools(tools);
 }
