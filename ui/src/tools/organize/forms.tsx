@@ -44,10 +44,8 @@ export function RadioGroup({
       {choices.map((c) => (
         <label
           key={c.value}
-          style={{
-            display: "flex", alignItems: "center", gap: 6, fontSize: 14,
-            cursor: disabled ? "not-allowed" : "pointer",
-          }}
+          className="pogopdf-radio-choice"
+          style={{ cursor: disabled ? "not-allowed" : "pointer" }}
         >
           <input
             type="radio"

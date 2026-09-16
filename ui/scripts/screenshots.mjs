@@ -172,20 +172,25 @@ async function typeInto(page, id, text) {
 }
 
 // The option controls are label-wrapped: click the label whose text matches.
+// Uses a trusted mouse click (not label.click()) so focus modality matches a
+// real pointer: a synthetic click leaves :focus-visible matching, painting a
+// ring the user would never see.
 async function clickLabel(page, name, text) {
-  const ok = await page.evaluate(
+  const box = await page.evaluate(
     ([n, needle]) => {
       const label = [...document.querySelectorAll(`input[name="${n}"]`)].find((i) => {
         const l = i.closest("label");
         return l?.textContent?.trim() === needle;
       })?.closest("label");
-      if (!label) return false;
-      label.click();
-      return true;
+      if (!label) return null;
+      label.scrollIntoView({ block: "center" });
+      const r = label.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     },
     [name, text]
   );
-  if (!ok) throw new Error(`No radio labelled "${text}" in group "${name}"`);
+  if (!box) throw new Error(`No radio labelled "${text}" in group "${name}"`);
+  await page.mouse.click(box.x, box.y);
   await sleep(80);
 }
 

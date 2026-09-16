@@ -261,7 +261,15 @@ export function FileToolScreen({
           padding: 20, color: "var(--danger)",
         }}>
           {t("common.error", lang)}: {error}
-          <button onClick={() => setPhase("pick")} style={{ display: "block", marginTop: 8, cursor: "pointer" }}>
+          <button
+            onClick={() => setPhase("pick")}
+            style={{
+              display: "block", marginTop: 8, padding: "8px 14px",
+              borderRadius: "var(--radius-pill)", fontWeight: 600,
+              background: "transparent", border: "1px solid var(--danger)",
+              color: "var(--danger)", cursor: "pointer",
+            }}
+          >
             {t("common.back", lang)}
           </button>
         </div>
