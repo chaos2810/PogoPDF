@@ -37,10 +37,22 @@ export function registerFileCopy(
   }, FileCopyParamsSchema);
 }
 
+// pdfjs-dist 6 uses Promise.withResolvers (Node 22+); fail loudly before that.
+function assertNodeVersion(): void {
+  const major = Number(process.versions.node.split(".")[0]);
+  if (major < 22) {
+    process.stderr.write(
+      `PogoPDF engine requires Node >= 22.13.0 (found ${process.versions.node})\n`
+    );
+    process.exit(1);
+  }
+}
+
 export function startEngine(options: {
   send: (msg: unknown) => void;
   tools: ToolRegistry;
 }) {
+  assertNodeVersion();
   const { send, tools } = options;
   const dispatcher = createDispatcher(send);
   const queue = new JobQueue();

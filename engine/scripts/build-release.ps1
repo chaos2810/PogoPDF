@@ -10,7 +10,7 @@ try {
     $postject = Join-Path $bin "postject.CMD"
 
     # Bundle ESM TypeScript (engine + workspace contracts + npm deps) to a CJS file.
-    & $esbuild src/engine.ts --bundle --platform=node --target=node20 --outfile=dist/engine.cjs
+    & $esbuild src/engine.ts --bundle --platform=node --target=node22 --outfile=dist/engine.cjs
     if ($LASTEXITCODE -ne 0) { throw "esbuild failed with exit code $LASTEXITCODE" }
 
     # Generate the SEA preparation blob from sea-config.json.

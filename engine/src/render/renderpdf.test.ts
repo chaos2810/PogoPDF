@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { fixtureDir, makePdf } from "../testing/fixtures";
 import { getPdfRenderer, resolveStandardFontDataUrl } from "./renderpdf";
 import { encodeCanvas } from "./encode";
@@ -21,6 +22,28 @@ function nonWhitePixels(canvas: Canvas): number {
     if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) count++;
   }
   return count;
+}
+
+// Bare pdf.js load with no standardFontDataUrl — the fallback path.
+async function renderWithoutStandardFonts(path: string, dpi: number): Promise<Canvas> {
+  const task = getDocument({
+    data: new Uint8Array(readFileSync(path)),
+    verbosity: 0,
+    useWorkerFetch: false,
+  });
+  try {
+    const doc = await task.promise;
+    const page = await doc.getPage(1);
+    const viewport = page.getViewport({ scale: dpi / 72 });
+    const canvas = createCanvas(viewport.width, viewport.height);
+    await page.render({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      viewport,
+    }).promise;
+    return canvas;
+  } finally {
+    await task.destroy();
+  }
 }
 
 describe("getPdfRenderer", () => {
@@ -52,6 +75,23 @@ describe("getPdfRenderer", () => {
     } finally {
       await renderer.close();
     }
+  });
+
+  it("renders more glyph pixels with standardFontDataUrl than without it", async () => {
+    // Self-calibrating integration check at the real wiring point: if
+    // resolveStandardFontDataUrl() silently broke, pdf.js would fall back to
+    // substitute glyphs and this ratio would collapse toward 1.
+    const path = join(dir, "font-integration.pdf");
+    await makePdf(path, 1, { text: "Standard font wiring check" });
+    const withFonts = await getPdfRenderer(path);
+    let withCount: number;
+    try {
+      withCount = nonWhitePixels(await withFonts.renderPage(0, 150));
+    } finally {
+      await withFonts.close();
+    }
+    const withoutCount = nonWhitePixels(await renderWithoutStandardFonts(path, 150));
+    expect(withCount).toBeGreaterThan(withoutCount * 1.2);
   });
 
   it("resolves standardFontDataUrl to the pdfjs-dist font directory", async () => {
@@ -171,6 +211,21 @@ describe("encodeCanvas", () => {
       const decoded = await loadImage(buf);
       expect(decoded.width).toBe(101);
       expect(decoded.height).toBe(canvas.height);
+    } finally {
+      await renderer.close();
+    }
+  });
+
+  it("defaults quality to 80 for lossy formats", async () => {
+    const path = join(dir, "quality-default.pdf");
+    await makePdf(path, 1);
+    const renderer = await getPdfRenderer(path);
+    try {
+      const canvas = await renderer.renderPage(0, 150);
+      const jpg = await encodeCanvas(canvas, "jpg");
+      expect(jpg.equals(await encodeCanvas(canvas, "jpg", 80))).toBe(true);
+      const webp = await encodeCanvas(canvas, "webp");
+      expect(webp.equals(await encodeCanvas(canvas, "webp", 80))).toBe(true);
     } finally {
       await renderer.close();
     }

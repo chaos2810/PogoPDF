@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "main": "src/engine.ts",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "build": "esbuild src/engine.ts --bundle --platform=node --target=node20 --outfile=dist/engine.cjs",
+    "build": "esbuild src/engine.ts --bundle --platform=node --target=node22 --outfile=dist/engine.cjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

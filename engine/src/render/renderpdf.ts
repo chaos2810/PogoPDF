@@ -35,7 +35,10 @@ export function resolveStandardFontDataUrl(): string | undefined {
     const require = createRequire(import.meta.url);
     const pkg = require.resolve("pdfjs-dist/package.json");
     return join(dirname(pkg), "standard_fonts").replace(/\\/g, "/") + "/";
-  } catch {
+  } catch (e) {
+    process.stderr.write(
+      `PogoPDF: standard fonts unavailable, falling back to substitute glyphs: ${String(e)}\n`
+    );
     return undefined;
   }
 }
@@ -61,15 +64,21 @@ export async function getPdfRenderer(path: string): Promise<PdfRenderer> {
 
     async renderPage(index: number, dpi: number): Promise<Canvas> {
       const page = await doc.getPage(index + 1);
-      const viewport = page.getViewport({ scale: dpi / 72 });
-      const canvas = createCanvas(viewport.width, viewport.height);
-      // pdf.js 6 wants a DOM-shaped canvas object; @napi-rs/canvas is
-      // API-compatible with the 2D context pdf.js drives it through.
-      await page.render({
-        canvas: canvas as unknown as HTMLCanvasElement,
-        viewport,
-      }).promise;
-      return canvas;
+      try {
+        const viewport = page.getViewport({ scale: dpi / 72 });
+        const canvas = createCanvas(viewport.width, viewport.height);
+        // pdf.js 6 wants a DOM-shaped canvas object; @napi-rs/canvas is
+        // API-compatible with the 2D context pdf.js drives it through.
+        await page.render({
+          canvas: canvas as unknown as HTMLCanvasElement,
+          viewport,
+        }).promise;
+        return canvas;
+      } finally {
+        // Release the page's parsed resources after each render so the engine
+        // never accumulates per-page state across a long document.
+        await page.cleanup();
+      }
     },
 
     async close(): Promise<void> {
