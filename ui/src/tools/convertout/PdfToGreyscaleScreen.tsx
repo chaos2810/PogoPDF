@@ -28,7 +28,7 @@ export function PdfToGreyscaleScreen() {
             />
           </Field>
           <Hint keyName="tool.pdfToGreyscale.pagesHint" />
-          <Hint keyName="tool.pdfToGreyscale.rasterHint" />
+          <Hint keyName="tool.pdfToGreyscale.rasterHint" stacked />
         </>
       }
     />

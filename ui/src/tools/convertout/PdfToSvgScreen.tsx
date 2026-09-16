@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { FileToolScreen } from "../FileToolScreen";
 import { Field, Hint, NumberInput, TextInput } from "../organize/forms";
@@ -43,7 +43,7 @@ export function PdfToSvgScreen() {
             />
           </Field>
           <Hint keyName="tool.pdfToSvg.pagesHint" />
-          <Hint keyName="tool.pdfToSvg.rasterHint" />
+          <Hint keyName="tool.pdfToSvg.rasterHint" stacked />
         </>
       }
     />

@@ -149,7 +149,13 @@ export function NumberInput({
   );
 }
 
-export function Hint({ keyName }: { keyName: string }) {
+export function Hint({
+  keyName,
+  stacked = false,
+}: {
+  keyName: string;
+  stacked?: boolean;
+}) {
   const { lang } = useApp();
   return (
     <div
@@ -162,6 +168,10 @@ export function Hint({ keyName }: { keyName: string }) {
         // above collapses with the preceding Field's 12px, so an equal bottom
         // margin reads as one field group rather than tagging the next label).
         marginBottom: 12,
+        // A second hint stacked directly under a first one (e.g. a tool-level
+        // note after a field hint) needs its own gap so it reads as a separate
+        // note, not a continuation of the field hint above.
+        ...(stacked ? { marginTop: 14 } : null),
       }}
     >
       {t(keyName, lang)}
