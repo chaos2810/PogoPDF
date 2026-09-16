@@ -4,7 +4,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 
-export async function loadPdf(path: string): Promise<PDFDocument> {
+export async function loadPdf(
+  path: string,
+  opts: { updateMetadata?: boolean } = {}
+): Promise<PDFDocument> {
   if (!existsSync(path)) {
     throw Object.assign(new Error(`File not found: ${path}`), {
       code: TOOL_ERROR_CODES.CORRUPT_PDF,
@@ -13,6 +16,9 @@ export async function loadPdf(path: string): Promise<PDFDocument> {
   try {
     return await PDFDocument.load(await readFile(path), {
       ignoreEncryption: false,
+      // pdf-lib's load-time default rewrites /Producer and /ModDate in memory.
+      // Pass false to read the file's real values (viewMetadata only reads).
+      updateMetadata: opts.updateMetadata ?? true,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

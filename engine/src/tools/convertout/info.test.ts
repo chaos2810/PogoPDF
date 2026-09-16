@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDict, PDFDocument, PDFName, rgb } from "pdf-lib";
 import { fixtureDir, makePdf } from "../../testing/fixtures";
+import { getPdfRenderer } from "../../render/renderpdf";
 import { runViewMetadata } from "./viewmetadata";
 import { runPageDimensions } from "./pagedimensions";
 import { runFixPageSize } from "./fixpagesize";
@@ -22,12 +23,44 @@ async function makeMetadataPdf(path: string): Promise<string> {
   doc.setSubject("Subject Line");
   doc.setKeywords(["alpha", "beta"]);
   doc.setCreator("PogoPDF");
+  doc.setProducer("Test Producer");
   doc.setCreationDate(new Date("2020-01-02T03:04:05Z"));
   doc.setModificationDate(new Date("2021-06-07T08:09:10Z"));
   doc.addPage([595.28, 841.89]);
   doc.addPage([595.28, 841.89]);
   writeFileSync(path, await doc.save());
   return path;
+}
+
+/**
+ * A file with metadata a foreign producer would have written. `create` runs
+ * with updateMetadata:false so pdf-lib seeds nothing, making it observable
+ * whether the viewer reports the file's values or pdf-lib's load-time rewrite.
+ */
+async function makeForeignMetadataPdf(path: string): Promise<string> {
+  const doc = await PDFDocument.create({ updateMetadata: false });
+  doc.setProducer("ACME Writer 9.1");
+  doc.setCreationDate(new Date("2018-11-12T13:14:15Z"));
+  doc.setModificationDate(new Date("2019-03-04T05:06:07Z"));
+  doc.addPage([200, 200]);
+  writeFileSync(path, await doc.save());
+  return path;
+}
+
+/** Non-white pixels rendered at 72dpi (1pt == 1px), i.e. visible ink. */
+async function countInk(path: string): Promise<number> {
+  const renderer = await getPdfRenderer(path);
+  try {
+    const canvas = await renderer.renderPage(0, 72);
+    const { data } = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) count++;
+    }
+    return count;
+  } finally {
+    await renderer.close();
+  }
 }
 
 /** A page with a rectangle, so the output can be checked for embedded content. */
@@ -72,18 +105,32 @@ describe("runViewMetadata", () => {
     expect(data.subject).toBe("Subject Line");
     expect(data.keywords).toBe("alpha beta");
     expect(data.creator).toBe("PogoPDF");
-    expect(typeof data.producer).toBe("string");
+    expect(data.producer).toBe("Test Producer");
     expect(data.creationDate).toBe("2020-01-02T03:04:05.000Z");
-    // pdf-lib rewrites /ModDate to "now" on save, so it round-trips as an
-    // ISO string but not the value we set.
-    expect(typeof data.modificationDate).toBe("string");
-    expect(Number.isNaN(Date.parse(data.modificationDate as string))).toBe(false);
+    expect(data.modificationDate).toBe("2021-06-07T08:09:10.000Z");
     expect(data.pageCount).toBe(2);
     expect(data.fileSizeBytes).toBe(statSync(path).size);
   });
 
+  it("reports the file's own producer and dates, not pdf-lib's load-time rewrite", async () => {
+    const path = await makeForeignMetadataPdf(join(dir, "foreign.pdf"));
+    const data = (await runViewMetadata({ filePath: path }, ctx, outDir())) as Record<
+      string,
+      unknown
+    >;
+
+    expect(data.producer).toBe("ACME Writer 9.1");
+    expect(data.modificationDate).toBe("2019-03-04T05:06:07.000Z");
+    // The fixture only set producer + dates; nothing else may be fabricated.
+    expect(data.creator).toBeNull();
+    expect(data.creationDate).toBe("2018-11-12T13:14:15.000Z");
+  });
+
   it("returns null for absent fields plus page count and file size", async () => {
-    const path = await makePdf(join(dir, "untitled.pdf"), 1);
+    const doc = await PDFDocument.create({ updateMetadata: false });
+    doc.addPage([595.28, 841.89]);
+    const path = join(dir, "untitled.pdf");
+    writeFileSync(path, await doc.save());
     const data = (await runViewMetadata({ filePath: path }, ctx, outDir())) as Record<
       string,
       unknown
@@ -93,6 +140,10 @@ describe("runViewMetadata", () => {
     expect(data.author).toBeNull();
     expect(data.subject).toBeNull();
     expect(data.keywords).toBeNull();
+    expect(data.creator).toBeNull();
+    expect(data.producer).toBeNull();
+    expect(data.creationDate).toBeNull();
+    expect(data.modificationDate).toBeNull();
     expect(data.pageCount).toBe(1);
     expect(data.fileSizeBytes).toBeGreaterThan(0);
   });
@@ -190,6 +241,30 @@ describe("runFixPageSize", () => {
     expect(doc.getPage(0).getWidth()).toBeCloseTo(595.28, 2);
     expect(doc.getPage(0).getHeight()).toBeCloseTo(841.89, 2);
     expect(hasEmbeddedPage(doc, 0)).toBe(true);
+  });
+
+  it("draws pad at 1:1 and scale at the fit factor, pinned by rendered ink", async () => {
+    // The XObject Matrix/BBox are identical for both modes (pdf-lib keeps the
+    // source geometry in the Form and puts the scale in the content-stream cm
+    // op), so geometry must be observed downstream. Rendering at 72dpi gives
+    // 1pt == 1px: a 100x100 source draws at 100x100 under pad and at
+    // min(595.28, 841.89)/100 ~= 5.95 (595x595) under scale, ~35x the ink.
+    const src = await makePdfWithBox(join(dir, "fit-small.pdf"), 100, 100);
+    const pad = await runFixPageSize(
+      { filePath: src, size: "a4", orientation: "portrait", fit: "pad" },
+      ctx,
+      outDir()
+    );
+    const scale = await runFixPageSize(
+      { filePath: src, size: "a4", orientation: "portrait", fit: "scale" },
+      ctx,
+      outDir()
+    );
+
+    const padInk = await countInk(pad);
+    const scaleInk = await countInk(scale);
+    expect(padInk).toBeGreaterThan(0);
+    expect(scaleInk).toBeGreaterThan(padInk * 10);
   });
 
   it("applies landscape orientation by swapping the target size", async () => {

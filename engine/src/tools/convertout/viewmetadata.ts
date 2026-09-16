@@ -25,7 +25,7 @@ export async function runViewMetadata(
   const { filePath } = ViewMetadataInputSchema.parse(input);
   assertNotCancelled(ctx);
 
-  const doc = await loadPdf(filePath);
+  const doc = await loadPdf(filePath, { updateMetadata: false });
   const { size } = await stat(filePath);
   const iso = (d: Date | undefined) => d?.toISOString() ?? null;
 
