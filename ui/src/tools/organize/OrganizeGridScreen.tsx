@@ -124,7 +124,7 @@ export function OrganizeGridScreen() {
       const rendered = await renderPdfThumbs(path);
       setFilePath(path);
       setThumbs(rendered);
-      setPages(initPages(rendered.length));
+      setPages(initPages(rendered.map((t) => t.rotate)));
       setPhase("grid");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

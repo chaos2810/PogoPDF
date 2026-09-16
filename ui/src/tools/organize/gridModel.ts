@@ -11,11 +11,19 @@ export type OrganizePage = { srcIndex: number; rotate: Rotate };
 let seq = 0;
 const nextId = () => `p${++seq}`;
 
-export function initPages(count: number): GridPage[] {
-  return Array.from({ length: count }, (_, i) => ({
+export function normalizeRotate(deg: number): Rotate {
+  const n = ((deg % 360) + 360) % 360;
+  return ((Math.round(n / 90) * 90) % 360) as Rotate;
+}
+
+// `intrinsicRotates` is one entry per rendered thumbnail: the page's /Rotate.
+// The grid seeds each page's ABSOLUTE rotation from it, so an untouched
+// pre-rotated scan round-trips instead of being flattened to 0.
+export function initPages(intrinsicRotates: number[]): GridPage[] {
+  return intrinsicRotates.map((rotate, i) => ({
     id: nextId(),
     srcIndex: i,
-    rotate: 0 as Rotate,
+    rotate: normalizeRotate(rotate),
   }));
 }
 

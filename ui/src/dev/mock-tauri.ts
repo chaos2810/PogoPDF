@@ -43,7 +43,7 @@ function makeFakeThumb(i: number, w = 160, h = 210) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(i + 1), w / 2, h / 2);
-  return { index: i, dataUrl: canvas.toDataURL("image/png"), width: w, height: h };
+  return { index: i, dataUrl: canvas.toDataURL("image/png"), width: w, height: h, rotate: 0 };
 }
 
 function addListener(event: string, id: number) {
@@ -150,6 +150,15 @@ w.__mockJobControl = (mode: JobMode, message?: string) => {
   state.jobMode = mode;
   if (message) state.jobError = message;
 };
+// Real-pdf.js state: create a blob URL from raw PDF bytes. The organize screen
+// loads it via the picker path (which, unlike drop, does not filter on .pdf),
+// so the real pdf.js pipeline runs against in-page bytes.
+w.__mockBlobPath = (bytes: number[]) => {
+  const url = URL.createObjectURL(
+    new Blob([new Uint8Array(bytes)], { type: "application/pdf" })
+  );
+  return url;
+};
 w.__mockResolveJob = () => {
   state.resolveJob?.();
   state.resolveJob = null;
@@ -169,10 +178,16 @@ w.__mockCopyFail = (name: string, fail = true) => {
 };
 
 // Thumbnail seam for the organize grid. real pdfthumbs.ts checks for this hook;
-// when present it replaces pdf.js entirely, so screenshots need no real PDF.
-// Called with a count it arms how many fake pages the next load returns (the
-// harness uses this); called with no args it returns the armed pages.
-w.__mockPdfThumbs = (count?: number) => {
-  if (typeof count === "number") state.thumbCount = count;
+// when present it replaces pdf.js for filesystem paths, so screenshots need no
+// real PDF. A blob:/data: path is passed through (returns null) so the real
+// pdf.js pipeline still runs for the blob-backed "real PDF" state.
+// Called with a number it arms how many fake pages the next load returns (the
+// harness uses this); called with a path it returns the armed pages.
+w.__mockPdfThumbs = (arg?: number | string) => {
+  if (typeof arg === "number") {
+    state.thumbCount = arg;
+    return;
+  }
+  if (typeof arg === "string" && /^(blob:|data:)/i.test(arg)) return null;
   return Array.from({ length: state.thumbCount }, (_, i) => makeFakeThumb(i));
 };

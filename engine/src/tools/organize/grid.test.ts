@@ -43,6 +43,7 @@ describe("grid page tools", () => {
   let landscape200: string;
   let portrait100x200: string;
   let threeSeq: string;
+  let prerotated: string;
 
   beforeAll(async () => {
     dir = fixtureDir("organize-grid");
@@ -67,6 +68,10 @@ describe("grid page tools", () => {
       sizes: [[100, 200]],
     });
     threeSeq = await makePdf(join(dir, "three-seq.pdf"), 3, { sizes: seq(100, 3) });
+    prerotated = await makePdf(join(dir, "prerotated.pdf"), 3, {
+      sizes: seq(100, 3),
+      rotations: [90, 180, 0],
+    });
   });
 
   describe("nup", () => {
@@ -204,6 +209,26 @@ describe("grid page tools", () => {
         outDir
       );
       expect(angles(await load(out))).toEqual([0, 90, 0]);
+    });
+
+    it("preserves intrinsic /Rotate when rotate is omitted", async () => {
+      const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
+      const out = await runOrganizeGrid(
+        { filePath: prerotated, pages: [{ srcIndex: 0 }, { srcIndex: 1 }, { srcIndex: 2 }] },
+        ctx,
+        outDir
+      );
+      expect(angles(await load(out))).toEqual([90, 180, 0]);
+    });
+
+    it("applies an absolute rotation, replacing the intrinsic one", async () => {
+      const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
+      const out = await runOrganizeGrid(
+        { filePath: prerotated, pages: [{ srcIndex: 0, rotate: 0 }, { srcIndex: 1 }] },
+        ctx,
+        outDir
+      );
+      expect(angles(await load(out))).toEqual([0, 180]);
     });
 
     it("duplicates a page when the same srcIndex repeats", async () => {
