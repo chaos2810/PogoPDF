@@ -258,6 +258,64 @@ export function collectPageMetrics() {
   const saveAllErrorCount = document.querySelectorAll('[data-testid="save-all-row"] .lucide-x, [data-testid="save-all-row"] svg.lucide-x').length;
   const saveAllRetryExists = document.querySelector('[data-testid="save-all-retry"]') !== null;
 
+  // --- 4e. data-view rows (View Metadata dl + Page Dimensions table) ---
+  // Both renderers tag their container data-rows and every row data-row, so one
+  // collector covers the flex/dl and the table shapes. Cell centers within a row
+  // catch vertical misalignment; first-cell x/width across rows catch a ragged
+  // label column (the table's own cells are not flex/grid, so the generic
+  // sibling scan above never sees them).
+  const rectList = (els) => els.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: +r.x.toFixed(2), y: +r.y.toFixed(2), width: +r.width.toFixed(2), height: +r.height.toFixed(2) };
+  });
+  const dataRows = [...document.querySelectorAll('[data-testid="data-row"]')].map((row) => {
+    const kids = [...row.children].filter(isVisible);
+    const rects = rectList(kids);
+    const centers = rects.map((r) => +(r.y + r.height / 2).toFixed(2));
+    const base = centers[0] ?? 0;
+    const first = rects[0] ?? { x: 0, width: 0 };
+    return {
+      text: snippet(row, 60),
+      cellCount: rects.length,
+      cellCenterDelta: +Math.max(0, ...centers.map((c) => Math.abs(c - base))).toFixed(2),
+      firstCellX: first.x,
+      firstCellWidth: first.width,
+      rowHeight: +row.getBoundingClientRect().height.toFixed(2),
+    };
+  });
+  const dataRowCount = dataRows.length;
+
+  // Table-shaped data rows: columns must line up across rows and no two cells in
+  // a row may overlap (table display is not flex/grid).
+  const dataTables = [...document.querySelectorAll('table[data-testid="data-rows"]')].map((table) => {
+    const rowRects = [...table.querySelectorAll("tr")]
+      .filter(isVisible)
+      .map((tr) => rectList([...tr.children].filter(isVisible)));
+    const colCount = rowRects[0]?.length ?? 0;
+    let xSpread = 0;
+    let widthSpread = 0;
+    for (let c = 0; c < colCount; c++) {
+      const colX = rowRects.map((r) => r[c]?.x).filter((v) => v !== undefined);
+      const colW = rowRects.map((r) => r[c]?.width).filter((v) => v !== undefined);
+      if (colX.length) xSpread = Math.max(xSpread, Math.max(...colX) - Math.min(...colX));
+      if (colW.length) widthSpread = Math.max(widthSpread, Math.max(...colW) - Math.min(...colW));
+    }
+    const overlaps = [];
+    for (let i = 0; i < rowRects.length; i++) {
+      for (let a = 0; a < rowRects[i].length; a++) {
+        for (let b = a + 1; b < rowRects[i].length; b++) {
+          const A = rowRects[i][a];
+          const B = rowRects[i][b];
+          const ix = Math.max(0, Math.min(A.x + A.width, B.x + B.width) - Math.max(A.x, B.x));
+          const iy = Math.max(0, Math.min(A.y + A.height, B.y + B.height) - Math.max(A.y, B.y));
+          const area = +(ix * iy).toFixed(2);
+          if (area > 0.5) overlaps.push({ row: i, cols: [a, b], area });
+        }
+      }
+    }
+    return { rowCount: rowRects.length, colCount, xSpread: +xSpread.toFixed(2), widthSpread: +widthSpread.toFixed(2), overlaps };
+  });
+
   // --- 4d. primary CTA runnable/disabled state ---
   // The testid ends in -cta for FileToolScreen tools; grid tools reuse it too.
   const ctaEl = document.querySelector('[data-testid$="-cta"]');
@@ -294,6 +352,9 @@ export function collectPageMetrics() {
     formEscapes,
     clipped,
     rows,
+    dataRows,
+    dataRowCount,
+    dataTables,
     gridInfo,
     saveAllRows,
     saveAllRowCount,
@@ -379,6 +440,38 @@ function checkFormNoOverlap(state) {
   };
 }
 
+// Data-view rows (metadata card): the label column must start at the same x
+// with the same width on every row, and each row's cells share a center line.
+function checkDataRowsAligned(rows) {
+  if (!rows || rows.length === 0) return { pass: true, detail: "no data rows" };
+  const xs = rows.map((r) => r.firstCellX);
+  const ws = rows.map((r) => r.firstCellWidth);
+  const xSpread = +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
+  const widthSpread = +(Math.max(...ws) - Math.min(...ws)).toFixed(2);
+  const maxCenter = +Math.max(...rows.map((r) => r.cellCenterDelta)).toFixed(2);
+  return {
+    pass: xSpread <= 1 && widthSpread <= 1 && maxCenter <= 1,
+    xSpread,
+    widthSpread,
+    maxCenterDelta: maxCenter,
+  };
+}
+
+// Table data view (dimensions): columns line up and cells within a row do not
+// overlap (table layout is neither flex nor grid, so the generic scan misses it).
+function checkDataTablesAligned(tables) {
+  if (!tables || tables.length === 0) return { pass: true, detail: "no data tables" };
+  const bad = tables.filter(
+    (t) => t.xSpread > 1 || t.widthSpread > 1 || t.overlaps.length > 0
+  );
+  return {
+    pass: bad.length === 0,
+    xSpreads: tables.map((t) => t.xSpread),
+    widthSpreads: tables.map((t) => t.widthSpread),
+    overlapCount: tables.reduce((n, t) => n + t.overlaps.length, 0),
+  };
+}
+
 function checkSaveAllRowsCentered(rows) {
   if (!rows) return { pass: true, detail: "no rows" };
   const deltas = rows.map((r) => r.centerDelta).filter((d) => d !== null);
@@ -402,7 +495,17 @@ const CTA_EXPECTATIONS = {
   "booklet-form": false,
   "nup-form": false,
   "rotate-form": false,
+  "pdftoimages-form": false,
+  "pdftotext-form": false,
+  "svg-form": false,
+  "cbz-form": false,
+  "greyscale-form": false,
+  "fixpagesize-form": false,
 };
+
+// States that render a data card (View Metadata) / data table (Page Dimensions).
+const DATA_CARD_STATES = new Set(["metadata-view"]);
+const DATA_TABLE_STATES = new Set(["dimensions-view"]);
 
 function checkCtaDisabledVisible(cta, expectedDisabled) {
   if (!cta) return { pass: true, detail: "no cta" };
@@ -435,6 +538,8 @@ export function evaluateState(name, state) {
     "grid-cells-aligned": checkGridCellsAligned(state.gridInfo).pass,
     "grid-cells-equal-size": checkGridCellsEqualSize(state.gridInfo).pass,
     "saveall-rows-centered": checkSaveAllRowsCentered(state.saveAllRows).pass,
+    "data-rows-aligned": null, // only asserted for data-card states
+    "data-table-aligned": null, // only asserted for table-shaped data states
     "cta-disabled-visible": null, // only asserted for states in CTA_EXPECTATIONS
     "dragover-state-visible": null, // cross-state, filled in by buildReport
     "theme-tokens-correct": null, // only meaningful for home-* states
@@ -452,6 +557,12 @@ export function evaluateState(name, state) {
   }
   if (name === "organize-grid-real") {
     invariants["grid-real-thumbs"] = checkRealPdfGrid(state.gridInfo).pass;
+  }
+  if (DATA_CARD_STATES.has(name)) {
+    invariants["data-rows-aligned"] = checkDataRowsAligned(state.dataRows).pass;
+  }
+  if (DATA_TABLE_STATES.has(name)) {
+    invariants["data-table-aligned"] = checkDataTablesAligned(state.dataTables).pass;
   }
 
   const expectations = {
@@ -479,6 +590,10 @@ export function evaluateState(name, state) {
     saveAllRows: state.saveAllRows,
     saveAllRowsCentered: checkSaveAllRowsCentered(state.saveAllRows),
     saveAllRowCount: state.saveAllRowCount,
+    dataRows: state.dataRows,
+    dataRowsAligned: checkDataRowsAligned(state.dataRows),
+    dataTables: state.dataTables,
+    dataTablesAligned: checkDataTablesAligned(state.dataTables),
     cta: state.cta,
     textNodeCount: state.textNodes.length,
     bodyBg: state.bodyBg,

@@ -42,11 +42,11 @@ export function ViewMetadataScreen() {
       ["tool.viewMetadata.labelFileSize", formatBytes(m.fileSizeBytes)],
     ];
     return (
-      <dl data-testid="metadata-rows" style={{ margin: 0 }}>
+      <dl data-testid="data-rows" style={{ margin: 0 }}>
         {cells.map(([labelKey, value]) => (
           <div
             key={labelKey}
-            data-testid="metadata-row"
+            data-testid="data-row"
             style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--border)" }}
           >
             <dt style={{ flex: "0 0 140px", color: "var(--muted)", fontWeight: 600, fontSize: 13 }}>

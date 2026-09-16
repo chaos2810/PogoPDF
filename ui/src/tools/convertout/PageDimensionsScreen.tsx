@@ -28,7 +28,7 @@ export function PageDimensionsScreen() {
     const { pages } = data as PageDimensionsData;
     return (
       <table
-        data-testid="dimensions-table"
+        data-testid="data-rows"
         style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
       >
         <thead>

@@ -256,6 +256,12 @@ const MANY = Array.from({ length: 8 }, (_, i) => `C:\\Users\\demo\\batch\\docume
 const REAL_PDF_B64 =
   "JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL1R5cGUgL09ialN0bQovTiA1Ci9GaXJzdCAyNgovTGVuZ3RoIDI3OAo+PgpzdHJlYW0KeJzVkj1rwzAQhnf9ihubSWfJlu1gDI0/llIIplNLBhGLYChRkW1o/33vorSlQ+nSpcNrSb7npJPeSwBBQYagoUghhUwXkIFJNFSVkA9vLw7k3p7cLOTdNM7wRAzCQAx/D0I2fj0voERdi6+Mxi722Z9ETIWE4Q9iH/y4Hl2Aqu/6HjFHRJOSDKJqaWxIJUnRmmKqoDkpT6+if7lG1LcU66NMHnM4fmGza35HI7GGmTayaRHXn+fyWV3cQ/1WT1kLee/H1i4ObtqtQmWwTAyaJMPicUPPEZxd/P+93KX+yZ9/vOE3n9leNjk46oHoshzc7NdwJNuJq/m93DjZnX+l3kHuNqRmIx3+cis5+IUrLpG5dx/wpusKZW5kc3RyZWFtCmVuZG9iagoKNyAwIG9iago8PAovU2l6ZSA4Ci9Sb290IDIgMCBSCi9JbmZvIDMgMCBSCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9UeXBlIC9YUmVmCi9MZW5ndGggMzYKL1cgWyAxIDIgMiBdCi9JbmRleCBbIDAgOCBdCj4+CnN0cmVhbQp4nBXEsQ0AIAwDMKcgZg7n56J6MLrLYcpU05p2XJLHB09iAtAKZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjM5NgolJUVPRg==";
 
+const IMAGE_OUT = [
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\image-1.jpg",
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\image-2.jpg",
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\image-3.jpg",
+];
+
 const SPLIT_OUT = [
   "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-1.pdf",
   "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-2.pdf",
@@ -476,6 +482,81 @@ async function main() {
     await mock((p) => window.__mockDrop(p), [SHORT[0]]);
     await selectByValue(page, "nup-layout", "2x2");
     await shot("nup-form");
+
+    // --- PDF to Images: webp format shows the conditional Quality field ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to Images");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await selectByValue(page, "pdftoimages-format", "webp");
+    await typeInto(page, "pdftoimages-dpi", "300");
+    await typeInto(page, "pdftoimages-quality", "90");
+    await shot("pdftoimages-form");
+
+    // --- PDF to Text: pages filled ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to Text");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "pdftotext-pages", "2-3");
+    await shot("pdftotext-form");
+
+    // --- PDF to SVG: dpi + raster hint visible ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to SVG");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "pdftosvg-dpi", "300");
+    await shot("svg-form");
+
+    // --- PDF to CBZ: dpi field ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to CBZ");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "pdftocbz-dpi", "300");
+    await shot("cbz-form");
+
+    // --- PDF to Greyscale: pages input ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to Greyscale");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "pdftogreyscale-pages", "1-3");
+    await shot("greyscale-form");
+
+    // --- Fix Page Size: a4/portrait/scale + hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Fix Page Size");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await selectByValue(page, "fixpagesize-size", "a4");
+    await clickLabel(page, "fixpagesize-orientation", "Portrait");
+    await clickLabel(page, "fixpagesize-fit", "Scale to fit");
+    await shot("fixpagesize-form");
+
+    // --- View Metadata: canned data card ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "View Metadata");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "viewMetadata-cta");
+    await sleep(300);
+    await shot("metadata-view");
+
+    // --- Page Dimensions: canned 5-page table ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Page Dimensions");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "pageDimensions-cta");
+    await sleep(300);
+    await shot("dimensions-view");
+
+    // --- Extract Images done: 3 image outputs → multi Save All ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Extract Images");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock((p) => window.__mockSetOutputPaths(p), IMAGE_OUT);
+    await mock(() => window.__mockJobControl("auto"));
+    await clickTestId(page, "extractImages-cta");
+    await sleep(400);
+    await clickTestId(page, "save-all");
+    await sleep(400);
+    await shot("extractimages-done");
+    await mock(() => window.__mockSetOutputPaths(null));
 
     // --- split done: 3 outputs, Save All → 3 happy rows ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
