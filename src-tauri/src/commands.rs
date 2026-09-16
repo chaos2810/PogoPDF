@@ -1,5 +1,5 @@
 use serde_json::Value;
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::sidecar::SidecarState;
 
@@ -36,6 +36,14 @@ pub async fn dialog_open_pdf(app: tauri::AppHandle, multiple: bool) -> Result<Ve
         .filter_map(|p| p.into_path().ok())
         .map(|p| p.to_string_lossy().to_string())
         .collect();
+
+    // This command calls the dialog plugin directly (not through its JS API),
+    // so it skips the plugin's automatic asset-protocol scope registration.
+    // Register the picked files here so convertFileSrc can read them.
+    let scope = app.asset_protocol_scope();
+    for p in &paths {
+        let _ = scope.allow_file(p);
+    }
 
     Ok(if multiple {
         paths

@@ -53,7 +53,16 @@ export const en = {
 
   "tool.organize.title": "Organize Pages",
   "tool.organize.desc": "Reorder, rotate, duplicate and delete pages visually",
-  "tool.organize.placeholder": "The visual page grid arrives in a later update.",
+  "tool.organize.cta": "Organize Pages",
+  "tool.organize.loading": "Loading pages…",
+  "tool.organize.count": "{{count}} pages",
+  "tool.organize.reset": "Reset",
+  "tool.organize.dragHint": "Drag a page to reorder",
+  "tool.organize.empty": "All pages removed. Reset to start over.",
+  "tool.organize.pageLabel": "Page {{number}}",
+  "tool.organize.rotate": "Rotate 90°",
+  "tool.organize.duplicate": "Duplicate page",
+  "tool.organize.delete": "Delete page",
 
   "tool.rotate.title": "Rotate PDF",
   "tool.rotate.desc": "Rotate pages by 90, 180 or 270 degrees",

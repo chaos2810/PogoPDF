@@ -21,7 +21,27 @@ const state = {
   jobError: "The PDF appears to be corrupt",
   resolveJob: null as null | (() => void),
   outputPath: "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\merged.pdf",
+  thumbCount: 6,
 };
+
+// Canvas-drawn fake page images so organize states render without a real PDF.
+function makeFakeThumb(i: number, w = 160, h = 210) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, w - 2, h - 2);
+  ctx.fillStyle = "#334155";
+  ctx.font = "bold 56px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(i + 1), w / 2, h / 2);
+  return { index: i, dataUrl: canvas.toDataURL("image/png"), width: w, height: h };
+}
 
 function addListener(event: string, id: number) {
   const cb = callbacks.get(id);
@@ -120,4 +140,13 @@ w.__mockJobControl = (mode: JobMode, message?: string) => {
 w.__mockResolveJob = () => {
   state.resolveJob?.();
   state.resolveJob = null;
+};
+
+// Thumbnail seam for the organize grid. real pdfthumbs.ts checks for this hook;
+// when present it replaces pdf.js entirely, so screenshots need no real PDF.
+// Called with a count it arms how many fake pages the next load returns (the
+// harness uses this); called with no args it returns the armed pages.
+w.__mockPdfThumbs = (count?: number) => {
+  if (typeof count === "number") state.thumbCount = count;
+  return Array.from({ length: state.thumbCount }, (_, i) => makeFakeThumb(i));
 };

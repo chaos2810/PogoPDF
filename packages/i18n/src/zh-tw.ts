@@ -55,7 +55,16 @@ export const zhTW: Record<Key, string> = {
 
   "tool.organize.title": "整理頁面",
   "tool.organize.desc": "以視覺化方式重新排序、旋轉、複製與刪除頁面",
-  "tool.organize.placeholder": "視覺化頁面格狀檢視將於後續更新中推出。",
+  "tool.organize.cta": "整理頁面",
+  "tool.organize.loading": "正在載入頁面…",
+  "tool.organize.count": "{{count}} 頁",
+  "tool.organize.reset": "重設",
+  "tool.organize.dragHint": "拖曳頁面以重新排序",
+  "tool.organize.empty": "已移除所有頁面。重設以重新開始。",
+  "tool.organize.pageLabel": "第 {{number}} 頁",
+  "tool.organize.rotate": "旋轉 90°",
+  "tool.organize.duplicate": "複製頁面",
+  "tool.organize.delete": "刪除頁面",
 
   "tool.rotate.title": "旋轉 PDF",
   "tool.rotate.desc": "將頁面旋轉 90、180 或 270 度",
