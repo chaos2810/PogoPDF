@@ -59,7 +59,7 @@ export function CommandPalette() {
             color: "var(--text)", fontSize: 14,
           }}
         />
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 8, maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}>
           {matches.map((tool) => (
             <button
               key={tool.id}

@@ -26,4 +26,13 @@ export const registry: ToolMeta[] = [
   { id: TOOL_IDS.combineSinglePage, titleKey: "tool.combineSinglePage.title", descKey: "tool.combineSinglePage.desc", category: "organize", icon: "StretchVertical" },
   { id: TOOL_IDS.alternateMix, titleKey: "tool.alternateMix.title", descKey: "tool.alternateMix.desc", category: "organize", icon: "Shuffle" },
   { id: TOOL_IDS.duplexCollate, titleKey: "tool.duplexCollate.title", descKey: "tool.duplexCollate.desc", category: "organize", icon: "FileStack" },
+  { id: TOOL_IDS.pdfToImages, titleKey: "tool.pdfToImages.title", descKey: "tool.pdfToImages.desc", category: "convertFrom", icon: "FileImage" },
+  { id: TOOL_IDS.pdfToText, titleKey: "tool.pdfToText.title", descKey: "tool.pdfToText.desc", category: "convertFrom", icon: "FileText" },
+  { id: TOOL_IDS.pdfToSvg, titleKey: "tool.pdfToSvg.title", descKey: "tool.pdfToSvg.desc", category: "convertFrom", icon: "Frame" },
+  { id: TOOL_IDS.pdfToCbz, titleKey: "tool.pdfToCbz.title", descKey: "tool.pdfToCbz.desc", category: "convertFrom", icon: "BookImage" },
+  { id: TOOL_IDS.pdfToGreyscale, titleKey: "tool.pdfToGreyscale.title", descKey: "tool.pdfToGreyscale.desc", category: "convertFrom", icon: "Contrast" },
+  { id: TOOL_IDS.extractImages, titleKey: "tool.extractImages.title", descKey: "tool.extractImages.desc", category: "convertFrom", icon: "ImagePlus" },
+  { id: TOOL_IDS.viewMetadata, titleKey: "tool.viewMetadata.title", descKey: "tool.viewMetadata.desc", category: "utility", icon: "Info" },
+  { id: TOOL_IDS.pageDimensions, titleKey: "tool.pageDimensions.title", descKey: "tool.pageDimensions.desc", category: "utility", icon: "Ruler" },
+  { id: TOOL_IDS.fixPageSize, titleKey: "tool.fixPageSize.title", descKey: "tool.fixPageSize.desc", category: "utility", icon: "Scaling" },
 ];

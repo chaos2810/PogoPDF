@@ -20,6 +20,15 @@ import { DividePagesScreen } from "../tools/organize/DividePagesScreen";
 import { CombineSinglePageScreen } from "../tools/organize/CombineSinglePageScreen";
 import { AlternateMixScreen } from "../tools/organize/AlternateMixScreen";
 import { DuplexCollateScreen } from "../tools/organize/DuplexCollateScreen";
+import { PdfToImagesScreen } from "../tools/convertout/PdfToImagesScreen";
+import { PdfToTextScreen } from "../tools/convertout/PdfToTextScreen";
+import { PdfToSvgScreen } from "../tools/convertout/PdfToSvgScreen";
+import { PdfToCbzScreen } from "../tools/convertout/PdfToCbzScreen";
+import { PdfToGreyscaleScreen } from "../tools/convertout/PdfToGreyscaleScreen";
+import { ExtractImagesScreen } from "../tools/convertout/ExtractImagesScreen";
+import { ViewMetadataScreen } from "../tools/convertout/ViewMetadataScreen";
+import { PageDimensionsScreen } from "../tools/convertout/PageDimensionsScreen";
+import { FixPageSizeScreen } from "../tools/convertout/FixPageSizeScreen";
 
 const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
@@ -37,6 +46,15 @@ const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.combineSinglePage]: CombineSinglePageScreen,
   [TOOL_IDS.alternateMix]: AlternateMixScreen,
   [TOOL_IDS.duplexCollate]: DuplexCollateScreen,
+  [TOOL_IDS.pdfToImages]: PdfToImagesScreen,
+  [TOOL_IDS.pdfToText]: PdfToTextScreen,
+  [TOOL_IDS.pdfToSvg]: PdfToSvgScreen,
+  [TOOL_IDS.pdfToCbz]: PdfToCbzScreen,
+  [TOOL_IDS.pdfToGreyscale]: PdfToGreyscaleScreen,
+  [TOOL_IDS.extractImages]: ExtractImagesScreen,
+  [TOOL_IDS.viewMetadata]: ViewMetadataScreen,
+  [TOOL_IDS.pageDimensions]: PageDimensionsScreen,
+  [TOOL_IDS.fixPageSize]: FixPageSizeScreen,
 };
 
 export function Router() {

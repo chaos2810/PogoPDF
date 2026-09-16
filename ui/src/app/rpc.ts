@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
+  DataResultSchema,
   JobResultSchema,
   MultiFileResultSchema,
+  type DataResult,
   type JobResult,
   type MultiFileResult,
 } from "@pogopdf/contracts";
@@ -41,19 +43,23 @@ function parseEngineError(raw: unknown): Error {
   return new Error(String(raw));
 }
 
-// Multi-output tools (split) return {outputPaths}; everything else returns
-// {outputPath}. Discriminate on the key before validating. `onJobId` fires with
-// the generated id before the RPC is awaited, so callers can offer Cancel.
+// Multi-output tools (split) return {outputPaths}; data tools (viewMetadata,
+// pageDimensions) return {data}; everything else returns {outputPath}.
+// Discriminate on the key before validating. `onJobId` fires with the generated
+// id before the RPC is awaited, so callers can offer Cancel.
 export async function startJob(
   toolId: string,
   input: unknown,
   opts?: { onJobId?: (jobId: string) => void }
-): Promise<JobResult | MultiFileResult> {
+): Promise<JobResult | MultiFileResult | DataResult> {
   const jobId = crypto.randomUUID();
   opts?.onJobId?.(jobId);
   const result = await callEngine("job.start", { jobId, toolId, input });
   if (result && typeof result === "object" && "outputPaths" in result) {
     return MultiFileResultSchema.parse(result);
+  }
+  if (result && typeof result === "object" && "data" in result) {
+    return DataResultSchema.parse(result);
   }
   return JobResultSchema.parse(result);
 }

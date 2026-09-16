@@ -100,11 +100,14 @@ export function FileToolScreen({
           jobIdRef.current = id;
         },
       });
-      setPhase("done");
       if ("outputPaths" in result) {
         setOutputPaths(result.outputPaths);
-      } else {
+        setPhase("done");
+      } else if ("outputPath" in result) {
         setOutputPath(result.outputPath);
+        setPhase("done");
+      } else {
+        throw new Error("Expected a file result");
       }
     } catch (e) {
       const code = (e as { code?: number }).code;

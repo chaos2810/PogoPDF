@@ -15,6 +15,12 @@ vi.mock("@tauri-apps/api/core", () => ({
             outputPaths: ["C:\\tmp\\1.pdf", "C:\\tmp\\2.pdf", "C:\\tmp\\3.pdf"],
           };
         }
+        if (toolId === "viewMetadata") {
+          return {
+            jobId: "123e4567-e89b-12d3-a456-426614174000",
+            data: { title: "Report", pageCount: 3, fileSizeBytes: 1024 },
+          };
+        }
       }
       return { jobId: "123e4567-e89b-12d3-a456-426614174000", outputPath: "C:\\tmp\\merged.pdf" };
     }
@@ -75,6 +81,15 @@ describe("rpc wrappers", () => {
       "C:\\tmp\\2.pdf",
       "C:\\tmp\\3.pdf",
     ]);
+  });
+
+  it("startJob parses a data result into data", async () => {
+    const r = await startJob("viewMetadata", { filePath: "a.pdf" });
+    expect("data" in r && r.data).toEqual({
+      title: "Report",
+      pageCount: 3,
+      fileSizeBytes: 1024,
+    });
   });
 
   it("pickFolder returns the chosen folder", async () => {

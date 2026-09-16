@@ -26,6 +26,7 @@ const state = {
   blobFiles: {} as Record<string, string>,
   outputPath: "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\merged.pdf",
   outputPaths: null as string[] | null,
+  dataResults: {} as Record<string, unknown>,
   folder: "C:\\Users\\demo\\Downloads\\split-out",
   copyFailNames: new Set<string>(),
   thumbCount: 6,
@@ -50,6 +51,31 @@ function makeFakeThumb(i: number, w = 160, h = 210) {
   return { index: i, dataUrl: canvas.toDataURL("image/png"), width: w, height: h, rotate: 0 };
 }
 
+// Canned data results so the data-view screens render without a real engine.
+const DEFAULT_DATA_RESULTS: Record<string, unknown> = {
+  viewMetadata: {
+    title: "Quarterly Report",
+    author: "Ada Lovelace",
+    subject: "Revenue reconciliation",
+    keywords: "finance, report, 2024",
+    creator: "LibreOffice Writer",
+    producer: "pdf-lib",
+    creationDate: "2024-07-01T09:30:00.000Z",
+    modificationDate: "2024-07-03T14:05:00.000Z",
+    pageCount: 12,
+    fileSizeBytes: 2489344,
+  },
+  pageDimensions: {
+    pages: [
+      { widthPt: 595.28, heightPt: 841.89, widthMm: 210, heightMm: 297, orientation: "portrait", rotation: 0 },
+      { widthPt: 595.28, heightPt: 841.89, widthMm: 210, heightMm: 297, orientation: "portrait", rotation: 0 },
+      { widthPt: 841.89, heightPt: 595.28, widthMm: 297, heightMm: 210, orientation: "landscape", rotation: 90 },
+      { widthPt: 612, heightPt: 792, widthMm: 215.9, heightMm: 279.4, orientation: "portrait", rotation: 0 },
+      { widthPt: 419.53, heightPt: 595.28, widthMm: 148, heightMm: 210, orientation: "portrait", rotation: 0 },
+    ],
+  },
+};
+
 function addListener(event: string, id: number) {
   const cb = callbacks.get(id);
   if (!cb) return;
@@ -68,7 +94,7 @@ function emit(event: string, payload: unknown) {
   }
 }
 
-function rpc(method: string, params: { jobId?: string } = {}): unknown {
+function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): unknown {
   if (method === "engine.ping") return { pong: true };
   if (method === "file.copy") {
     const dest = String((params as { dest?: string }).dest ?? "");
@@ -82,9 +108,17 @@ function rpc(method: string, params: { jobId?: string } = {}): unknown {
     if (state.jobMode === "error") {
       return Promise.reject(JSON.stringify({ code: -32003, message: state.jobError }));
     }
-    const result = state.outputPaths
-      ? { jobId: params.jobId, outputPaths: state.outputPaths.slice() }
-      : { jobId: params.jobId, outputPath: state.outputPath };
+    const toolId = params.toolId ?? "";
+    // Data tools (viewMetadata, pageDimensions) return {data: …} under the
+    // canned payload set by __mockSetDataResult / the built-in defaults.
+    const data =
+      state.dataResults[toolId] ?? (toolId in DEFAULT_DATA_RESULTS ? DEFAULT_DATA_RESULTS[toolId] : undefined);
+    const result =
+      data !== undefined
+        ? { jobId: params.jobId, data }
+        : state.outputPaths
+          ? { jobId: params.jobId, outputPaths: state.outputPaths.slice() }
+          : { jobId: params.jobId, outputPath: state.outputPath };
     if (state.jobMode === "hold") {
       return new Promise((resolve, reject) => {
         state.resolveJob = (settle) => {
@@ -189,6 +223,11 @@ w.__mockResolveJob = () => {
 // picker returns; fail a specific output basename to exercise the error row.
 w.__mockSetOutputPaths = (paths: string[] | null) => {
   state.outputPaths = paths ? paths.slice() : null;
+};
+// Canned job.start data result per toolId (viewMetadata, pageDimensions).
+w.__mockSetDataResult = (toolId: string, data: unknown) => {
+  if (data === null) delete state.dataResults[toolId];
+  else state.dataResults[toolId] = data;
 };
 w.__mockSetFolder = (path: string) => {
   state.folder = path;
