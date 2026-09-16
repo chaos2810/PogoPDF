@@ -1,3 +1,5 @@
+import { normalizeRotate } from "../../app/pdfthumbs";
+
 export type Rotate = 0 | 90 | 180 | 270;
 
 export type GridPage = {
@@ -10,11 +12,6 @@ export type OrganizePage = { srcIndex: number; rotate: Rotate };
 
 let seq = 0;
 const nextId = () => `p${++seq}`;
-
-export function normalizeRotate(deg: number): Rotate {
-  const n = ((deg % 360) + 360) % 360;
-  return ((Math.round(n / 90) * 90) % 360) as Rotate;
-}
 
 // `intrinsicRotates` is one entry per rendered thumbnail: the page's /Rotate.
 // The grid seeds each page's ABSOLUTE rotation from it, so an untouched

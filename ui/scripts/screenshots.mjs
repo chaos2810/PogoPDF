@@ -358,6 +358,13 @@ async function main() {
     await sleep(250);
     await shot("merge-running");
 
+    // --- merge: cancelled → back to pick with the file list intact ---
+    // Cancel settles the held job.start with the engine's CANCELLED error; the
+    // screen must treat it as a user action (pick phase), not an error card.
+    await clickTestId(page, "merge-cancel");
+    await sleep(250);
+    await shot("merge-cancelled");
+
     // --- merge: done ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
     await openMerge(page);

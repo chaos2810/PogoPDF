@@ -114,34 +114,6 @@ export function Select({
   );
 }
 
-// Checkbox row mirrors RadioGroup: label-wrapped input with a consistent gap.
-export function Checkbox({
-  label,
-  checked,
-  onChange,
-  testId,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  testId?: string;
-}) {
-  return (
-    <label
-      className="pogopdf-radio-choice"
-      style={{ cursor: "pointer" }}
-    >
-      <input
-        type="checkbox"
-        data-testid={testId}
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      {label}
-    </label>
-  );
-}
-
 export function NumberInput({
   value,
   onChange,

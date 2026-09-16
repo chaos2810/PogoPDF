@@ -175,7 +175,7 @@ export function FileToolScreen({
             )}
           </button>
 
-          <div style={{ minHeight: files.length > 0 ? 180 : 0, marginTop: 12 }}>
+          <div style={{ marginTop: 12 }}>
             {files.length > 0 && (
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {files.map((f, i) => (

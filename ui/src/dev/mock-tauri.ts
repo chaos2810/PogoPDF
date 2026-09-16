@@ -19,7 +19,11 @@ const state = {
   files: [] as string[],
   jobMode: "auto" as JobMode,
   jobError: "The PDF appears to be corrupt",
-  resolveJob: null as null | (() => void),
+  // Settles the held job.start promise (reject on cancel, resolve otherwise).
+  resolveJob: null as null | ((settle: "resolve" | "cancel") => void),
+  // Readable path -> blob URL, set by __mockBlobPath so convertFileSrc can
+  // resolve the blob behind a friendly file name (real pdf.js state).
+  blobFiles: {} as Record<string, string>,
   outputPath: "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\merged.pdf",
   outputPaths: null as string[] | null,
   folder: "C:\\Users\\demo\\Downloads\\split-out",
@@ -82,11 +86,25 @@ function rpc(method: string, params: { jobId?: string } = {}): unknown {
       ? { jobId: params.jobId, outputPaths: state.outputPaths.slice() }
       : { jobId: params.jobId, outputPath: state.outputPath };
     if (state.jobMode === "hold") {
-      return new Promise((resolve) => {
-        state.resolveJob = () => resolve(result);
+      return new Promise((resolve, reject) => {
+        state.resolveJob = (settle) => {
+          if (settle === "cancel") {
+            reject(JSON.stringify({ code: -32005, message: "Job cancelled" }));
+          } else {
+            resolve(result);
+          }
+        };
       });
     }
     return result;
+  }
+  if (method === "job.cancel") {
+    if (state.resolveJob) {
+      const settle = state.resolveJob;
+      state.resolveJob = null;
+      settle("cancel");
+    }
+    return { cancelled: true };
   }
   return null;
 }
@@ -122,7 +140,7 @@ w.__TAURI_INTERNALS__ = {
     callbacks.delete(id);
   },
   invoke: mockInvoke,
-  convertFileSrc: (p: string) => p,
+  convertFileSrc: (p: string) => state.blobFiles[p] ?? p,
   plugins: { path: { sep: "\\", delimiter: ";" } },
 };
 w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: removeListener };
@@ -150,18 +168,21 @@ w.__mockJobControl = (mode: JobMode, message?: string) => {
   state.jobMode = mode;
   if (message) state.jobError = message;
 };
-// Real-pdf.js state: create a blob URL from raw PDF bytes. The organize screen
-// loads it via the picker path (which, unlike drop, does not filter on .pdf),
-// so the real pdf.js pipeline runs against in-page bytes.
-w.__mockBlobPath = (bytes: number[]) => {
+// Real-pdf.js state: build a blob URL from raw PDF bytes and register it under
+// `name`, then return `name` as a readable filesystem-style path. The screen
+// loads the path (which, unlike drop, is not filtered on .pdf) and displays
+// name; convertFileSrc maps name back to the blob URL for pdf.js.
+w.__mockBlobPath = (bytes: number[], name = "real-sample.pdf") => {
   const url = URL.createObjectURL(
     new Blob([new Uint8Array(bytes)], { type: "application/pdf" })
   );
-  return url;
+  state.blobFiles[name] = url;
+  return name;
 };
 w.__mockResolveJob = () => {
-  state.resolveJob?.();
+  const settle = state.resolveJob;
   state.resolveJob = null;
+  settle?.("resolve");
 };
 
 // Multi-output (split) seam: set the job result shape and the folder the
@@ -189,5 +210,7 @@ w.__mockPdfThumbs = (arg?: number | string) => {
     return;
   }
   if (typeof arg === "string" && /^(blob:|data:)/i.test(arg)) return null;
+  // A name registered by __mockBlobPath must run the real pdf.js pipeline too.
+  if (typeof arg === "string" && arg in state.blobFiles) return null;
   return Array.from({ length: state.thumbCount }, (_, i) => makeFakeThumb(i));
 };

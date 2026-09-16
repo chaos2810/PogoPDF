@@ -6,6 +6,9 @@ vi.mock("@tauri-apps/api/core", () => ({
       if (args.method === "fail") throw JSON.stringify({ code: -32000, message: "merge exploded" });
       if (args.method === "job.start") {
         const toolId = (args.params as { toolId?: string }).toolId;
+        if (toolId === "cancelled") {
+          throw JSON.stringify({ code: -32005, message: "Job cancelled" });
+        }
         if (toolId === "split") {
           return {
             jobId: "123e4567-e89b-12d3-a456-426614174000",
@@ -28,6 +31,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 import { startJob, pickPdfs, saveAsPdf, callEngine, onProgress, pickFolder, cancelJob } from "./rpc";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 
 describe("rpc wrappers", () => {
   it("startJob returns validated jobId and outputPath", async () => {
@@ -45,6 +49,13 @@ describe("rpc wrappers", () => {
     expect(vi.mocked(invoke)).toHaveBeenCalledWith("rpc_call", {
       method: "job.start",
       params: expect.objectContaining({ jobId: seen }),
+    });
+  });
+
+  it("startJob surfaces a cancelled job as code -32005 (the pick-phase branch)", async () => {
+    await expect(startJob("cancelled", {})).rejects.toMatchObject({
+      message: "Job cancelled",
+      code: TOOL_ERROR_CODES.CANCELLED,
     });
   });
 

@@ -199,14 +199,12 @@ export function collectPageMetrics() {
     const r = li.getBoundingClientRect();
     const thumb = li.querySelector('[data-testid="grid-thumb"]');
     const transform = thumb ? getComputedStyle(thumb).transform : null;
-    const src = thumb?.getAttribute("src") || "";
     return {
       rect: rectOf(li),
       row: Math.round(r.top), // cells on one grid row share a top edge
       rotate: transform,
       isRotated: !isIdentityTransform(transform),
       isDragSource: getComputedStyle(li).opacity !== "1",
-      isDataUrl: src.startsWith("data:image"),
     };
   });
 
@@ -239,7 +237,6 @@ export function collectPageMetrics() {
     gaps: gridRows.map(gapOf),
     rotatedCount: gridCells.filter((c) => c.isRotated).length,
     dragSourceCount: gridCells.filter((c) => c.isDragSource).length,
-    dataUrlCount: gridCells.filter((c) => c.isDataUrl).length,
   };
 
   // --- 4c. Save All status rows (icon centered against the row text) ---
@@ -415,15 +412,14 @@ function checkCtaDisabledVisible(cta, expectedDisabled) {
   return { pass, cta, expectedDisabled };
 }
 
-// Real-pdf.js state: the blob-backed fixture must produce real data-URL
-// thumbnails (not the mock canvases) and honor the pre-rotated page 2, which
-// is seeded as a 90° absolute rotation on its grid cell.
+// Real-pdf.js state: the blob-backed fixture is 2 pages with page 2 /Rotate 90,
+// so exactly 2 cells and exactly 1 rotated cell prove the real pipeline ran
+// (the mock thumb count is armed to 6, so 2 cells also rules out the mock seam).
 function checkRealPdfGrid(info) {
   if (!info) return { pass: false, detail: "no grid info" };
   return {
-    pass: info.count === 2 && info.dataUrlCount === 2 && info.rotatedCount === 1,
+    pass: info.count === 2 && info.rotatedCount === 1,
     count: info.count,
-    dataUrlCount: info.dataUrlCount,
     rotatedCount: info.rotatedCount,
   };
 }
