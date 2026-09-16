@@ -16,6 +16,15 @@ export const TOOL_IDS = {
   combineSinglePage: "combineSinglePage",
   alternateMix: "alternateMix",
   duplexCollate: "duplexCollate",
+  pdfToImages: "pdfToImages",
+  pdfToText: "pdfToText",
+  pdfToSvg: "pdfToSvg",
+  pdfToCbz: "pdfToCbz",
+  pdfToGreyscale: "pdfToGreyscale",
+  extractImages: "extractImages",
+  viewMetadata: "viewMetadata",
+  pageDimensions: "pageDimensions",
+  fixPageSize: "fixPageSize",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -171,6 +180,108 @@ export const DuplexCollateInputSchema = z
   .strict();
 export type DuplexCollateInput = z.infer<typeof DuplexCollateInputSchema>;
 
+/**
+ * ONE tool covers all five raster formats (not five near-duplicate tools): the
+ * home grid shows a single "PDF to Images" entry with a format picker.
+ * quality is meaningful only for lossy jpg/webp; the engine defaults it to 80.
+ * It stays absent here for png/bmp/tiff (a plain .default(80) would make it
+ * present for every format and defeat the superRefine below).
+ */
+export const PdfToImagesInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    format: z.enum(["jpg", "png", "webp", "bmp", "tiff"]),
+    dpi: z.number().int().min(72).max(600).default(150),
+    // Page selection; defaults to all pages when omitted.
+    pages: z.string().optional(),
+    quality: z.number().int().min(1).max(100).optional(),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.quality !== undefined && v.format !== "jpg" && v.format !== "webp") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["quality"],
+        message: "quality is only supported for jpg and webp",
+      });
+    }
+  });
+export type PdfToImagesInput = z.infer<typeof PdfToImagesInputSchema>;
+
+/** Single .txt output: pages joined with form feeds. */
+export const PdfToTextInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    pages: z.string().optional(),
+  })
+  .strict();
+export type PdfToTextInput = z.infer<typeof PdfToTextInputSchema>;
+
+export const PdfToSvgInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    dpi: z.number().int().min(72).max(600).default(150),
+    pages: z.string().optional(),
+  })
+  .strict();
+export type PdfToSvgInput = z.infer<typeof PdfToSvgInputSchema>;
+
+/** One .cbz (zip) output containing page-NNN.png entries. */
+export const PdfToCbzInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    dpi: z.number().int().min(72).max(600).default(150),
+  })
+  .strict();
+export type PdfToCbzInput = z.infer<typeof PdfToCbzInputSchema>;
+
+/** Single PDF output: pages rasterized, desaturated, re-embedded. */
+export const PdfToGreyscaleInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    pages: z.string().optional(),
+  })
+  .strict();
+export type PdfToGreyscaleInput = z.infer<typeof PdfToGreyscaleInputSchema>;
+
+/** Multi-output: every embedded image extracted as image-{n}.{ext}. */
+export const ExtractImagesInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type ExtractImagesInput = z.infer<typeof ExtractImagesInputSchema>;
+
+/** Data result (no output file): structured metadata via DataResultSchema. */
+export const ViewMetadataInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type ViewMetadataInput = z.infer<typeof ViewMetadataInputSchema>;
+
+/** Data result: per-page width/height in pt + mm plus orientation. */
+export const PageDimensionsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type PageDimensionsInput = z.infer<typeof PageDimensionsInputSchema>;
+
+/**
+ * fit="scale" scales content to fit the target box preserving aspect;
+ * fit="pad" centers content without upscaling (downscales only if it overflows).
+ */
+export const FixPageSizeInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    size: z.enum(["a4", "letter", "a3", "a5"]),
+    orientation: z.enum(["portrait", "landscape"]),
+    fit: z.enum(["scale", "pad"]),
+  })
+  .strict();
+export type FixPageSizeInput = z.infer<typeof FixPageSizeInputSchema>;
+
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),
   toolId: z.string(),
@@ -202,3 +313,13 @@ export const MultiFileResultSchema = z.object({
   outputPaths: z.array(z.string()).min(1),
 });
 export type MultiFileResult = z.infer<typeof MultiFileResultSchema>;
+
+/**
+ * For tools that return structured data rather than a file (viewMetadata,
+ * pageDimensions); the engine wraps the object as { jobId, data }.
+ */
+export const DataResultSchema = z.object({
+  jobId: z.string().uuid(),
+  data: z.unknown(),
+});
+export type DataResult = z.infer<typeof DataResultSchema>;

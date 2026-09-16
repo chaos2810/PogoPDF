@@ -6,6 +6,10 @@ import {
   ReverseInputSchema, AddBlankPageInputSchema, NupInputSchema,
   BookletInputSchema, DividePagesInputSchema, CombineSinglePageInputSchema,
   AlternateMixInputSchema, DuplexCollateInputSchema, MultiFileResultSchema,
+  PdfToImagesInputSchema, PdfToTextInputSchema, PdfToSvgInputSchema,
+  PdfToCbzInputSchema, PdfToGreyscaleInputSchema, ExtractImagesInputSchema,
+  ViewMetadataInputSchema, PageDimensionsInputSchema, FixPageSizeInputSchema,
+  DataResultSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -233,11 +237,170 @@ describe("MultiFileResultSchema", () => {
   });
 });
 
+describe("PdfToImagesInputSchema", () => {
+  it("accepts png with default dpi and no quality", () => {
+    const parsed = PdfToImagesInputSchema.parse({ filePath: PDF, format: "png" });
+    expect(parsed.dpi).toBe(150);
+    expect(parsed.quality).toBeUndefined();
+  });
+  it("accepts webp with an explicit quality and pages", () => {
+    const parsed = PdfToImagesInputSchema.parse({
+      filePath: PDF, format: "webp", quality: 90, pages: "1-3",
+    });
+    expect(parsed.quality).toBe(90);
+  });
+  it("accepts jpg with an explicit quality", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "jpg", quality: 1 }).success).toBe(true);
+  });
+  it("rejects an unknown format", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "gif" }).success).toBe(false);
+  });
+  it("rejects quality with png", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "png", quality: 80 }).success).toBe(false);
+  });
+  it("rejects quality with bmp and tiff", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "bmp", quality: 80 }).success).toBe(false);
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "tiff", quality: 80 }).success).toBe(false);
+  });
+  it("rejects dpi below 72 and above 600", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "png", dpi: 71 }).success).toBe(false);
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "png", dpi: 601 }).success).toBe(false);
+  });
+  it("rejects a non-integer dpi", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "png", dpi: 150.5 }).success).toBe(false);
+  });
+  it("rejects quality outside 1..100", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "jpg", quality: 0 }).success).toBe(false);
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "jpg", quality: 101 }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(PdfToImagesInputSchema.safeParse({ filePath: PDF, format: "png", extra: true }).success).toBe(false);
+  });
+});
+
+describe("PdfToTextInputSchema", () => {
+  it("accepts filePath alone (pages defaults to all)", () => {
+    expect(PdfToTextInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("accepts filePath + pages", () => {
+    expect(PdfToTextInputSchema.safeParse({ filePath: PDF, pages: "1,3-5" }).success).toBe(true);
+  });
+  it("rejects non-string pages", () => {
+    expect(PdfToTextInputSchema.safeParse({ filePath: PDF, pages: [1, 2] }).success).toBe(false);
+  });
+});
+
+describe("PdfToSvgInputSchema", () => {
+  it("accepts filePath with default dpi", () => {
+    const parsed = PdfToSvgInputSchema.parse({ filePath: PDF });
+    expect(parsed.dpi).toBe(150);
+  });
+  it("rejects dpi below 72 and above 600", () => {
+    expect(PdfToSvgInputSchema.safeParse({ filePath: PDF, dpi: 71 }).success).toBe(false);
+    expect(PdfToSvgInputSchema.safeParse({ filePath: PDF, dpi: 601 }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(PdfToSvgInputSchema.safeParse({ filePath: PDF, quality: 80 }).success).toBe(false);
+  });
+});
+
+describe("PdfToCbzInputSchema", () => {
+  it("accepts filePath with default dpi", () => {
+    const parsed = PdfToCbzInputSchema.parse({ filePath: PDF });
+    expect(parsed.dpi).toBe(150);
+  });
+  it("rejects dpi above 600", () => {
+    expect(PdfToCbzInputSchema.safeParse({ filePath: PDF, dpi: 601 }).success).toBe(false);
+  });
+  it("rejects a pages key via .strict()", () => {
+    expect(PdfToCbzInputSchema.safeParse({ filePath: PDF, pages: "1" }).success).toBe(false);
+  });
+});
+
+describe("PdfToGreyscaleInputSchema", () => {
+  it("accepts filePath alone", () => {
+    expect(PdfToGreyscaleInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("accepts filePath + pages", () => {
+    expect(PdfToGreyscaleInputSchema.safeParse({ filePath: PDF, pages: "2-4" }).success).toBe(true);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(PdfToGreyscaleInputSchema.safeParse({ filePath: PDF, dpi: 300 }).success).toBe(false);
+  });
+});
+
+describe("ExtractImagesInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(ExtractImagesInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(ExtractImagesInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+});
+
+describe("ViewMetadataInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(ViewMetadataInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(ViewMetadataInputSchema.safeParse({ filePath: PDF, pages: "1" }).success).toBe(false);
+  });
+});
+
+describe("PageDimensionsInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(PageDimensionsInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects a missing filePath", () => {
+    expect(PageDimensionsInputSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("FixPageSizeInputSchema", () => {
+  it("accepts a4 portrait scale", () => {
+    expect(FixPageSizeInputSchema.safeParse({
+      filePath: PDF, size: "a4", orientation: "portrait", fit: "scale",
+    }).success).toBe(true);
+  });
+  it("accepts letter landscape pad", () => {
+    expect(FixPageSizeInputSchema.safeParse({
+      filePath: PDF, size: "letter", orientation: "landscape", fit: "pad",
+    }).success).toBe(true);
+  });
+  it("rejects an unknown size", () => {
+    expect(FixPageSizeInputSchema.safeParse({
+      filePath: PDF, size: "a2", orientation: "portrait", fit: "scale",
+    }).success).toBe(false);
+  });
+  it("rejects an unknown fit", () => {
+    expect(FixPageSizeInputSchema.safeParse({
+      filePath: PDF, size: "a4", orientation: "portrait", fit: "stretch",
+    }).success).toBe(false);
+  });
+  it("rejects an unknown orientation", () => {
+    expect(FixPageSizeInputSchema.safeParse({
+      filePath: PDF, size: "a4", orientation: "diagonal", fit: "scale",
+    }).success).toBe(false);
+  });
+});
+
+describe("DataResultSchema", () => {
+  it("accepts a jobId with arbitrary data", () => {
+    expect(DataResultSchema.safeParse({
+      jobId: "123e4567-e89b-12d3-a456-426614174000",
+      data: { pageCount: 2, title: "Doc" },
+    }).success).toBe(true);
+  });
+  it("rejects a non-uuid jobId", () => {
+    expect(DataResultSchema.safeParse({ jobId: "nope", data: {} }).success).toBe(false);
+  });
+});
+
 describe("TOOL_IDS", () => {
-  it("contains all 15 tools with values equal to their keys", () => {
+  it("contains all 24 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(15);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(24);
   });
 });
