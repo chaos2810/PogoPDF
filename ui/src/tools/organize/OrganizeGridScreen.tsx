@@ -19,6 +19,9 @@ import {
 
 type Phase = "pick" | "loading" | "grid" | "running" | "done" | "error";
 
+// Movement in px before a pointer press counts as a reorder drag.
+const DRAG_THRESHOLD = 5;
+
 const ICON_BUTTON: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", justifyContent: "center",
   width: 26, height: 26, padding: 0, borderRadius: 6,
@@ -72,6 +75,41 @@ export function OrganizeGridScreen() {
 
   const dragFrom = useRef<number | null>(null);
   const dragTo = useRef<number | null>(null);
+  // In-flight drag handlers, so every cleanup path removes the exact same refs.
+  const dragHandlers = useRef<{
+    move: (ev: PointerEvent) => void;
+    end: () => void;
+  } | null>(null);
+
+  const removeDragListeners = useCallback(() => {
+    const handlers = dragHandlers.current;
+    if (!handlers) return;
+    window.removeEventListener("pointermove", handlers.move);
+    window.removeEventListener("pointerup", handlers.end);
+    window.removeEventListener("pointercancel", handlers.end);
+    window.removeEventListener("lostpointercapture", handlers.end);
+    dragHandlers.current = null;
+  }, []);
+
+  const endDrag = useCallback(() => {
+    removeDragListeners();
+    const from = dragFrom.current;
+    const to = dragTo.current;
+    if (from != null && to != null) setPages((prev) => movePage(prev, from, to));
+    dragFrom.current = null;
+    dragTo.current = null;
+    setDragIndex(null);
+  }, [removeDragListeners]);
+
+  useEffect(
+    () => () => {
+      removeDragListeners();
+      dragFrom.current = null;
+      dragTo.current = null;
+      setDragIndex(null);
+    },
+    [removeDragListeners]
+  );
 
   useEffect(() => onProgress((p) => setPercent(p.percent)), []);
 
@@ -143,8 +181,12 @@ export function OrganizeGridScreen() {
   // webview swallow HTML5 drag events, so draggable/onDrop never fire there.
   const beginDrag = (index: number) => (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
-    dragFrom.current = index;
-    setDragIndex(index);
+    e.preventDefault();
+    removeDragListeners();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let started = false;
 
     const cellAt = (x: number, y: number): number | null => {
       const el = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -153,24 +195,23 @@ export function OrganizeGridScreen() {
       return attr != null ? Number(attr) : null;
     };
     const onMove = (ev: PointerEvent) => {
+      if (!started) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        started = true;
+        dragFrom.current = index;
+        setDragIndex(index);
+      }
       const over = cellAt(ev.clientX, ev.clientY);
       if (over != null) {
         dragTo.current = over;
         setDragIndex(over);
       }
     };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      const from = dragFrom.current;
-      const to = dragTo.current;
-      if (from != null && to != null) setPages((prev) => movePage(prev, from, to));
-      dragFrom.current = null;
-      dragTo.current = null;
-      setDragIndex(null);
-    };
+    dragHandlers.current = { move: onMove, end: endDrag };
     window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+    window.addEventListener("lostpointercapture", endDrag);
   };
 
   const header = (
