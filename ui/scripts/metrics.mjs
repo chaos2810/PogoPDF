@@ -163,10 +163,12 @@ export function collectPageMetrics() {
     }
   }
 
-  // --- 4. merge file rows ---
-  const rows = [...document.querySelectorAll('[data-testid="merge-file-row"]')].map((li) => {
-    const name = li.querySelector('[data-testid="merge-file-name"]');
-    const btn = li.querySelector('[data-testid="merge-file-remove"]');
+  // --- 4. file rows (generic across every FileToolScreen tool) ---
+  // Selectors are suffix-generic so merge, extract, split, … all get the same
+  // row invariants; the testids are `${toolId}-file-row` / `-file-name` / `-file-remove`.
+  const rows = [...document.querySelectorAll('[data-testid$="-file-row"]')].map((li) => {
+    const name = li.querySelector('[data-testid$="-file-name"]');
+    const btn = li.querySelector('[data-testid$="-file-remove"]');
     const lr = li.getBoundingClientRect();
     const nr = name.getBoundingClientRect();
     const br = btn.getBoundingClientRect();
@@ -197,12 +199,14 @@ export function collectPageMetrics() {
     const r = li.getBoundingClientRect();
     const thumb = li.querySelector('[data-testid="grid-thumb"]');
     const transform = thumb ? getComputedStyle(thumb).transform : null;
+    const src = thumb?.getAttribute("src") || "";
     return {
       rect: rectOf(li),
       row: Math.round(r.top), // cells on one grid row share a top edge
       rotate: transform,
       isRotated: !isIdentityTransform(transform),
       isDragSource: getComputedStyle(li).opacity !== "1",
+      isDataUrl: src.startsWith("data:image"),
     };
   });
 
@@ -235,6 +239,7 @@ export function collectPageMetrics() {
     gaps: gridRows.map(gapOf),
     rotatedCount: gridCells.filter((c) => c.isRotated).length,
     dragSourceCount: gridCells.filter((c) => c.isDragSource).length,
+    dataUrlCount: gridCells.filter((c) => c.isDataUrl).length,
   };
 
   // --- 4c. Save All status rows (icon centered against the row text) ---
@@ -246,6 +251,7 @@ export function collectPageMetrics() {
     const lr = li.getBoundingClientRect();
     return {
       text: (text?.textContent || "").trim().slice(0, 80),
+      title: text?.getAttribute("title") || "",
       centerDelta:
         ir && tr ? +(ir.y + ir.height / 2 - (tr.y + tr.height / 2)).toFixed(2) : null,
       rowHeight: +lr.height.toFixed(2),
@@ -253,6 +259,7 @@ export function collectPageMetrics() {
   });
   const saveAllRowCount = saveAllRows.length;
   const saveAllErrorCount = document.querySelectorAll('[data-testid="save-all-row"] .lucide-x, [data-testid="save-all-row"] svg.lucide-x').length;
+  const saveAllRetryExists = document.querySelector('[data-testid="save-all-retry"]') !== null;
 
   // --- 4d. primary CTA runnable/disabled state ---
   // The testid ends in -cta for FileToolScreen tools; grid tools reuse it too.
@@ -294,6 +301,7 @@ export function collectPageMetrics() {
     saveAllRows,
     saveAllRowCount,
     saveAllErrorCount,
+    saveAllRetryExists,
     cta,
     dropZone,
   };
@@ -402,10 +410,22 @@ const CTA_EXPECTATIONS = {
 function checkCtaDisabledVisible(cta, expectedDisabled) {
   if (!cta) return { pass: true, detail: "no cta" };
   const pass = expectedDisabled
-    ? cta.disabled &&
-      (DISABLED_CTA_BG.has(cta.background) || cta.background === "rgba(0, 0, 0, 0)")
+    ? cta.disabled && DISABLED_CTA_BG.has(cta.background)
     : !cta.disabled && !DISABLED_CTA_BG.has(cta.background);
   return { pass, cta, expectedDisabled };
+}
+
+// Real-pdf.js state: the blob-backed fixture must produce real data-URL
+// thumbnails (not the mock canvases) and honor the pre-rotated page 2, which
+// is seeded as a 90° absolute rotation on its grid cell.
+function checkRealPdfGrid(info) {
+  if (!info) return { pass: false, detail: "no grid info" };
+  return {
+    pass: info.count === 2 && info.dataUrlCount === 2 && info.rotatedCount === 1,
+    count: info.count,
+    dataUrlCount: info.dataUrlCount,
+    rotatedCount: info.rotatedCount,
+  };
 }
 
 // Returns { invariants, evidence } for one captured state.
@@ -422,6 +442,7 @@ export function evaluateState(name, state) {
     "cta-disabled-visible": null, // only asserted for states in CTA_EXPECTATIONS
     "dragover-state-visible": null, // cross-state, filled in by buildReport
     "theme-tokens-correct": null, // only meaningful for home-* states
+    "grid-real-thumbs": null, // only asserted for organize-grid-real
   };
 
   if (name === "home-light" || name === "home-dark") {
@@ -432,6 +453,9 @@ export function evaluateState(name, state) {
       state.cta,
       CTA_EXPECTATIONS[name]
     ).pass;
+  }
+  if (name === "organize-grid-real") {
+    invariants["grid-real-thumbs"] = checkRealPdfGrid(state.gridInfo).pass;
   }
 
   const expectations = {
@@ -455,6 +479,7 @@ export function evaluateState(name, state) {
     gridCellsAligned: checkGridCellsAligned(state.gridInfo),
     gridCellsEqualSize: checkGridCellsEqualSize(state.gridInfo),
     gridInfo: state.gridInfo,
+    realPdfGrid: name === "organize-grid-real" ? checkRealPdfGrid(state.gridInfo) : null,
     saveAllRows: state.saveAllRows,
     saveAllRowsCentered: checkSaveAllRowsCentered(state.saveAllRows),
     saveAllRowCount: state.saveAllRowCount,
@@ -512,12 +537,16 @@ export function evaluateGridDragging(restState, dragState) {
 export function evaluateSaveAllError(happyState, errorState) {
   const happy = happyState?.saveAllRowCount ?? 0;
   const rows = errorState?.saveAllRowCount ?? 0;
-  const pass = Boolean(happy > 0 && rows === happy && errorState?.saveAllErrorCount === 1);
+  const retry = errorState?.saveAllRetryExists === true;
+  const pass = Boolean(
+    happy > 0 && rows === happy && errorState?.saveAllErrorCount === 1 && retry
+  );
   return {
     pass,
     happyRows: happy,
     errorRows: rows,
     errorRowsWithX: errorState?.saveAllErrorCount ?? 0,
+    retryVisible: retry,
   };
 }
 

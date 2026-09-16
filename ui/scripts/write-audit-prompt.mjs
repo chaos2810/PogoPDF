@@ -38,6 +38,7 @@ export const STATES = [
   { name: "organize-grid", intent: "Organize Pages grid with 6 numbered page thumbnails: even cells, aligned labels/toolbar" },
   { name: "organize-grid-rotated", intent: "Organize grid after rotating cell 1: cell size unchanged, thumbnail rotation visible" },
   { name: "organize-dragging", intent: "Organize grid mid pointer-drag: lifted cell visually distinct from the hovered target" },
+  { name: "organize-grid-real", intent: "Organize grid rendering a real blob-backed 2-page PDF via pdf.js (page 2 is /Rotate 90 and must appear portrait-rotated)" },
   { name: "rotate-form", intent: "Rotate tool, 1 file, angle 90 + pages \"2-3\": radio row and inputs on one rhythm" },
   { name: "booklet-form", intent: "Booklet tool with 1 file and no options: bare drop zone + CTA card" },
   { name: "nup-form", intent: "N-up tool, 1 file, layout 2x2 + default margin: select and number input aligned" },
