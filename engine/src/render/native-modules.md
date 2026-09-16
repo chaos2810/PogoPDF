@@ -1,12 +1,12 @@
-# Native modules and SEA packing (decision note)
+# Native modules and SEA packing (shipped design)
 
-**Status:** placeholder decision recorded in Task 2; the packing work and its
-verification happen in Task 10 (Release packing).
+**Status:** implemented and verified in Task 10 (Release packing). This file
+records what ships, not a plan.
 
 ## Why this exists
 
-The engine bundle (`engine.cjs`, esbuild) now depends on three packages that
-are not pure JavaScript:
+The engine bundle (`engine.cjs`, esbuild) depends on three packages that are not
+pure JavaScript:
 
 | Package | License | Native artifact |
 |---|---|---|
@@ -16,103 +16,107 @@ are not pure JavaScript:
 
 On Windows there is **no separate `@img/sharp-libvips` runtime package**:
 `@img/sharp-win32-x64` itself contains `lib/libvips-42.dll` and
-`lib/libvips-cpp-*.dll` (verified in the installed tree). `@img/sharp-libvips-*`
-exists only as a build-time/dev package for other platforms.
+`lib/libvips-cpp-*.dll`. `@img/sharp-libvips-*` exists only as a build-time/dev
+package for other platforms.
 
 **License disclosure:** `@img/sharp-win32-x64` is Apache-2.0 AND
 LGPL-3.0-or-later (it bundles libvips, which is LGPL-3.0). This is **not** AGPL
 and is compatible with the open-source distribution.
 
-pdf.js is not itself native but resolves `@napi-rs/canvas` through
-`process.getBuiltinModule("module").createRequire(import.meta.url)` in its Node
-paths, so it must be able to resolve that package at runtime.
+## The resolution fact that dictates the design
 
-A bare Node SEA executable cannot `require()` a prebuilt `.node` file that lives
-outside the blob, and these packages also read sibling data files (libvips
-shared libraries, `.so/.dll` deps). So the engine cannot ship as a single
-`engine.cjs` blob alone.
+A Node SEA executable's built-in `require()` is an **embedder require**: it
+resolves Node built-ins only. `NODE_PATH`, the process cwd, and even patching
+`Module._load` / `Module._resolveFilename` are all ignored for it (verified by
+direct experiment). So the SEA blob cannot itself `require("sharp")` or
+`require("@napi-rs/canvas")` from anywhere.
 
-## Options (from the plan)
+What *does* work is loading a **file from disk** through `createRequire()`: once
+`engine.cjs` is loaded by Node's normal CJS loader, its own `require("sharp")`
+calls resolve from `node_modules` relative to that file, exactly as in dev.
+`pdf.js`'s internal `createRequire` calls work the same way, because they are
+anchored at the bundle's own path.
 
-1. **esbuild `--packages=external` + node_modules subset beside the exe**, with
-   the embedded blob becoming a ZIP (engine.cjs + deps) extracted to the cache
-   dir. Requires extending the extractor from single-file to directory.
-2. **Static-copy natives**: bundle everything except the two native deps; they
-   stay as `node_modules` beside the exe at runtime.
-3. **Replace natives** — rejected in the plan (would force raster tools to be
-   dev-only, which is dishonest).
+This is why the release engine is a two-part payload rather than one blob.
 
-## Chosen direction (to be executed and verified in Task 10)
+## Shipped layout
 
-**Option 2 / Option 1 hybrid** (the plan's recommendation). The layout below is
-the corrected form — the earlier flat-`engine-deps/` + `module.paths` sketch did
-not account for how Node resolution actually walks.
+`engine/scripts/build-release.ps1` builds two artifacts, and
+`src-tauri/build.rs` embeds both:
 
-### The resolution facts that dictate the layout
+1. **`engine.exe`** — a Node SEA whose `main` is `engine/sea-bootstrap.cjs`. The
+   bootstrap locates the extracted deps directory and does
+   `createRequire(<deps>/engine.cjs)(<deps>/engine.cjs)`, loading the real bundle
+   from disk.
+2. **`engine-deps.tar`** — the runtime tree the bundle needs:
+   - `engine.cjs` (the esbuild bundle; pdf.js, pdf-lib, jszip, zod, contracts are
+     all inlined)
+   - `pdf.worker.mjs` (pdf.js's fake-worker module, loaded by a dynamic `import`)
+   - `node_modules/pdfjs-dist/{package.json,standard_fonts/}` (the standard-font
+     directory is resolved via `require.resolve("pdfjs-dist/package.json")` at
+     runtime; the full `pdfjs-dist` package is **not** staged)
+   - `node_modules/{sharp, @img/sharp-win32-x64, @img/colour, detect-libc,
+     @napi-rs/canvas, @napi-rs/canvas-win32-x64-msvc}`
 
-- **sharp resolves its platform package by walking UP from its own directory.**
-  `sharp` does `require("@img/sharp-win32-x64")`; Node looks in
-  `sharp/node_modules`, then the parent directories. A flat
-  `engine-deps/sharp` + `engine-deps/@img` layout fails because `@img` is not a
-  parent-visible location. The staged tree must therefore be a real
-  `node_modules` shape: **`engine-deps/node_modules/{sharp, @img/sharp-win32-x64,
-  @napi-rs/canvas}`**.
-- **`@img/sharp-win32-x64` hoists to the ROOT `node_modules/@img`** in an npm
-  workspace, and it *bundles* the libvips DLLs (`lib/libvips-42.dll`,
-  `lib/libvips-cpp-*.dll`). There is no separate Windows
-  `@img/sharp-libvips-win32-x64` runtime package to copy.
-- **`module.paths` mutation after init is unreliable** and must not be relied
-  on. Resolution must come from the filesystem layout + the process cwd (or
-  `NODE_PATH` set at spawn), not runtime `module.paths` patching.
-- **`pdfjs-dist` itself is bundled into `engine.cjs`.** Only the natives and
-  their package directories need staging. However, pdf.js calls
-  `require("@napi-rs/canvas")` at runtime from bundled code, and bundled code
-  has no `node_modules` location of its own — so `@napi-rs/canvas` must NOT be
-  bundled; it must be marked `--external` and resolved at runtime from the
-  staged tree. The same applies to `sharp`.
+Both artifacts share one **build id** (sha256 over both files) in their names:
+`engine-<id>.exe` and `engine-deps-<id>/`. The bootstrap derives its deps
+directory from its own `engine-<id>.exe` filename, so an upgraded install never
+loads a stale `engine-deps-<old-id>/` sitting in the same cache directory. Keying
+on the exe's own hash alone would be wrong — the exe contains only the bootstrap,
+so a bundle-only change would leave the key unchanged.
 
-### Plan
+### esbuild flags (single definition, in `engine/package.json`)
 
-- esbuild marks **`sharp` and `@napi-rs/canvas` external** (`--external:sharp
-  --external:@napi-rs/canvas`) so the bundle emits runtime `require()` calls
-  instead of inlining them. (These are exactly the two packages whose native
-  `.node` artifacts cannot live inside the SEA blob.)
-- `engine/scripts/build-release.ps1` stages
-  `engine-deps/node_modules/sharp`, `engine-deps/node_modules/@img/sharp-win32-x64`,
-  and `engine-deps/node_modules/@napi-rs/canvas` (+ `@napi-rs/canvas-win32-x64-msvc`
-  if the runtime resolution needs the platform dir rather than the bundled
-  `skia.*.node` — Task 10 verifies which one is picked by
-  `@napi-rs/canvas`'s `js-binding.js` on Windows).
-- The embedded blob becomes a ZIP of `engine.cjs` + `engine-deps/`; the existing
-  runtime extractor unzips it to `%LOCALAPPDATA%\PogoPDF\bin\engine-<hash>\` and
-  the engine is spawned with that directory as **cwd** (and/or `NODE_PATH` set to
-  `engine-deps/node_modules`) so both the top-level `require("sharp")` and
-  pdf.js's dynamic `require("@napi-rs/canvas")` resolve from the staged tree.
+```
+esbuild src/engine.ts --bundle --platform=node --target=node22 \
+  --outfile=dist/engine.cjs \
+  --external:sharp --external:@napi-rs/canvas \
+  --define:import.meta.url=__filename
+```
 
-## What Task 10 must do
+- `--external:sharp` / `--external:@napi-rs/canvas` keep them as runtime
+  `require()` calls (the only two packages with un-bundleable `.node` files).
+  `--packages=external` is deliberately **not** used: pdf.js, pdf-lib, jszip and
+  zod bundle fine and keep the exe self-contained apart from the two natives.
+- `--define:import.meta.url=__filename` matters: esbuild's CJS output stubs
+  `import.meta` to `{}`, so pdf.js's `createRequire(import.meta.url)` would throw
+  `ERR_INVALID_ARG_VALUE` and silently degrade (no `@napi-rs/canvas` polyfill, no
+  standard fonts). Rewriting it to `__filename` points those lookups at the
+  bundle on disk, where the staged tree is visible.
 
-1. Implement the `engine-deps/node_modules/...` staging in `build-release.ps1`
-   and the directory ZIP embedding.
-2. Extend the cache extractor to unpack a directory (not just one file) and run
-   the engine from it with cwd / `NODE_PATH` pointing at the staged tree.
-3. **Verify end-to-end against the staged exe before `tauri build`**: pipe a
-   `pdfToImages` job at the SEA `engine.exe` and confirm it writes real image
-   files (not just that the process boots). This is the mandatory check — a
-   "successful" build that cannot rasterize is a failure.
+`build-release.ps1` invokes `npm run build -w @pogopdf/engine` instead of
+repeating the esbuild command, so the two release paths cannot drift.
 
-### Task 10 verifies (uncertain until tested against the real exe)
+## Runtime flow
 
-- Whether `@napi-rs/canvas-win32-x64-msvc` must be staged explicitly, or whether
-  `@napi-rs/canvas`'s own `skia.win32-x64-msvc.node` sibling copy is used.
-- Whether spawn `cwd` alone is sufficient or `NODE_PATH` is also required for
-  pdf.js's internal `createRequire` call.
-- The exact esbuild external syntax that survives the workspace layout.
+1. `main.rs` release path calls `engine_blob::ensure_runtime()`.
+2. `engine_blob.rs` decompresses both zstd blobs, hash-verifies them, extracts
+   `engine-<id>.exe` and unpacks `engine-deps.tar` into
+   `%LOCALAPPDATA%\PogoPDF\bin\engine-deps-<id>\`. The deps dir gets a
+   `.extracted` marker holding the tar's sha256; the marker (not re-hashing ~60 MB
+   of files) is the cache-validity check. Extraction goes to a per-process
+   `*.tmp` directory that is renamed into place, matching the exe's race
+   handling.
+3. The engine is spawned with the extracted **deps directory as cwd**. cwd is
+   authoritative for the bootstrap; the filename-derived path and
+   `POGOPDF_ENGINE_DEPS` are fallbacks for manual invocation.
 
 ## Dev-time note
 
 Nothing here affects development: `npm run app` runs the engine through
 `node --import tsx`, which loads pdf.js, `@napi-rs/canvas`, and sharp natively.
 `pdfjs-dist` is pinned to `^6.3.289` and `@napi-rs/canvas` to `^1.0.9` in
-`engine/package.json`; both live in `engine/node_modules` so pdf.js's internal
-`createRequire` resolves the 1.x canvas (pdfjs-dist also lists
-`@napi-rs/canvas` as an optional dependency).
+`engine/package.json`; both live in `engine/node_modules`.
+
+## Verification (Task 10, on the staged exe before packaging)
+
+- `npm run build -w @pogopdf/engine` produces `dist/engine.cjs` (2.28 MB) with
+  `sharp` and `@napi-rs/canvas` as the only non-builtin runtime requires.
+- The staged `engine-<id>.exe`, run with an unrelated cwd and with a stale
+  `engine-deps-<other-id>/` present, answers `engine.ping` and rasterizes a
+  2-page fixture to real PNGs (`89 50 4E 47`) with clean stderr; jpg/png/webp/
+  bmp/tiff, pdfToGreyscale, pdfToCbz, pdfToSvg, pdfToText, extractImages,
+  viewMetadata and pageDimensions all succeed.
+- After `npx tauri build`, a first launch with an empty cache extracts both
+  artifacts (hashes match the staged files), spawns the engine child, closes
+  cleanly, and leaves no zombies; a second launch reuses the cache untouched.

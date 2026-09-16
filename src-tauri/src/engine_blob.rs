@@ -45,7 +45,11 @@ pub fn ensure_runtime() -> Result<EngineRuntime, String> {
 }
 
 fn ensure_exe(cache_dir: &Path) -> Result<PathBuf, String> {
-    let target = cache_dir.join(format!("engine-{}.exe", short_hash(generated::ENGINE_SHA256)));
+    // Named from the combined build id, not the exe hash: the SEA bootstrap
+    // derives its sibling deps dir from this filename, so the two artifacts
+    // must share one key that changes whenever either file changes.
+    let key = short_hash(generated::ENGINE_BUILD_ID);
+    let target = cache_dir.join(format!("engine-{key}.exe"));
 
     if is_valid_cached(&target, generated::ENGINE_RAW_SIZE)? {
         return Ok(target);
@@ -58,11 +62,7 @@ fn ensure_exe(cache_dir: &Path) -> Result<PathBuf, String> {
     }
 
     // Per-process temp name so two concurrent first launches never share a file.
-    let tmp = cache_dir.join(format!(
-        "engine-{}.exe.{}.tmp",
-        short_hash(generated::ENGINE_SHA256),
-        std::process::id()
-    ));
+    let tmp = cache_dir.join(format!("engine-{key}.exe.{}.tmp", std::process::id()));
     write_verify_rename(&tmp, &target, &raw)?;
     Ok(target)
 }
@@ -74,7 +74,10 @@ fn ensure_exe(cache_dir: &Path) -> Result<PathBuf, String> {
 /// mean hashing ~60 MB on each launch). Extraction goes to a per-process temp
 /// directory that is renamed into place, matching the exe's race handling.
 fn ensure_deps(cache_dir: &Path) -> Result<PathBuf, String> {
-    let key = short_hash(generated::DEPS_SHA256);
+    // Named from the combined build id (see ensure_exe) so the SEA bootstrap can
+    // derive this directory from its own filename. The marker holds the deps
+    // content hash, which is what actually validates the extracted tree.
+    let key = short_hash(generated::ENGINE_BUILD_ID);
     let target = cache_dir.join(format!("engine-deps-{key}"));
     let marker = target.join(".extracted");
 
@@ -322,5 +325,61 @@ mod tests {
     #[test]
     fn short_hash_is_the_first_16_chars() {
         assert_eq!(short_hash("0123456789abcdefdeadbeef"), "0123456789abcdef");
+    }
+
+    /// The exe and deps dir must be named from the same build id: the SEA
+    /// bootstrap derives `engine-deps-<id>` from its own `engine-<id>.exe`
+    /// filename. If these ever diverged the release engine could not find its
+    /// dependencies at all.
+    #[test]
+    fn exe_and_deps_share_one_build_id() {
+        assert_eq!(generated::ENGINE_BUILD_ID.len(), 64);
+        assert_eq!(short_hash(generated::ENGINE_BUILD_ID).len(), 16);
+        // Distinct from the per-file hashes so an unchanged exe with a changed
+        // tar (or vice versa) still yields a fresh key.
+        if !ENGINE_BLOB_ZSTD.is_empty() {
+            assert_ne!(generated::ENGINE_BUILD_ID, generated::ENGINE_SHA256);
+        }
+    }
+
+    /// End-to-end check of the real embedded payload: decompress both blobs,
+    /// extract the deps tar, and confirm the files the engine needs at runtime
+    /// are present. Skips when `build-release.ps1` has not been run (the blobs
+    /// are empty placeholders), so `cargo test` stays usable without a release
+    /// build. The extraction is redirected into a scratch directory.
+    #[test]
+    fn embedded_payload_extracts_the_engine_and_its_native_deps() {
+        if ENGINE_BLOB_ZSTD.is_empty() || generated::DEPS_BLOB_ZSTD.is_empty() {
+            eprintln!("skipping: engine blobs are empty placeholders");
+            return;
+        }
+
+        let raw = zstd::bulk::decompress(
+            generated::DEPS_BLOB_ZSTD,
+            generated::DEPS_RAW_SIZE as usize,
+        )
+        .expect("decompress embedded deps");
+        assert_eq!(sha256_hex(&raw), generated::DEPS_SHA256);
+
+        let dest = std::env::temp_dir().join(format!("pogo-payload-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dest);
+        std::fs::create_dir_all(&dest).unwrap();
+        unpack_tar(&raw, &dest).expect("unpack embedded deps");
+
+        for rel in [
+            "engine.cjs",
+            "pdf.worker.mjs",
+            "node_modules/sharp/package.json",
+            "node_modules/@napi-rs/canvas/package.json",
+            "node_modules/@napi-rs/canvas-win32-x64-msvc/skia.win32-x64-msvc.node",
+            "node_modules/pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf",
+        ] {
+            assert!(
+                dest.join(rel).is_file(),
+                "embedded deps are missing {rel}"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&dest);
     }
 }

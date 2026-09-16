@@ -7,32 +7,28 @@
 "use strict";
 
 const { createRequire } = require("node:module");
-const { existsSync, readdirSync } = require("node:fs");
-const { join } = require("node:path");
+const { existsSync } = require("node:fs");
+const { basename, join } = require("node:path");
 
 const hasEngine = (dir) => dir && existsSync(join(dir, "engine.cjs"));
 
-// In SEA, __dirname is the directory holding the executable. The Rust launcher
-// extracts engine-<hash>.exe and engine-deps-<hash>/ as siblings there, so the
-// deps dir can be found next to the exe regardless of the spawn cwd.
-function siblingDepsDir() {
-  let entries;
-  try {
-    entries = readdirSync(__dirname);
-  } catch {
-    return null;
-  }
-  const match = entries.find(
-    (name) => name.startsWith("engine-deps") && hasEngine(join(__dirname, name))
-  );
-  return match ? join(__dirname, match) : null;
+// The launcher extracts `engine-<hash>.exe` and `engine-deps-<hash>/` as
+// siblings named from the same content hash. In SEA, __filename is that exe
+// path, so the exact deps dir for THIS build can be derived rather than guessed
+// — important because upgrades leave older engine-deps-<hash> dirs in the cache.
+function matchingDepsDir() {
+  const match = /^engine-([0-9a-f]{16})\.exe$/i.exec(basename(__filename));
+  if (!match) return null;
+  return join(__dirname, `engine-deps-${match[1]}`);
 }
 
 function resolveDepsDir() {
   const candidates = [
-    siblingDepsDir(),
-    process.env.POGOPDF_ENGINE_DEPS,
+    // Authoritative in the release path: the Rust launcher spawns the engine
+    // with the extracted deps dir as cwd.
     process.cwd(),
+    matchingDepsDir(),
+    process.env.POGOPDF_ENGINE_DEPS,
   ];
   for (const dir of candidates) {
     if (hasEngine(dir)) return dir;

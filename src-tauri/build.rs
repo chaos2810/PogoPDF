@@ -25,6 +25,16 @@ fn main() {
 fn embed_engine(engine_exe: &Path, engine_deps: &Path, out_dir: &Path) {
     let mut meta = String::new();
 
+    // One build id names both extracted artifacts (engine-<id>.exe and
+    // engine-deps-<id>/). The SEA bootstrap derives its deps dir from its own
+    // filename, so the pair must share a key; it must cover BOTH files because
+    // the exe holds only the bootstrap while the bundle lives in the tar.
+    let build_id = match (std::fs::read(engine_exe), std::fs::read(engine_deps)) {
+        (Ok(exe), Ok(deps)) => sha256_hex_pair(&exe, &deps),
+        _ => String::new(),
+    };
+    meta.push_str(&format!("pub const ENGINE_BUILD_ID: &str = \"{build_id}\";\n"));
+
     meta.push_str(&embed_one(
         engine_exe,
         out_dir,
@@ -87,8 +97,16 @@ fn embed_one(
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
+    sha256_hex_pair(bytes, &[])
+}
+
+/// Hash two byte slices as one stream (no concatenation allocation).
+fn sha256_hex_pair(a: &[u8], b: &[u8]) -> String {
     use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(bytes);
+    let mut hasher = Sha256::new();
+    hasher.update(a);
+    hasher.update(b);
+    let digest = hasher.finalize();
     let mut out = String::with_capacity(digest.len() * 2);
     for byte in digest {
         out.push_str(&format!("{byte:02x}"));
