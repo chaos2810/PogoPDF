@@ -4,7 +4,7 @@ import { mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDict, PDFDocument, PDFName, rgb } from "pdf-lib";
-import { fixtureDir, makePdf } from "../../testing/fixtures";
+import { fixtureDir, makePdf, makePdfWithSplitColors } from "../../testing/fixtures";
 import { getPdfRenderer } from "../../render/renderpdf";
 import { runViewMetadata } from "./viewmetadata";
 import { runPageDimensions } from "./pagedimensions";
@@ -58,6 +58,22 @@ async function countInk(path: string): Promise<number> {
       if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) count++;
     }
     return count;
+  } finally {
+    await renderer.close();
+  }
+}
+
+/** RGBA at (x, y) of a rendered page at 72dpi. */
+async function pixelAt(
+  path: string,
+  x: number,
+  y: number
+): Promise<[number, number, number, number]> {
+  const renderer = await getPdfRenderer(path);
+  try {
+    const canvas = await renderer.renderPage(0, 72);
+    const { data } = canvas.getContext("2d").getImageData(x, y, 1, 1);
+    return [data[0], data[1], data[2], data[3]];
   } finally {
     await renderer.close();
   }
@@ -278,6 +294,94 @@ describe("runFixPageSize", () => {
     const doc = await PDFDocument.load(await readFile(out));
     expect(doc.getPage(0).getWidth()).toBeCloseTo(841.89, 2);
     expect(doc.getPage(0).getHeight()).toBeCloseTo(595.28, 2);
+  });
+
+  it("preserves the displayed orientation of a /Rotate 90 source page", async () => {
+    // Rendering probe: a 200x100 page with /Rotate 90 displays portrait
+    // (100x200). Its unrotated left half is blue and right half red; the
+    // clockwise rotation must show blue above red in the output. pdf-lib's
+    // embedPage drops /Rotate, so without the fix the output would be
+    // landscape with the bars side by side — this asserts they are stacked.
+    const src = await makePdfWithSplitColors(join(dir, "rot90-split.pdf"), {
+      width: 200,
+      height: 100,
+      rotation: 90,
+    });
+    const out = await runFixPageSize(
+      { filePath: src, size: "a4", orientation: "portrait", fit: "scale" },
+      ctx,
+      outDir()
+    );
+
+    const doc = await PDFDocument.load(await readFile(out));
+    expect(doc.getPage(0).getWidth()).toBeCloseTo(595.28, 2);
+    expect(doc.getPage(0).getHeight()).toBeCloseTo(841.89, 2);
+
+    // Content box: displayed 100x200 scaled by min(595.28/100, 841.89/200) =
+    // 4.20945 -> 420.94x841.89, centered horizontally (x ~= 87.17, y 0).
+    // Sample the vertical middle of the upper and lower halves.
+    const midX = 297;
+    const top = await pixelAt(out, midX, Math.round(841.89 * 0.25));
+    const bottom = await pixelAt(out, midX, Math.round(841.89 * 0.75));
+    // Blue bar on top, red bar on bottom.
+    expect(top[2]).toBeGreaterThan(200);
+    expect(top[0]).toBeLessThan(80);
+    expect(bottom[0]).toBeGreaterThan(200);
+    expect(bottom[2]).toBeLessThan(80);
+  });
+
+  it("preserves the displayed orientation of a /Rotate 270 source page", async () => {
+    // 270 clockwise == 90 counter-clockwise: the unrotated left (blue) half
+    // ends up at the BOTTOM.
+    const src = await makePdfWithSplitColors(join(dir, "rot270-split.pdf"), {
+      width: 200,
+      height: 100,
+      rotation: 270,
+    });
+    const out = await runFixPageSize(
+      { filePath: src, size: "a4", orientation: "portrait", fit: "scale" },
+      ctx,
+      outDir()
+    );
+
+    const doc = await PDFDocument.load(await readFile(out));
+    expect(doc.getPage(0).getWidth()).toBeCloseTo(595.28, 2);
+    expect(doc.getPage(0).getHeight()).toBeCloseTo(841.89, 2);
+
+    const midX = 297;
+    const top = await pixelAt(out, midX, Math.round(841.89 * 0.25));
+    const bottom = await pixelAt(out, midX, Math.round(841.89 * 0.75));
+    // Red bar on top, blue bar on bottom.
+    expect(top[0]).toBeGreaterThan(200);
+    expect(top[2]).toBeLessThan(80);
+    expect(bottom[2]).toBeGreaterThan(200);
+    expect(bottom[0]).toBeLessThan(80);
+  });
+
+  it("normalizes a /Rotate 450 source page (legal but non-canonical)", async () => {
+    // /Rotate 450 == 90; the narrow === 90 check would misread it as 0.
+    const src = await makePdfWithSplitColors(join(dir, "rot450-split.pdf"), {
+      width: 200,
+      height: 100,
+      rotation: 450,
+    });
+    const out = await runFixPageSize(
+      { filePath: src, size: "a4", orientation: "portrait", fit: "scale" },
+      ctx,
+      outDir()
+    );
+
+    const doc = await PDFDocument.load(await readFile(out));
+    expect(doc.getPage(0).getWidth()).toBeCloseTo(595.28, 2);
+    expect(doc.getPage(0).getHeight()).toBeCloseTo(841.89, 2);
+
+    const midX = 297;
+    const top = await pixelAt(out, midX, Math.round(841.89 * 0.25));
+    const bottom = await pixelAt(out, midX, Math.round(841.89 * 0.75));
+    expect(top[2]).toBeGreaterThan(200);
+    expect(top[0]).toBeLessThan(80);
+    expect(bottom[0]).toBeGreaterThan(200);
+    expect(bottom[2]).toBeLessThan(80);
   });
 
   it("supports letter, a3, and a5 target sizes", async () => {

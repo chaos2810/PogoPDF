@@ -3,7 +3,7 @@ import type { Canvas } from "@napi-rs/canvas";
 import { PdfToGreyscaleInputSchema, parsePageSelection } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { encodeCanvas } from "../../render/encode";
-import { assertNotCancelled } from "../organize/organize";
+import { assertNotCancelled, normalizeAngle } from "../organize/organize";
 import { loadPdf, savePdf } from "../pdfdoc";
 import { openRenderer } from "./shared";
 
@@ -55,7 +55,7 @@ export async function runPdfToGreyscale(
       // The raster has the page's rotation baked in, so the output page must
       // use the rendered (display) dimensions: 90/270 swap the MediaBox.
       const { width, height } = src.getPage(index).getSize();
-      const rotation = src.getPage(index).getRotation().angle;
+      const rotation = normalizeAngle(src.getPage(index).getRotation().angle);
       const swaps = rotation === 90 || rotation === 270;
       const page = out.addPage(swaps ? [height, width] : [width, height]);
       page.drawImage(image, {

@@ -90,6 +90,26 @@ export async function makePdfWithEmbeddedPng(
   return path;
 }
 
+/**
+ * Two solid halves along x on a `width`x`height` page: blue on the left half,
+ * red on the right half in UNROTATED page space. With /Rotate 90 the viewer
+ * turns the page clockwise, so blue must display above red — which makes this
+ * fixture the orientation probe for tools that re-embed a source page.
+ */
+export async function makePdfWithSplitColors(
+  path: string,
+  opts: { width: number; height: number; rotation?: number }
+): Promise<string> {
+  const doc = await PDFDocument.create({ updateMetadata: false });
+  const page = doc.addPage([opts.width, opts.height]);
+  const half = opts.width / 2;
+  page.drawRectangle({ x: 0, y: 0, width: half, height: opts.height, color: rgb(0, 0, 1) });
+  page.drawRectangle({ x: half, y: 0, width: half, height: opts.height, color: rgb(1, 0, 0) });
+  if (opts.rotation) page.setRotation(degrees(opts.rotation));
+  writeFileSync(path, await doc.save());
+  return path;
+}
+
 /** Solid-colour rectangle drawn on a white 200x200 page (for raster sampling). */
 export async function makePdfWithRect(
   path: string,
