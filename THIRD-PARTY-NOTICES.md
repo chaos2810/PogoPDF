@@ -8,8 +8,21 @@ by the LGPL-3.0-or-later components.
 The release app embeds the Node engine and its native dependency tree as two
 compressed blobs. On first launch they are extracted to
 `%LOCALAPPDATA%\PogoPDF\bin\engine-<id>.exe` and
-`%LOCALAPPDATA%\PogoPDF\bin\engine-deps-<id>\`. Nothing below is linked into
-`pogopdf.exe`; it is used as a separate component at runtime.
+`%LOCALAPPDATA%\PogoPDF\bin\engine-deps-<id>\`. `engine-<id>.exe` is a
+self-contained Node.js Single Executable Application containing the Node.js
+runtime (see below); the components under "Engine runtime" run inside it as a
+separate process at runtime and are not linked into `pogopdf.exe`.
+
+## Node.js runtime (embedded inside `engine-<id>.exe`)
+
+| Component | Version | License |
+|---|---|---|
+| Node.js runtime (node.exe basis for the SEA build) | 24.x | MIT |
+| OpenSSL (bundled in Node.js) | 3.x | Apache-2.0 |
+| V8, ICU, libuv, zlib, and other bundled deps | as bundled in Node.js | see Node.js's own `LICENSE` and `THIRD_PARTY_NOTICES` in the Node.js source distribution |
+
+Node.js's full license and bundled-component notices are available in the
+Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 
 ## Engine runtime (bundled JavaScript)
 
@@ -26,7 +39,7 @@ compressed blobs. On first launch they are extracted to
 | @img/colour | 1.1.0 | MIT |
 | detect-libc | 2.1.2 | Apache-2.0 |
 
-`engines.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
+`engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
 copied into `engine-deps-<id>/`; the remaining packages are copied under
 `engine-deps-<id>/node_modules/`.
 
@@ -34,6 +47,7 @@ copied into `engine-deps-<id>/`; the remaining packages are copied under
 
 | Component | Version | License |
 |---|---|---|
+| pdfjs-dist (thumbnails) | 4.10.38 | Apache-2.0 |
 | react / react-dom | 18.3.1 | MIT |
 | lucide-react | 0.447.0 | ISC |
 | @tauri-apps/api | 2.11.1 | Apache-2.0 OR MIT |
