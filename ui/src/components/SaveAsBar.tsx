@@ -32,13 +32,13 @@ export function SaveAsBar({ outputPath, outputPaths, onReset }: Props) {
 
   const [folder, setFolder] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [rows, setRows] = useState<{ src: string; status: RowStatus }[] | null>(null);
+  const [rows, setRows] = useState<{ src: string; status: RowStatus; error?: string }[] | null>(null);
 
   const save = async () => {
     if (!outputPath) return;
     setError(null);
     try {
-      const dest = await saveAsPdf("merged.pdf");
+      const dest = await saveAsPdf(basename(outputPath));
       if (!dest) return;
       await callEngine("file.copy", { src: outputPath, dest });
       setSavedTo(dest);
@@ -63,9 +63,12 @@ export function SaveAsBar({ outputPath, outputPaths, onReset }: Props) {
         setRows((prev) =>
           prev ? prev.map((r) => (r.src === src ? { ...r, status: "done" } : r)) : prev
         );
-      } catch {
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
         setRows((prev) =>
-          prev ? prev.map((r) => (r.src === src ? { ...r, status: "error" } : r)) : prev
+          prev
+            ? prev.map((r) => (r.src === src ? { ...r, status: "error", error: message } : r))
+            : prev
         );
       }
     }
@@ -168,7 +171,7 @@ export function SaveAsBar({ outputPath, outputPaths, onReset }: Props) {
                   {r.status === "error" && <X size={16} color="var(--danger)" />}
                 </span>
                 <span
-                  title={r.src}
+                  title={r.status === "error" && r.error ? r.error : r.src}
                   style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere", wordBreak: "break-word" }}
                 >
                   {basename(r.src)}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { FileToolScreen } from "../FileToolScreen";
-import { Field, Hint, NumberInput } from "./forms";
+import { Field, Hint, NumberInput, Select } from "./forms";
 
 const LAYOUTS = ["2x1", "1x2", "2x2", "3x3", "4x4"] as const;
 
@@ -19,19 +19,12 @@ export function NupScreen() {
       options={
         <>
           <Field labelKey="tool.nup.layout">
-            <select
-              data-testid="nup-layout"
+            <Select
+              testId="nup-layout"
               value={layout}
-              onChange={(e) => setLayout(e.target.value)}
-              style={{
-                padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)",
-                background: "var(--bg)", color: "var(--text)", fontSize: 14,
-              }}
-            >
-              {LAYOUTS.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
+              onChange={setLayout}
+              options={LAYOUTS.map((l) => ({ value: l, label: l }))}
+            />
           </Field>
           <Field labelKey="tool.nup.margin">
             <NumberInput

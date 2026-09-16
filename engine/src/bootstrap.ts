@@ -55,6 +55,17 @@ export function startEngine(options: {
         code: TOOL_ERROR_CODES.INVALID_INPUT,
       });
     }
+    // Single validation point: enforce the per-tool schema here so every entry
+    // in ToolRegistry.schema is live. Handlers still call their own .parse()
+    // for type-safe destructuring, which is redundant but harmless (same schema,
+    // idempotent). This guarantees invalid input never reaches tool.run.
+    const parsed = tool.schema.safeParse(p.input);
+    if (!parsed.success) {
+      throw Object.assign(new Error("Invalid input"), {
+        code: TOOL_ERROR_CODES.INVALID_INPUT,
+      });
+    }
+    const input = parsed.data;
     return new Promise<JobResult | MultiFileResult>((resolve, reject) => {
       queue.enqueue({
         jobId: p.jobId,
@@ -70,7 +81,7 @@ export function startEngine(options: {
           };
           const outDir = temp.dirFor(p.jobId);
           try {
-            const result = await tool.run(p.input, patched, outDir);
+            const result = await tool.run(input, patched, outDir);
             patched.notifyProgress({
               jobId: p.jobId,
               percent: 100,

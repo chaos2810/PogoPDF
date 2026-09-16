@@ -129,23 +129,19 @@ async function clickAria(page, label) {
   if (!ok) throw new Error(`No button with aria-label "${label}"`);
 }
 
-// Home tool card lookup by its rendered title (English or zh-TW). Scrolls the
-// card into view before clicking so long grids (15 tools) are reachable.
-async function openTool(page, title, altTitle) {
-  const ok = await page.evaluate(
-    ([needle, alt]) => {
-      const btn = [...document.querySelectorAll("button")].find((b) => {
-        const strong = b.querySelector("strong");
-        const text = strong?.textContent?.trim();
-        return text === needle || (alt && text === alt);
-      });
-      if (!btn) return false;
-      btn.scrollIntoView({ block: "center" });
-      btn.click();
-      return true;
-    },
-    [title, altTitle ?? null]
-  );
+// Home tool card lookup by its rendered English title. Scrolls the card into
+// view before clicking so long grids (15 tools) are reachable.
+async function openTool(page, title) {
+  const ok = await page.evaluate((needle) => {
+    const btn = [...document.querySelectorAll("button")].find((b) => {
+      const strong = b.querySelector("strong");
+      return strong?.textContent?.trim() === needle;
+    });
+    if (!btn) return false;
+    btn.scrollIntoView({ block: "center" });
+    btn.click();
+    return true;
+  }, title);
   if (!ok) throw new Error(`Tool card "${title}" not found on home`);
   await sleep(200);
 }
@@ -254,6 +250,11 @@ const LONG = [
 ];
 
 const MANY = Array.from({ length: 8 }, (_, i) => `C:\\Users\\demo\\batch\\document-${i + 1}.pdf`);
+
+// Tiny 2-page PDF (page 2 has /Rotate 90) generated with pdf-lib; used by the
+// organize-grid-real state to exercise the real pdf.js pipeline end to end.
+const REAL_PDF_B64 =
+  "JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL1R5cGUgL09ialN0bQovTiA1Ci9GaXJzdCAyNgovTGVuZ3RoIDI3OAo+PgpzdHJlYW0KeJzVkj1rwzAQhnf9ihubSWfJlu1gDI0/llIIplNLBhGLYChRkW1o/33vorSlQ+nSpcNrSb7npJPeSwBBQYagoUghhUwXkIFJNFSVkA9vLw7k3p7cLOTdNM7wRAzCQAx/D0I2fj0voERdi6+Mxi722Z9ETIWE4Q9iH/y4Hl2Aqu/6HjFHRJOSDKJqaWxIJUnRmmKqoDkpT6+if7lG1LcU66NMHnM4fmGza35HI7GGmTayaRHXn+fyWV3cQ/1WT1kLee/H1i4ObtqtQmWwTAyaJMPicUPPEZxd/P+93KX+yZ9/vOE3n9leNjk46oHoshzc7NdwJNuJq/m93DjZnX+l3kHuNqRmIx3+cis5+IUrLpG5dx/wpusKZW5kc3RyZWFtCmVuZG9iagoKNyAwIG9iago8PAovU2l6ZSA4Ci9Sb290IDIgMCBSCi9JbmZvIDMgMCBSCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9UeXBlIC9YUmVmCi9MZW5ndGggMzYKL1cgWyAxIDIgMiBdCi9JbmRleCBbIDAgOCBdCj4+CnN0cmVhbQp4nBXEsQ0AIAwDMKcgZg7n56J6MLrLYcpU05p2XJLHB09iAtAKZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjM5NgolJUVPRg==";
 
 const SPLIT_OUT = [
   "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-1.pdf",
@@ -432,6 +433,21 @@ async function main() {
     await shot("organize-dragging");
     await page.mouse.up();
     await sleep(100);
+
+    // --- organize grid: real pdf.js over a blob-backed 2-page PDF ---
+    // Exercises the actual renderPdfThumbs pipeline (no mock thumbs): the
+    // fixture's page 2 has /Rotate 90, so its cell must show a 90° transform.
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Organize Pages");
+    await page.evaluate((b64) => {
+      const bin = atob(b64);
+      const bytes = new Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      window.__mockSetFiles([window.__mockBlobPath(bytes)]);
+    }, REAL_PDF_B64);
+    await clickTestId(page, "organize-dropzone");
+    await sleep(1200);
+    await shot("organize-grid-real");
 
     // --- rotate form ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });

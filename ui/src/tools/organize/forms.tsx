@@ -85,6 +85,63 @@ export function TextInput({
   );
 }
 
+export type Option = { value: string; label: string };
+
+export function Select({
+  value,
+  onChange,
+  options,
+  testId,
+  width,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Option[];
+  testId?: string;
+  width?: number;
+}) {
+  return (
+    <select
+      data-testid={testId}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ ...inputStyle, width }}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+// Checkbox row mirrors RadioGroup: label-wrapped input with a consistent gap.
+export function Checkbox({
+  label,
+  checked,
+  onChange,
+  testId,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  testId?: string;
+}) {
+  return (
+    <label
+      className="pogopdf-radio-choice"
+      style={{ cursor: "pointer" }}
+    >
+      <input
+        type="checkbox"
+        data-testid={testId}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      {label}
+    </label>
+  );
+}
+
 export function NumberInput({
   value,
   onChange,
@@ -120,12 +177,12 @@ export function NumberInput({
   );
 }
 
-export function Hint({ keyName, danger = false }: { keyName: string; danger?: boolean }) {
+export function Hint({ keyName }: { keyName: string }) {
   const { lang } = useApp();
   return (
     <div
       style={{
-        color: danger ? "var(--danger)" : "var(--muted)",
+        color: "var(--muted)",
         fontSize: 12,
         marginTop: 6,
       }}

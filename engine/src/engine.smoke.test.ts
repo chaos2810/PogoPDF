@@ -166,4 +166,32 @@ describe("engine stdio smoke", () => {
       child.kill();
     }
   }, 30000);
+
+  it("rejects invalid tool input via the central job.start schema check", async () => {
+    const child = startEngine();
+    try {
+      const resp = rpcLine(child, 4);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 4,
+          method: "job.start",
+          params: {
+            jobId: "323e4567-e89b-12d3-a456-426614174000",
+            toolId: "reverse",
+            input: { nope: true },
+          },
+        }) + "\n"
+      );
+      const result = await resp;
+      expect(result.error).toBeTruthy();
+      expect(result.error.code).toBe(-32001); // TOOL_ERROR_CODES.INVALID_INPUT
+      expect(result.result).toBeUndefined();
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
 });
