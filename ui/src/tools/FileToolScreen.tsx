@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
-import { cancelJob, onProgress, pickPdfs, startJob } from "../app/rpc";
+import { pickPdfs } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
 import { basename } from "./paths";
-
-type Phase = "pick" | "running" | "done" | "error";
+import { usePdfJob } from "./usePdfJob";
 
 export type FileToolScreenProps = {
   toolId: string;
@@ -32,45 +30,21 @@ export function FileToolScreen({
   canRun,
 }: FileToolScreenProps) {
   const { lang, navigate } = useApp();
-  const [files, setFiles] = useState<string[]>([]);
-  const [phase, setPhase] = useState<Phase>("pick");
-  const [percent, setPercent] = useState(0);
-  const [error, setError] = useState<string>("");
-  const [errorCode, setErrorCode] = useState<number | undefined>(undefined);
+  const {
+    files,
+    setFiles,
+    phase,
+    setPhase,
+    percent,
+    error,
+    errorCode,
+    isDragActive,
+    reset,
+    cancel,
+    run,
+  } = usePdfJob(toolId, buildInput, { multiple: acceptMultiple });
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [outputPaths, setOutputPaths] = useState<string[] | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  // Set while a job is in flight so the running card can cancel it.
-  const jobIdRef = useRef<string | null>(null);
-
-  useEffect(() => onProgress((p) => setPercent(p.percent)), []);
-
-  useEffect(() => {
-    const win = getCurrentWindow();
-    const isPdf = (p: string) => p.toLowerCase().endsWith(".pdf");
-    const addFiles = (paths: string[]) => {
-      const pdfs = paths.filter(isPdf);
-      if (pdfs.length === 0) return;
-      setFiles((prev) =>
-        acceptMultiple ? [...new Set([...prev, ...pdfs])] : [pdfs[0]]
-      );
-    };
-    const unEnter = win.listen<{ paths: string[] }>("tauri://drag-enter", (e) => {
-      if (e.payload.paths.some(isPdf)) setIsDragActive(true);
-    });
-    const unOver = win.listen("tauri://drag-over", () => setIsDragActive(true));
-    const unLeave = win.listen("tauri://drag-leave", () => setIsDragActive(false));
-    const unDrop = win.listen<{ paths: string[] }>("tauri://drag-drop", (e) => {
-      setIsDragActive(false);
-      addFiles(e.payload.paths);
-    });
-    return () => {
-      void unEnter.then((f) => f());
-      void unOver.then((f) => f());
-      void unLeave.then((f) => f());
-      void unDrop.then((f) => f());
-    };
-  }, [acceptMultiple]);
 
   const errorsKey = validationError ? validationError(files) : null;
   // Don't flag options before the user has added a file — an untouched form
@@ -80,58 +54,27 @@ export function FileToolScreen({
     (canRun ? canRun(files) : acceptMultiple ? files.length >= 2 : files.length >= 1) &&
     !errorsKey;
 
-  const reset = () => {
-    setFiles([]);
-    setPhase("pick");
-    setError("");
-    setErrorCode(undefined);
+  const start = () =>
+    void run((result) => {
+      if ("outputPaths" in result) {
+        setOutputPaths(result.outputPaths as string[]);
+        return "done";
+      }
+      if ("outputPath" in result) {
+        setOutputPath(result.outputPath as string);
+        return "done";
+      }
+      throw new Error("Expected a file result");
+    });
+
+  const clearOutputs = () => {
     setOutputPath(null);
     setOutputPaths(null);
-    jobIdRef.current = null;
   };
 
-  const run = async () => {
-    if (!runnable) return;
-    setPhase("running");
-    setPercent(0);
-    try {
-      const result = await startJob(toolId, buildInput(files), {
-        onJobId: (id) => {
-          jobIdRef.current = id;
-        },
-      });
-      if ("outputPaths" in result) {
-        setOutputPaths(result.outputPaths);
-        setPhase("done");
-      } else if ("outputPath" in result) {
-        setOutputPath(result.outputPath);
-        setPhase("done");
-      } else {
-        throw new Error("Expected a file result");
-      }
-    } catch (e) {
-      const code = (e as { code?: number }).code;
-      if (code === TOOL_ERROR_CODES.CANCELLED) {
-        // Cancel is a user action, not a failure: return to the pick phase.
-        setPhase("pick");
-      } else {
-        setError(e instanceof Error ? e.message : String(e));
-        setErrorCode(code);
-        setPhase("error");
-      }
-    } finally {
-      jobIdRef.current = null;
-    }
-  };
-
-  const cancel = async () => {
-    const jobId = jobIdRef.current;
-    if (!jobId) return;
-    try {
-      await cancelJob(jobId);
-    } catch {
-      /* cancel is best-effort; the job result still settles the UI */
-    }
+  const handleReset = () => {
+    clearOutputs();
+    reset();
   };
 
   const pick = async () => {
@@ -241,7 +184,7 @@ export function FileToolScreen({
           <button
             data-testid={`${toolId}-cta`}
             disabled={!runnable}
-            onClick={() => void run()}
+            onClick={start}
             style={{
               marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
               fontWeight: 700, border: "none", cursor: runnable ? "pointer" : "not-allowed",
@@ -283,7 +226,7 @@ export function FileToolScreen({
           padding: 20, boxShadow: "var(--shadow-card)",
         }}>
           <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
-          <SaveAsBar outputPaths={outputPaths} onReset={reset} />
+          <SaveAsBar outputPaths={outputPaths} onReset={handleReset} />
         </div>
       )}
 
@@ -293,7 +236,7 @@ export function FileToolScreen({
           padding: 20, boxShadow: "var(--shadow-card)",
         }}>
           <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
-          <SaveAsBar outputPath={outputPath} onReset={reset} />
+          <SaveAsBar outputPath={outputPath} onReset={handleReset} />
         </div>
       )}
 

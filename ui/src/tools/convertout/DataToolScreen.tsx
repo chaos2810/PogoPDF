@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
-import { cancelJob, onProgress, pickPdfs, startJob } from "../../app/rpc";
+import { pickPdfs } from "../../app/rpc";
 import { basename } from "../paths";
-
-type Phase = "pick" | "running" | "data" | "error";
+import { usePdfJob } from "../usePdfJob";
 
 export type DataToolScreenProps = {
   toolId: string;
@@ -20,95 +17,38 @@ export type DataToolScreenProps = {
 // renderData(result.data) in a card.
 export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenProps) {
   const { lang, navigate } = useApp();
-  const [file, setFile] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>("pick");
-  const [percent, setPercent] = useState(0);
-  const [error, setError] = useState<string>("");
-  const [errorCode, setErrorCode] = useState<number | undefined>(undefined);
-  const [data, setData] = useState<unknown>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const jobIdRef = useRef<string | null>(null);
+  const {
+    files,
+    setFiles,
+    phase,
+    setPhase,
+    percent,
+    error,
+    errorCode,
+    data,
+    setData,
+    isDragActive,
+    reset,
+    cancel,
+    run,
+  } = usePdfJob(toolId, (fs) => ({ filePath: fs[0] }), { multiple: false });
 
-  useEffect(() => onProgress((p) => setPercent(p.percent)), []);
-
-  useEffect(() => {
-    const win = getCurrentWindow();
-    const isPdf = (p: string) => p.toLowerCase().endsWith(".pdf");
-    const addFiles = (paths: string[]) => {
-      const pdf = paths.find(isPdf);
-      if (pdf) setFile(pdf);
-    };
-    const unEnter = win.listen<{ paths: string[] }>("tauri://drag-enter", (e) => {
-      if (e.payload.paths.some(isPdf)) setIsDragActive(true);
-    });
-    const unOver = win.listen("tauri://drag-over", () => setIsDragActive(true));
-    const unLeave = win.listen("tauri://drag-leave", () => setIsDragActive(false));
-    const unDrop = win.listen<{ paths: string[] }>("tauri://drag-drop", (e) => {
-      setIsDragActive(false);
-      addFiles(e.payload.paths);
-    });
-    return () => {
-      void unEnter.then((f) => f());
-      void unOver.then((f) => f());
-      void unLeave.then((f) => f());
-      void unDrop.then((f) => f());
-    };
-  }, []);
-
+  const file = files[0] ?? null;
   const runnable = file !== null;
 
-  const reset = () => {
-    setFile(null);
-    setPhase("pick");
-    setError("");
-    setErrorCode(undefined);
-    setData(null);
-    jobIdRef.current = null;
-  };
-
-  const run = async () => {
-    if (!file) return;
-    setPhase("running");
-    setPercent(0);
-    try {
-      const result = await startJob(toolId, { filePath: file }, {
-        onJobId: (id) => {
-          jobIdRef.current = id;
-        },
-      });
+  const start = () =>
+    void run((result) => {
       if (!("data" in result)) {
         throw new Error("Expected a data result");
       }
       setData(result.data);
-      setPhase("data");
-    } catch (e) {
-      const code = (e as { code?: number }).code;
-      if (code === TOOL_ERROR_CODES.CANCELLED) {
-        setPhase("pick");
-      } else {
-        setError(e instanceof Error ? e.message : String(e));
-        setErrorCode(code);
-        setPhase("error");
-      }
-    } finally {
-      jobIdRef.current = null;
-    }
-  };
-
-  const cancel = async () => {
-    const jobId = jobIdRef.current;
-    if (!jobId) return;
-    try {
-      await cancelJob(jobId);
-    } catch {
-      /* cancel is best-effort; the job result still settles the UI */
-    }
-  };
+      return "data";
+    });
 
   const pick = async () => {
     const picked = await pickPdfs(false);
     if (picked.length === 0) return;
-    setFile(picked[0]);
+    setFiles([picked[0]]);
   };
 
   const cardStyle = {
@@ -157,7 +97,7 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
                 </span>
                 <button
                   data-testid={`${toolId}-file-remove`}
-                  onClick={() => setFile(null)}
+                  onClick={() => setFiles([])}
                   aria-label={t("tool.common.remove", lang)}
                   title={t("tool.common.remove", lang)}
                   style={{
@@ -175,7 +115,7 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
           <button
             data-testid={`${toolId}-cta`}
             disabled={!runnable}
-            onClick={() => void run()}
+            onClick={start}
             style={{
               marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
               fontWeight: 700, border: "none", cursor: runnable ? "pointer" : "not-allowed",
