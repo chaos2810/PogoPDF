@@ -107,19 +107,29 @@ fn ensure_deps(cache_dir: &Path) -> Result<PathBuf, String> {
         let _ = std::fs::remove_dir_all(&tmp);
         return Err(e);
     }
-    std::fs::write(tmp.join(".extracted"), generated::DEPS_SHA256)
-        .map_err(|e| format!("failed to write deps marker: {e}"))?;
+    if let Err(e) = std::fs::write(tmp.join(".extracted"), generated::DEPS_SHA256) {
+        let _ = std::fs::remove_dir_all(&tmp);
+        return Err(format!("failed to write deps marker: {e}"));
+    }
 
     match std::fs::rename(&tmp, &target) {
         Ok(()) => Ok(target),
-        Err(e) => {
+        Err(_e) => {
             // A concurrent instance may have won the race (rename onto an
             // existing directory fails on Windows). Fall back to its cache.
-            let _ = std::fs::remove_dir_all(&tmp);
             if is_valid_deps(&marker, generated::DEPS_SHA256) {
-                Ok(target)
-            } else {
-                Err(format!("failed to rename into {target:?}: {e}"))
+                let _ = std::fs::remove_dir_all(&tmp);
+                return Ok(target);
+            }
+            // The target is a stale marker-less dir from a partial extraction;
+            // Windows cannot rename onto it, so clear it and retry once.
+            let _ = std::fs::remove_dir_all(&target);
+            match std::fs::rename(&tmp, &target) {
+                Ok(()) => Ok(target),
+                Err(e) => {
+                    let _ = std::fs::remove_dir_all(&tmp);
+                    Err(format!("failed to rename into {target:?}: {e}"))
+                }
             }
         }
     }
@@ -333,13 +343,16 @@ mod tests {
     /// dependencies at all.
     #[test]
     fn exe_and_deps_share_one_build_id() {
+        if generated::ENGINE_BUILD_ID.is_empty() {
+            // No staged payload: build.rs emits an empty build id, so there is
+            // no 64-hex digest to assert on (and short_hash would panic).
+            return;
+        }
         assert_eq!(generated::ENGINE_BUILD_ID.len(), 64);
         assert_eq!(short_hash(generated::ENGINE_BUILD_ID).len(), 16);
         // Distinct from the per-file hashes so an unchanged exe with a changed
         // tar (or vice versa) still yields a fresh key.
-        if !ENGINE_BLOB_ZSTD.is_empty() {
-            assert_ne!(generated::ENGINE_BUILD_ID, generated::ENGINE_SHA256);
-        }
+        assert_ne!(generated::ENGINE_BUILD_ID, generated::ENGINE_SHA256);
     }
 
     /// End-to-end check of the real embedded payload: decompress both blobs,
