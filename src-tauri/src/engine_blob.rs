@@ -50,8 +50,12 @@ fn ensure_exe(cache_dir: &Path) -> Result<PathBuf, String> {
     // must share one key that changes whenever either file changes.
     let key = short_hash(generated::ENGINE_BUILD_ID);
     let target = cache_dir.join(format!("engine-{key}.exe"));
+    // A length check alone cannot see a same-size corruption of the cached
+    // exe, so a marker records the hash that was verified at extraction time
+    // (the deps tree uses the same scheme).
+    let marker = cache_dir.join(format!("engine-{key}.exe.sha256"));
 
-    if is_valid_cached(&target, generated::ENGINE_RAW_SIZE)? {
+    if is_valid_exe(&target, &marker)? {
         return Ok(target);
     }
 
@@ -64,6 +68,8 @@ fn ensure_exe(cache_dir: &Path) -> Result<PathBuf, String> {
     // Per-process temp name so two concurrent first launches never share a file.
     let tmp = cache_dir.join(format!("engine-{key}.exe.{}.tmp", std::process::id()));
     write_verify_rename(&tmp, &target, &raw)?;
+    std::fs::write(&marker, generated::ENGINE_SHA256)
+        .map_err(|e| format!("failed to write engine marker {marker:?}: {e}"))?;
     Ok(target)
 }
 
@@ -154,6 +160,18 @@ fn short_hash(hash: &str) -> &str {
     &hash[..16]
 }
 
+/// A cached exe is valid only when its marker matches the embedded hash AND the
+/// file length matches (a cheap guard against a truncated file before the
+/// engine is hashed at spawn time).
+fn is_valid_exe(path: &Path, marker: &Path) -> Result<bool, String> {
+    if !matches!(std::fs::read_to_string(marker), Ok(s) if s == generated::ENGINE_SHA256) {
+        return Ok(false);
+    }
+    is_valid_cached(path, generated::ENGINE_RAW_SIZE)
+}
+
+/// Length-only check used during the extraction race, before the winner has
+/// necessarily written its marker: the exe was hash-verified on the way in.
 fn is_valid_cached(path: &Path, expected_len: u64) -> Result<bool, String> {
     match std::fs::metadata(path) {
         Ok(meta) => Ok(meta.len() == expected_len),
@@ -328,6 +346,41 @@ mod tests {
         drop(file);
         assert!(is_valid_deps(&marker, "abc123"));
         assert!(!is_valid_deps(&marker, "different"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The exe cache is keyed on a hash marker as well as a length check, so a
+    /// same-size corruption of the cached binary is re-extracted rather than
+    /// silently reused. With empty placeholder blobs `ENGINE_SHA256` is "",
+    /// which the marker must then also hold.
+    #[test]
+    fn exe_marker_gates_the_length_check() {
+        let dir = std::env::temp_dir().join(format!("pogo-exe-marker-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let exe = dir.join("engine-test.exe");
+        std::fs::write(&exe, vec![0u8; generated::ENGINE_RAW_SIZE as usize]).unwrap();
+        let marker = dir.join("engine-test.exe.sha256");
+
+        // Length matches, but no marker yet -> not valid.
+        assert!(!is_valid_exe(&exe, &marker).unwrap());
+
+        std::fs::write(&marker, "wrong").unwrap();
+        if generated::ENGINE_SHA256.is_empty() {
+            // With empty placeholders, "wrong" is a mismatch and "" is valid.
+            assert!(!is_valid_exe(&exe, &marker).unwrap());
+            std::fs::write(&marker, "").unwrap();
+            assert!(is_valid_exe(&exe, &marker).unwrap());
+        } else {
+            assert!(!is_valid_exe(&exe, &marker).unwrap());
+            std::fs::write(&marker, generated::ENGINE_SHA256).unwrap();
+            assert!(is_valid_exe(&exe, &marker).unwrap());
+        }
+
+        // A truncated file fails the length check even with a good marker.
+        std::fs::write(&exe, b"short").unwrap();
+        assert!(!is_valid_exe(&exe, &marker).unwrap());
 
         let _ = std::fs::remove_dir_all(&dir);
     }

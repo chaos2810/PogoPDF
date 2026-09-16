@@ -73,9 +73,19 @@ export async function runExtractImages(
   assertNotCancelled(ctx);
 
   const doc = await loadPdf(filePath);
+  const pageCount = doc.getPageCount();
   const found: Extracted[] = [];
-  for (let i = 0; i < doc.getPageCount(); i++) {
+  for (let i = 0; i < pageCount; i++) {
+    assertNotCancelled(ctx);
     collectFromPage(doc, i, found);
+    // Scanning is the first of two passes; report it up to 50% so a long
+    // document still shows movement before the write pass.
+    ctx.notifyProgress({
+      jobId: "",
+      percent: Math.round(((i + 1) / pageCount) * 50),
+      stage: "scanning",
+      pagesDone: i + 1,
+    });
   }
 
   if (found.length === 0) {
@@ -86,6 +96,7 @@ export async function runExtractImages(
 
   const out: string[] = [];
   for (let n = 0; n < found.length; n++) {
+    assertNotCancelled(ctx);
     const { bytes, ext } = found[n];
     const outPath = join(outDir, `image-${n + 1}.${ext}`);
     await writeFile(outPath, bytes);
@@ -93,7 +104,7 @@ export async function runExtractImages(
     const done = n + 1;
     ctx.notifyProgress({
       jobId: "",
-      percent: Math.round((done / found.length) * 100),
+      percent: 50 + Math.round((done / found.length) * 50),
       stage: "extracting",
       pagesDone: done,
     });

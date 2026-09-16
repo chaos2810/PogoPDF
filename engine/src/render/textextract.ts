@@ -12,18 +12,25 @@ export async function extractPageText(page: PDFPageProxy): Promise<string> {
 }
 
 /**
- * Extract every page's text, joined with form-feed separators.
- * `onPage` is called with the 0-based page index once each page is done.
+ * Extract the text of every selected page, joined with form-feed separators.
+ * `selected` defaults to all pages (0-based indices). `onPage` is called with
+ * the page index and its position in the selection once each page is done;
+ * `beforePage` runs before each page is read (cancellation checks).
  */
 export async function extractAllText(
   renderer: PdfRenderer,
-  onPage?: (pageIndex: number) => void
+  selected?: number[],
+  onPage?: (pageIndex: number, position: number) => void,
+  beforePage?: () => void
 ): Promise<string> {
+  const indices =
+    selected ?? Array.from({ length: renderer.pageCount }, (_, i) => i);
   const pages: string[] = [];
-  for (let i = 0; i < renderer.pageCount; i++) {
-    const page = await renderer.getPage(i);
+  for (let n = 0; n < indices.length; n++) {
+    beforePage?.();
+    const page = await renderer.getPage(indices[n]);
     pages.push(await extractPageText(page));
-    onPage?.(i);
+    onPage?.(indices[n], n);
   }
   return pages.join("\f");
 }

@@ -5,7 +5,7 @@ import { Field, NumberInput } from "../organize/forms";
 
 export function PdfToCbzScreen() {
   const [dpi, setDpi] = useState(150);
-  const dpiInvalid = !Number.isFinite(dpi) || dpi < 72 || dpi > 600;
+  const dpiInvalid = !Number.isInteger(dpi) || dpi < 72 || dpi > 600;
   return (
     <FileToolScreen
       toolId={TOOL_IDS.pdfToCbz}

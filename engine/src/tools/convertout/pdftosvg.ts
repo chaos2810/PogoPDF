@@ -31,9 +31,10 @@ async function pageToSvg(
   const w = round2(pt.width);
   const h = round2(pt.height);
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" ` +
-    `width="${w}pt" height="${h}pt">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
+    `viewBox="0 0 ${w} ${h}" width="${w}pt" height="${h}pt">` +
     `<image href="data:image/png;base64,${png.toString("base64")}" ` +
+    `xlink:href="data:image/png;base64,${png.toString("base64")}" ` +
     `width="${w}" height="${h}"/>` +
     `</svg>`
   );

@@ -271,11 +271,32 @@ describe("text extraction", () => {
     const renderer = await getPdfRenderer(path);
     try {
       const seen: number[] = [];
-      const text = await extractAllText(renderer, (pageIndex) => seen.push(pageIndex));
+      const text = await extractAllText(renderer, undefined, (pageIndex) =>
+        seen.push(pageIndex)
+      );
       expect(text).toContain("Page 1");
       expect(text).toContain("Page 3");
       expect(text.split("\f")).toHaveLength(3);
       expect(seen).toEqual([0, 1, 2]);
+    } finally {
+      await renderer.close();
+    }
+  });
+
+  it("extracts only the selected pages, reporting their positions", async () => {
+    const path = join(dir, "text-selected.pdf");
+    await makePdf(path, 4);
+    const renderer = await getPdfRenderer(path);
+    try {
+      const positions: number[] = [];
+      const text = await extractAllText(renderer, [1, 3], (_index, position) =>
+        positions.push(position)
+      );
+      expect(text).toContain("Page 2");
+      expect(text).toContain("Page 4");
+      expect(text).not.toContain("Page 1");
+      expect(text.split("\f")).toHaveLength(2);
+      expect(positions).toEqual([0, 1]);
     } finally {
       await renderer.close();
     }

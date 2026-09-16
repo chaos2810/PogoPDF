@@ -8,7 +8,7 @@ export function PdfToSvgScreen() {
   const [dpi, setDpi] = useState(150);
   const [pages, setPages] = useState("");
 
-  const dpiInvalid = !Number.isFinite(dpi) || dpi < 72 || dpi > 600;
+  const dpiInvalid = !Number.isInteger(dpi) || dpi < 72 || dpi > 600;
   const error = dpiInvalid ? "tool.pdfToSvg.dpiInvalid" : validateOptionalPageSpec(pages);
 
   return (

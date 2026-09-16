@@ -93,7 +93,7 @@ export function CommandPalette() {
             >
               <span>{t(tool.titleKey, lang)}</span>
               <span style={{ color: "var(--muted)", fontSize: 12 }}>
-                {t(tool.category === "utility" ? "nav.all" : `nav.${tool.category}`, lang)}
+                {t(`nav.${tool.category}`, lang)}
               </span>
             </button>
           ))}

@@ -10,6 +10,7 @@ const NAV: ({ key: string } & ({ cat: Category } | { cat?: undefined }))[] = [
   { key: "nav.convertFrom", cat: "convertFrom" },
   { key: "nav.edit", cat: "edit" },
   { key: "nav.secure", cat: "secure" },
+  { key: "nav.utility", cat: "utility" },
 ];
 
 export function TopNav() {

@@ -7,6 +7,7 @@ export const en = {
   "nav.convertFrom": "Convert from PDF",
   "nav.edit": "Edit",
   "nav.secure": "Secure",
+  "nav.utility": "Utility",
   "nav.settings": "Settings",
   "palette.placeholder": "Type a tool name…",
   "palette.hint": "Ctrl+K to open · Esc to close",

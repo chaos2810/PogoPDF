@@ -499,11 +499,12 @@ async function main() {
     await typeInto(page, "pdftotext-pages", "2-3");
     await shot("pdftotext-form");
 
-    // --- PDF to SVG: dpi + raster hint visible ---
+    // --- PDF to SVG: dpi + pages + raster hint visible ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
     await openTool(page, "PDF to SVG");
     await mock((p) => window.__mockDrop(p), [SHORT[0]]);
     await typeInto(page, "pdftosvg-dpi", "300");
+    await typeInto(page, "pdftosvg-pages", "2");
     await shot("svg-form");
 
     // --- PDF to CBZ: dpi field ---

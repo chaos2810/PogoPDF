@@ -20,8 +20,8 @@ export function PdfToImagesScreen() {
   const [pages, setPages] = useState("");
   const [quality, setQuality] = useState(80);
 
-  const dpiInvalid = !Number.isFinite(dpi) || dpi < 72 || dpi > 600;
-  const qualityInvalid = !Number.isFinite(quality) || quality < 1 || quality > 100;
+  const dpiInvalid = !Number.isInteger(dpi) || dpi < 72 || dpi > 600;
+  const qualityInvalid = !Number.isInteger(quality) || quality < 1 || quality > 100;
   const lossy = format === "jpg" || format === "webp";
 
   const error =

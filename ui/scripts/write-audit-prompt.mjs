@@ -45,7 +45,7 @@ export const STATES = [
   { name: "nup-form", intent: "N-up tool, 1 file, layout 2x2 + default margin: select and number input aligned" },
   { name: "pdftoimages-form", intent: "PDF to Images, 1 file, format WebP + DPI 300 + quality 90: the conditional Quality field is visible" },
   { name: "pdftotext-form", intent: "PDF to Text, 1 file, pages \"2-3\": single optional-pages field + muted hint" },
-  { name: "svg-form", intent: "PDF to SVG, 1 file, DPI 300 + pages: the raster hint text is readable below the fields" },
+  { name: "svg-form", intent: "PDF to SVG, 1 file, DPI 300 + pages \"2\": the raster hint text is readable below the fields" },
   { name: "cbz-form", intent: "PDF to CBZ, 1 file, DPI 300: single-field form spacing" },
   { name: "greyscale-form", intent: "PDF to Greyscale, 1 file, pages \"1-3\": pages field + two muted hints" },
   { name: "fixpagesize-form", intent: "Fix Page Size, 1 file, A4 + portrait + scale: size select, two radio rows and the fit hint on one rhythm" },

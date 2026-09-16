@@ -9,6 +9,7 @@ export const zhTW: Record<Key, string> = {
   "nav.convertFrom": "PDF 轉出",
   "nav.edit": "編輯",
   "nav.secure": "安全",
+  "nav.utility": "工具",
   "nav.settings": "設定",
   "palette.placeholder": "輸入工具名稱…",
   "palette.hint": "Ctrl+K 開啟 · Esc 關閉",

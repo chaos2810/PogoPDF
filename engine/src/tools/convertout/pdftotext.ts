@@ -2,7 +2,7 @@ import { basename, extname, join } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { PdfToTextInputSchema, parsePageSelection } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
-import { extractPageText } from "../../render/textextract";
+import { extractAllText } from "../../render/textextract";
 import { assertNotCancelled } from "../organize/organize";
 import { openRenderer } from "./shared";
 
@@ -18,25 +18,27 @@ export async function runPdfToText(
   try {
     const selected =
       pages === undefined
-        ? Array.from({ length: renderer.pageCount }, (_, i) => i)
+        ? undefined
         : parsePageSelection(pages, renderer.pageCount);
-    const texts: string[] = [];
 
-    for (let n = 0; n < selected.length; n++) {
-      assertNotCancelled(ctx);
-      const page = await renderer.getPage(selected[n]);
-      texts.push(await extractPageText(page));
-      const done = n + 1;
-      ctx.notifyProgress({
-        jobId: "",
-        percent: Math.round((done / selected.length) * 100),
-        stage: "extracting",
-        pagesDone: done,
-      });
-    }
+    const text = await extractAllText(
+      renderer,
+      selected,
+      (_index, position) => {
+        const done = position + 1;
+        const total = selected?.length ?? renderer.pageCount;
+        ctx.notifyProgress({
+          jobId: "",
+          percent: Math.round((done / total) * 100),
+          stage: "extracting",
+          pagesDone: done,
+        });
+      },
+      () => assertNotCancelled(ctx)
+    );
 
     const outPath = join(outDir, `${basename(filePath, extname(filePath))}.txt`);
-    await writeFile(outPath, texts.join("\f"));
+    await writeFile(outPath, text);
     return outPath;
   } finally {
     await renderer.close();

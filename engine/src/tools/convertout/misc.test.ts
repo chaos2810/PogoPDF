@@ -52,6 +52,10 @@ describe("runPdfToSvg", () => {
     // Raster wrap path (pdf.js 6 has no vector backend): self-contained PNG.
     expect(svg).toContain("<image");
     expect(svg).toContain("data:image/png;base64,");
+    // Both the SVG2 href and the legacy xlink:href are emitted for viewers
+    // that only honour one of them.
+    expect(svg).toContain("<image href=");
+    expect(svg).toContain('xlink:href="data:image/png;base64,');
     expect(svg.trimEnd().endsWith("</svg>")).toBe(true);
   });
 
