@@ -109,6 +109,16 @@ async function clickButton(page, text) {
   if (!ok) throw new Error(`No button containing "${text}"`);
 }
 
+// Native radios and inputs keep mouse focus after a scripted click, so the
+// :focus-visible ring leaks into later captures. Blur whatever holds focus
+// after driving a state so screenshots reflect the resting UI.
+async function blurActive(page) {
+  await page.evaluate(() => {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && el !== document.body) el.blur();
+  });
+}
+
 async function clickAria(page, label) {
   const ok = await page.evaluate((l) => {
     const btn = document.querySelector(`button[aria-label="${l}"]`);
@@ -281,6 +291,7 @@ async function main() {
   // the page, so it must stay self-contained (see scripts/metrics.mjs).
   const captures = new Map();
   const shot = async (name) => {
+    await blurActive(page);
     await page.screenshot({ path: join(shotsDir, `${name}.png`) });
     const raw = await page.evaluate(collectPageMetrics);
     writeFileSync(
