@@ -30,6 +30,12 @@ export const zhTW: Record<Key, string> = {
   "tool.common.pagesInvalid": "頁面範圍無效，請使用如 1-3,5 的格式",
   "tool.common.producedN": "已產生 {{count}} 個檔案",
   "tool.common.needTwo": "請選擇兩個 PDF 檔案",
+  "tool.common.saveAll": "全部儲存",
+  "tool.common.saveAllDone": "所有檔案已儲存",
+  "tool.common.copying": "複製中…",
+  "tool.common.copyFailed": "有 {{count}} 個檔案無法複製",
+  "tool.common.retryFailed": "重試失敗項目",
+  "tool.common.openFolder": "開啟資料夾",
 
   "tool.split.title": "分割 PDF",
   "tool.split.desc": "將一個 PDF 分割成多個檔案",

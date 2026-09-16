@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { basename } from "./paths";
+import { basename, joinPath } from "./paths";
 
 describe("basename", () => {
   it("extracts the file name from a Windows path", () => {
@@ -21,5 +21,19 @@ describe("basename", () => {
   it("keeps a long CJK file name intact", () => {
     const name = "研究計画書".repeat(4) + ".pdf";
     expect(basename("C:\\docs\\" + name)).toBe(name);
+  });
+});
+
+describe("joinPath", () => {
+  it("joins folder and name with a backslash", () => {
+    expect(joinPath("C:\\out", "a.pdf")).toBe("C:\\out\\a.pdf");
+  });
+
+  it("does not double a trailing backslash", () => {
+    expect(joinPath("C:\\out\\", "a.pdf")).toBe("C:\\out\\a.pdf");
+  });
+
+  it("does not double a trailing forward slash", () => {
+    expect(joinPath("C:/out/", "a.pdf")).toBe("C:/out/a.pdf");
   });
 });

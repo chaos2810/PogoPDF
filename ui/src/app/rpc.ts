@@ -1,6 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { JobResultSchema, type JobResult } from "@pogopdf/contracts";
+import {
+  JobResultSchema,
+  MultiFileResultSchema,
+  type JobResult,
+  type MultiFileResult,
+} from "@pogopdf/contracts";
 
 export type ProgressPayload = {
   jobId: string;
@@ -36,9 +41,17 @@ function parseEngineError(raw: unknown): Error {
   return new Error(String(raw));
 }
 
-export async function startJob(toolId: string, input: unknown): Promise<JobResult> {
+// Multi-output tools (split) return {outputPaths}; everything else returns
+// {outputPath}. Discriminate on the key before validating.
+export async function startJob(
+  toolId: string,
+  input: unknown
+): Promise<JobResult | MultiFileResult> {
   const jobId = crypto.randomUUID();
   const result = await callEngine("job.start", { jobId, toolId, input });
+  if (result && typeof result === "object" && "outputPaths" in result) {
+    return MultiFileResultSchema.parse(result);
+  }
   return JobResultSchema.parse(result);
 }
 
@@ -58,6 +71,10 @@ export async function pickPdfs(multiple: boolean): Promise<string[]> {
 
 export async function saveAsPdf(defaultName: string): Promise<string | null> {
   return invoke("dialog_save", { defaultName });
+}
+
+export async function pickFolder(): Promise<string | null> {
+  return invoke("dialog_pick_folder");
 }
 
 export async function revealInExplorer(path: string): Promise<void> {

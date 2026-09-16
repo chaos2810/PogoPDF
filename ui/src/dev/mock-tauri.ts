@@ -21,6 +21,9 @@ const state = {
   jobError: "The PDF appears to be corrupt",
   resolveJob: null as null | (() => void),
   outputPath: "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\merged.pdf",
+  outputPaths: null as string[] | null,
+  folder: "C:\\Users\\demo\\Downloads\\split-out",
+  copyFailNames: new Set<string>(),
   thumbCount: 6,
 };
 
@@ -63,12 +66,21 @@ function emit(event: string, payload: unknown) {
 
 function rpc(method: string, params: { jobId?: string } = {}): unknown {
   if (method === "engine.ping") return { pong: true };
-  if (method === "file.copy") return { copied: true };
+  if (method === "file.copy") {
+    const dest = String((params as { dest?: string }).dest ?? "");
+    const name = dest.split(/[\\/]/).pop() ?? "";
+    if (state.copyFailNames.has(name)) {
+      return Promise.reject(JSON.stringify({ code: -32000, message: `cannot copy ${name}` }));
+    }
+    return { copied: true };
+  }
   if (method === "job.start") {
     if (state.jobMode === "error") {
       return Promise.reject(JSON.stringify({ code: -32003, message: state.jobError }));
     }
-    const result = { jobId: params.jobId, outputPath: state.outputPath };
+    const result = state.outputPaths
+      ? { jobId: params.jobId, outputPaths: state.outputPaths.slice() }
+      : { jobId: params.jobId, outputPath: state.outputPath };
     if (state.jobMode === "hold") {
       return new Promise((resolve) => {
         state.resolveJob = () => resolve(result);
@@ -83,6 +95,7 @@ async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Prom
   if (cmd === "rpc_call") return rpc(String(args.method), (args.params ?? {}) as { jobId?: string });
   if (cmd === "dialog_open_pdf") return state.files.slice();
   if (cmd === "dialog_save") return "C:\\Users\\demo\\Downloads\\merged.pdf";
+  if (cmd === "dialog_pick_folder") return state.folder;
   if (cmd === "reveal") return null;
   if (cmd === "plugin:event|listen") {
     addListener(String(args.event), Number(args.handler));
@@ -140,6 +153,19 @@ w.__mockJobControl = (mode: JobMode, message?: string) => {
 w.__mockResolveJob = () => {
   state.resolveJob?.();
   state.resolveJob = null;
+};
+
+// Multi-output (split) seam: set the job result shape and the folder the
+// picker returns; fail a specific output basename to exercise the error row.
+w.__mockSetOutputPaths = (paths: string[] | null) => {
+  state.outputPaths = paths ? paths.slice() : null;
+};
+w.__mockSetFolder = (path: string) => {
+  state.folder = path;
+};
+w.__mockCopyFail = (name: string, fail = true) => {
+  if (fail) state.copyFailNames.add(name);
+  else state.copyFailNames.delete(name);
 };
 
 // Thumbnail seam for the organize grid. real pdfthumbs.ts checks for this hook;

@@ -168,7 +168,8 @@ export function OrganizeGridScreen() {
         filePath,
         pages: toInput(pages),
       });
-      setOutputPath(result.outputPath);
+      // organize is single-output; the multi-file shape belongs to split.
+      if ("outputPath" in result) setOutputPath(result.outputPath);
       setPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

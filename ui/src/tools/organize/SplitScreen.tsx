@@ -26,7 +26,6 @@ export function SplitScreen() {
       toolId={TOOL_IDS.split}
       acceptMultiple={false}
       ctaKey="tool.split.cta"
-      multiOutput
       validationError={() => modeError}
       buildInput={(files) => {
         const input: Record<string, unknown> = { filePath: files[0], mode };

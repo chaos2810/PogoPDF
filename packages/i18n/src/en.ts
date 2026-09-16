@@ -28,6 +28,12 @@ export const en = {
   "tool.common.pagesInvalid": "Invalid page selection. Use formats like 1-3,5",
   "tool.common.producedN": "{{count}} files produced",
   "tool.common.needTwo": "Select exactly two PDFs",
+  "tool.common.saveAll": "Save All",
+  "tool.common.saveAllDone": "All files saved",
+  "tool.common.copying": "Copying…",
+  "tool.common.copyFailed": "{{count}} file(s) could not be copied",
+  "tool.common.retryFailed": "Retry failed",
+  "tool.common.openFolder": "Open folder",
 
   "tool.split.title": "Split PDF",
   "tool.split.desc": "Split one PDF into multiple files",

@@ -3,18 +3,9 @@ import type { ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
-import { startJob, callEngine, onProgress, pickPdfs } from "../app/rpc";
+import { startJob, onProgress, pickPdfs } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
-import { MultiFileResultSchema } from "@pogopdf/contracts";
 import { basename } from "./paths";
-
-// Multi-output job result parse lives here (not rpc.ts) until Task 9 adds the
-// shared multi-file RPC + Save-All flow.
-async function startJobMulti(toolId: string, input: unknown) {
-  const jobId = crypto.randomUUID();
-  const result = await callEngine("job.start", { jobId, toolId, input });
-  return MultiFileResultSchema.parse(result);
-}
 
 type Phase = "pick" | "running" | "done" | "error";
 
@@ -28,9 +19,6 @@ export type FileToolScreenProps = {
   options?: ReactNode;
   // Defaults to "at least 2 files" (multiple) / "at least 1 file" (single).
   canRun?: (files: string[]) => boolean;
-  // Set for tools whose engine result is {outputPaths} (split); Save As for
-  // multiple outputs lands with Task 9.
-  multiOutput?: boolean;
   ctaIdSuffix?: string;
 };
 
@@ -42,7 +30,6 @@ export function FileToolScreen({
   validationError,
   options,
   canRun,
-  multiOutput = false,
   ctaIdSuffix = "cta",
 }: FileToolScreenProps) {
   const { lang, navigate } = useApp();
@@ -51,7 +38,7 @@ export function FileToolScreen({
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState<string>("");
   const [outputPath, setOutputPath] = useState<string | null>(null);
-  const [producedCount, setProducedCount] = useState(0);
+  const [outputPaths, setOutputPaths] = useState<string[] | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
 
   useEffect(() => onProgress((p) => setPercent(p.percent)), []);
@@ -95,6 +82,7 @@ export function FileToolScreen({
     setFiles([]);
     setPhase("pick");
     setOutputPath(null);
+    setOutputPaths(null);
   };
 
   const run = async () => {
@@ -102,11 +90,10 @@ export function FileToolScreen({
     setPhase("running");
     setPercent(0);
     try {
-      if (multiOutput) {
-        const result = await startJobMulti(toolId, buildInput(files));
-        setProducedCount(result.outputPaths.length);
+      const result = await startJob(toolId, buildInput(files));
+      if ("outputPaths" in result) {
+        setOutputPaths(result.outputPaths);
       } else {
-        const result = await startJob(toolId, buildInput(files));
         setOutputPath(result.outputPath);
       }
       setPhase("done");
@@ -248,29 +235,17 @@ export function FileToolScreen({
         </div>
       )}
 
-      {phase === "done" && multiOutput && (
+      {phase === "done" && outputPaths && (
         <div style={{
           background: "var(--card)", borderRadius: "var(--radius-card)",
           padding: 20, boxShadow: "var(--shadow-card)",
         }}>
           <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
-          <div data-testid={`${toolId}-produced`} style={{ color: "var(--muted)", marginTop: 8 }}>
-            {t("tool.common.producedN", lang, { count: String(producedCount) })}
-          </div>
-          <button
-            onClick={reset}
-            style={{
-              marginTop: 16, padding: "8px 14px", borderRadius: "var(--radius-pill)", fontWeight: 600,
-              background: "transparent", border: "1px solid var(--border)", color: "var(--text)",
-              cursor: "pointer",
-            }}
-          >
-            {t("common.back", lang)}
-          </button>
+          <SaveAsBar outputPaths={outputPaths} onReset={reset} />
         </div>
       )}
 
-      {phase === "done" && !multiOutput && outputPath && (
+      {phase === "done" && outputPath && (
         <div style={{
           background: "var(--card)", borderRadius: "var(--radius-card)",
           padding: 20, boxShadow: "var(--shadow-card)",
