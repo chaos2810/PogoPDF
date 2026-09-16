@@ -4,6 +4,7 @@ import { registerMergeTool } from "./merge/register";
 import { registerSimpleOrganizeTools } from "./organize/register-simple";
 import { registerBatchOrganizeTools } from "./organize/register-batch";
 import { registerGridOrganizeTools } from "./organize/register-grid";
+import { registerConvertRasterTools } from "./convertout/register-convert-raster";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -21,4 +22,5 @@ export function registerTools(tools: ToolRegistry) {
   registerSimpleOrganizeTools(tools);
   registerBatchOrganizeTools(tools);
   registerGridOrganizeTools(tools);
+  registerConvertRasterTools(tools);
 }

@@ -1,6 +1,7 @@
-import { PDFDocument, StandardFonts, degrees } from "pdf-lib";
+import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import sharp from "sharp";
 
 // A genuine AES-128 encrypted PDF (2 blank pages, user+owner password "secret").
 // pdf-lib cannot create encrypted PDFs, so this is a checked-in literal. Generated
@@ -36,6 +37,74 @@ export async function makePdf(
       y: 750,
       size: 24,
       font,
+    });
+  }
+  const bytes = await doc.save();
+  writeFileSync(path, bytes);
+  return path;
+}
+
+/**
+ * One solid-colour JPEG drawn on each of `pages` pages: page i uses
+ * `colors[i]`. pdf-lib only embeds a JPEG if it is genuinely valid, so the
+ * bytes come from sharp rather than a hand-rolled header.
+ */
+export async function makePdfWithEmbeddedJpg(
+  path: string,
+  colors: Array<{ r: number; g: number; b: number }>
+): Promise<string> {
+  const doc = await PDFDocument.create();
+  for (const color of colors) {
+    const jpg = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: color },
+    })
+      .jpeg()
+      .toBuffer();
+    const page = doc.addPage([200, 200]);
+    const image = await doc.embedJpg(jpg);
+    page.drawImage(image, { x: 10, y: 10, width: 100, height: 100 });
+  }
+  const bytes = await doc.save();
+  writeFileSync(path, bytes);
+  return path;
+}
+
+/** Same as above but PNG, i.e. a FlateDecode image stream (not extractable in v1). */
+export async function makePdfWithEmbeddedPng(
+  path: string,
+  colors: Array<{ r: number; g: number; b: number }>
+): Promise<string> {
+  const doc = await PDFDocument.create();
+  for (const color of colors) {
+    const png = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: color },
+    })
+      .png()
+      .toBuffer();
+    const page = doc.addPage([200, 200]);
+    const image = await doc.embedPng(png);
+    page.drawImage(image, { x: 10, y: 10, width: 100, height: 100 });
+  }
+  const bytes = await doc.save();
+  writeFileSync(path, bytes);
+  return path;
+}
+
+/** Solid-colour rectangle drawn on a white 200x200 page (for raster sampling). */
+export async function makePdfWithRect(
+  path: string,
+  rects: Array<{ rgb: [number, number, number]; size?: [number, number] }>
+): Promise<string> {
+  const doc = await PDFDocument.create();
+  for (const rect of rects) {
+    const page = doc.addPage([200, 200]);
+    const [w, h] = rect.size ?? [100, 100];
+    page.drawRectangle({
+      x: 50,
+      y: 50,
+      width: w,
+      height: h,
+      color: rgb(rect.rgb[0], rect.rgb[1], rect.rgb[2]),
     });
   }
   const bytes = await doc.save();
