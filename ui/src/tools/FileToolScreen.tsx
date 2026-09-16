@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
-import { startJob, onProgress, pickPdfs } from "../app/rpc";
+import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
+import { cancelJob, onProgress, pickPdfs, startJob } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
 import { basename } from "./paths";
 
@@ -19,7 +20,6 @@ export type FileToolScreenProps = {
   options?: ReactNode;
   // Defaults to "at least 2 files" (multiple) / "at least 1 file" (single).
   canRun?: (files: string[]) => boolean;
-  ctaIdSuffix?: string;
 };
 
 export function FileToolScreen({
@@ -30,16 +30,18 @@ export function FileToolScreen({
   validationError,
   options,
   canRun,
-  ctaIdSuffix = "cta",
 }: FileToolScreenProps) {
   const { lang, navigate } = useApp();
   const [files, setFiles] = useState<string[]>([]);
   const [phase, setPhase] = useState<Phase>("pick");
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState<string>("");
+  const [errorCode, setErrorCode] = useState<number | undefined>(undefined);
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [outputPaths, setOutputPaths] = useState<string[] | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  // Set while a job is in flight so the running card can cancel it.
+  const jobIdRef = useRef<string | null>(null);
 
   useEffect(() => onProgress((p) => setPercent(p.percent)), []);
 
@@ -81,8 +83,11 @@ export function FileToolScreen({
   const reset = () => {
     setFiles([]);
     setPhase("pick");
+    setError("");
+    setErrorCode(undefined);
     setOutputPath(null);
     setOutputPaths(null);
+    jobIdRef.current = null;
   };
 
   const run = async () => {
@@ -90,16 +95,39 @@ export function FileToolScreen({
     setPhase("running");
     setPercent(0);
     try {
-      const result = await startJob(toolId, buildInput(files));
+      const result = await startJob(toolId, buildInput(files), {
+        onJobId: (id) => {
+          jobIdRef.current = id;
+        },
+      });
+      setPhase("done");
       if ("outputPaths" in result) {
         setOutputPaths(result.outputPaths);
       } else {
         setOutputPath(result.outputPath);
       }
-      setPhase("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setPhase("error");
+      const code = (e as { code?: number }).code;
+      if (code === TOOL_ERROR_CODES.CANCELLED) {
+        // Cancel is a user action, not a failure: return to the pick phase.
+        setPhase("pick");
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+        setErrorCode(code);
+        setPhase("error");
+      }
+    } finally {
+      jobIdRef.current = null;
+    }
+  };
+
+  const cancel = async () => {
+    const jobId = jobIdRef.current;
+    if (!jobId) return;
+    try {
+      await cancelJob(jobId);
+    } catch {
+      /* cancel is best-effort; the job result still settles the UI */
     }
   };
 
@@ -208,7 +236,7 @@ export function FileToolScreen({
           )}
 
           <button
-            data-testid={`${toolId}-${ctaIdSuffix}`}
+            data-testid={`${toolId}-cta`}
             disabled={!runnable}
             onClick={() => void run()}
             style={{
@@ -232,6 +260,17 @@ export function FileToolScreen({
           <div style={{ height: 8, borderRadius: 999, background: "var(--border)", marginTop: 8 }}>
             <div style={{ width: `${percent}%`, height: "100%", borderRadius: 999, background: "var(--accent)", transition: "width 200ms" }} />
           </div>
+          <button
+            data-testid={`${toolId}-cancel`}
+            onClick={() => void cancel()}
+            style={{
+              marginTop: 12, padding: "8px 16px", borderRadius: "var(--radius-pill)",
+              fontWeight: 600, background: "transparent", border: "1px solid var(--border)",
+              color: "var(--text)", cursor: "pointer",
+            }}
+          >
+            {t("common.cancel", lang)}
+          </button>
         </div>
       )}
 
@@ -256,15 +295,34 @@ export function FileToolScreen({
       )}
 
       {phase === "error" && (
-        <div style={{
-          background: "var(--card)", borderRadius: "var(--radius-card)",
-          padding: 20, color: "var(--danger)",
-        }}>
-          {t("common.error", lang)}: {error}
+        <div
+          data-testid={`${toolId}-error`}
+          style={{
+            background: "var(--card)", borderRadius: "var(--radius-card)",
+            padding: 20,
+          }}
+        >
+          <div style={{ color: "var(--danger)", fontWeight: 700 }}>
+            {t("common.error", lang)}
+          </div>
+          <div
+            data-testid={`${toolId}-error-detail`}
+            style={{
+              marginTop: 6, fontFamily: "ui-monospace, monospace", fontSize: 13,
+              color: "var(--muted)", overflowWrap: "anywhere", wordBreak: "break-word",
+            }}
+          >
+            {error}
+          </div>
+          {errorCode === TOOL_ERROR_CODES.INVALID_INPUT && (
+            <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)" }}>
+              {t("common.checkInput", lang)}
+            </div>
+          )}
           <button
             onClick={() => setPhase("pick")}
             style={{
-              display: "block", marginTop: 8, padding: "8px 14px",
+              display: "block", marginTop: 12, padding: "8px 14px",
               borderRadius: "var(--radius-pill)", fontWeight: 600,
               background: "transparent", border: "1px solid var(--danger)",
               color: "var(--danger)", cursor: "pointer",

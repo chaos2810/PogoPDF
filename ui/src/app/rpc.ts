@@ -42,17 +42,24 @@ function parseEngineError(raw: unknown): Error {
 }
 
 // Multi-output tools (split) return {outputPaths}; everything else returns
-// {outputPath}. Discriminate on the key before validating.
+// {outputPath}. Discriminate on the key before validating. `onJobId` fires with
+// the generated id before the RPC is awaited, so callers can offer Cancel.
 export async function startJob(
   toolId: string,
-  input: unknown
+  input: unknown,
+  opts?: { onJobId?: (jobId: string) => void }
 ): Promise<JobResult | MultiFileResult> {
   const jobId = crypto.randomUUID();
+  opts?.onJobId?.(jobId);
   const result = await callEngine("job.start", { jobId, toolId, input });
   if (result && typeof result === "object" && "outputPaths" in result) {
     return MultiFileResultSchema.parse(result);
   }
   return JobResultSchema.parse(result);
+}
+
+export async function cancelJob(jobId: string): Promise<void> {
+  await callEngine("job.cancel", { jobId });
 }
 
 export function onProgress(cb: (p: ProgressPayload) => void): () => void {

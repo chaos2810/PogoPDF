@@ -25,14 +25,36 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async () => () => {}),
 }));
 
-import { startJob, pickPdfs, saveAsPdf, callEngine, onProgress, pickFolder } from "./rpc";
+import { startJob, pickPdfs, saveAsPdf, callEngine, onProgress, pickFolder, cancelJob } from "./rpc";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
 describe("rpc wrappers", () => {
   it("startJob returns validated jobId and outputPath", async () => {
     const r = await startJob("merge", { filePaths: ["a", "b"] });
     expect(r.jobId).toBe("123e4567-e89b-12d3-a456-426614174000");
     expect("outputPath" in r && r.outputPath).toBe("C:\\tmp\\merged.pdf");
+  });
+
+  it("startJob surfaces the generated jobId before resolving", async () => {
+    vi.mocked(invoke).mockClear();
+    let seen: string | null = null;
+    await startJob("merge", { filePaths: ["a", "b"] }, { onJobId: (id) => { seen = id; } });
+    expect(seen).toMatch(/^[0-9a-f-]{36}$/);
+    // The id handed to the caller is the one sent to the engine.
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("rpc_call", {
+      method: "job.start",
+      params: expect.objectContaining({ jobId: seen }),
+    });
+  });
+
+  it("cancelJob issues a job.cancel rpc", async () => {
+    vi.mocked(invoke).mockClear();
+    await cancelJob("123e4567-e89b-12d3-a456-426614174000");
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("rpc_call", {
+      method: "job.cancel",
+      params: { jobId: "123e4567-e89b-12d3-a456-426614174000" },
+    });
   });
 
   it("startJob parses a multi-file result into outputPaths", async () => {
