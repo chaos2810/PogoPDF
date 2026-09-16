@@ -8,6 +8,7 @@ import {
   JobStartParamsSchema,
   JobCancelParamsSchema,
   MultiFileResultSchema,
+  DataResultSchema,
   PROGRESS_METHOD,
   TOOL_ERROR_CODES,
 } from "@pogopdf/contracts";
@@ -15,6 +16,7 @@ import type {
   JobResult,
   JobStartParams,
   MultiFileResult,
+  DataResult,
 } from "@pogopdf/contracts";
 import { createDispatcher } from "./rpc/dispatcher";
 import type { RpcCtx } from "./rpc/dispatcher";
@@ -78,7 +80,7 @@ export function startEngine(options: {
       });
     }
     const input = parsed.data;
-    return new Promise<JobResult | MultiFileResult>((resolve, reject) => {
+    return new Promise<JobResult | MultiFileResult | DataResult>((resolve, reject) => {
       queue.enqueue({
         jobId: p.jobId,
         run: async (ctx) => {
@@ -113,8 +115,9 @@ export function startEngine(options: {
             reject(err);
             return;
           }
-          // Multi-output tools (e.g. split) return string[]; everything else
-          // returns a single path.
+          // Multi-output tools (e.g. split) return string[]; data tools (e.g.
+          // viewMetadata) return a plain object; everything else returns a
+          // single path.
           if (Array.isArray(result)) {
             resolve(
               MultiFileResultSchema.parse({
@@ -122,9 +125,13 @@ export function startEngine(options: {
                 outputPaths: result,
               })
             );
-          } else {
+          } else if (typeof result === "string") {
             resolve(
               JobResultSchema.parse({ jobId: p.jobId, outputPath: result })
+            );
+          } else {
+            resolve(
+              DataResultSchema.parse({ jobId: p.jobId, data: result })
             );
           }
         },

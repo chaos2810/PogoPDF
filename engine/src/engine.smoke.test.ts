@@ -167,6 +167,38 @@ describe("engine stdio smoke", () => {
     }
   }, 30000);
 
+  it("returns a structured data result for viewMetadata", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    await makePdf(join(work, "f", "meta.pdf"), 2);
+
+    const child = startEngine();
+    try {
+      const metaPromise = rpcLine(child, 5);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 5,
+          method: "job.start",
+          params: {
+            jobId: "423e4567-e89b-12d3-a456-426614174000",
+            toolId: "viewMetadata",
+            input: { filePath: join(work, "f", "meta.pdf") },
+          },
+        }) + "\n"
+      );
+      const result = await metaPromise;
+      expect(result.result.jobId).toBe("423e4567-e89b-12d3-a456-426614174000");
+      expect(result.result.outputPath).toBeUndefined();
+      expect(result.result.data.pageCount).toBe(2);
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
+
   it("rejects invalid tool input via the central job.start schema check", async () => {
     const child = startEngine();
     try {

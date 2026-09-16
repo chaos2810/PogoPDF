@@ -5,6 +5,7 @@ import { registerSimpleOrganizeTools } from "./organize/register-simple";
 import { registerBatchOrganizeTools } from "./organize/register-batch";
 import { registerGridOrganizeTools } from "./organize/register-grid";
 import { registerConvertRasterTools } from "./convertout/register-convert-raster";
+import { registerConvertInfoTools } from "./convertout/register-convert-info";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -12,7 +13,7 @@ export type ToolEntry = {
     input: unknown,
     ctx: RpcCtx,
     outDir: string
-  ) => Promise<string | string[]>;
+  ) => Promise<string | string[] | object>;
 };
 
 export type ToolRegistry = Map<string, ToolEntry>;
@@ -23,4 +24,5 @@ export function registerTools(tools: ToolRegistry) {
   registerBatchOrganizeTools(tools);
   registerGridOrganizeTools(tools);
   registerConvertRasterTools(tools);
+  registerConvertInfoTools(tools);
 }
