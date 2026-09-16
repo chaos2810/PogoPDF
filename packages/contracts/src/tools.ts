@@ -320,6 +320,33 @@ export type MultiFileResult = z.infer<typeof MultiFileResultSchema>;
  */
 export const DataResultSchema = z.object({
   jobId: z.string().uuid(),
-  data: z.unknown(),
+  data: z.unknown().refine((v) => v !== undefined, "data must be defined"),
 });
 export type DataResult = z.infer<typeof DataResultSchema>;
+
+/** Result data for viewMetadata (the engine's MetadataData). */
+export type MetadataData = {
+  title: string | null;
+  author: string | null;
+  subject: string | null;
+  keywords: string | null;
+  creator: string | null;
+  producer: string | null;
+  creationDate: string | null;
+  modificationDate: string | null;
+  pageCount: number;
+  fileSizeBytes: number;
+};
+
+/** Result data for pageDimensions (the engine's PageDimensionsData). */
+export type PageDimensionsData = {
+  pages: Array<{
+    widthPt: number;
+    heightPt: number;
+    widthMm: number;
+    heightMm: number;
+    orientation: "portrait" | "landscape";
+    rotation: number;
+    displayed: { width: number; height: number };
+  }>;
+};

@@ -1,21 +1,12 @@
 import { PageDimensionsInputSchema } from "@pogopdf/contracts";
+import type { PageDimensionsData } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
-import { assertNotCancelled } from "../organize/organize";
+import { assertNotCancelled, normalizeAngle } from "../organize/organize";
 import { loadPdf } from "../pdfdoc";
 
 const PT_TO_MM = 25.4 / 72;
 
-export type PageDimensionsData = {
-  pages: Array<{
-    widthPt: number;
-    heightPt: number;
-    widthMm: number;
-    heightMm: number;
-    orientation: "portrait" | "landscape";
-    rotation: number;
-    displayed: { width: number; height: number };
-  }>;
-};
+export type { PageDimensionsData };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -33,7 +24,7 @@ export async function runPageDimensions(
   for (let i = 0; i < doc.getPageCount(); i++) {
     assertNotCancelled(ctx);
     const { width: widthPt, height: heightPt } = doc.getPage(i).getSize();
-    const rotation = doc.getPage(i).getRotation().angle;
+    const rotation = normalizeAngle(doc.getPage(i).getRotation().angle);
     // /Rotate 90/270 turns the page in the viewer, so the box the user sees
     // swaps width and height even though the MediaBox is unchanged.
     const swaps = rotation === 90 || rotation === 270;

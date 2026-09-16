@@ -1,19 +1,9 @@
 import type { ReactNode } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
+import type { PageDimensionsData } from "@pogopdf/contracts";
 import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
 import { DataToolScreen } from "./DataToolScreen";
-
-export type PageDimensionsData = {
-  pages: Array<{
-    widthPt: number;
-    heightPt: number;
-    widthMm: number;
-    heightMm: number;
-    orientation: "portrait" | "landscape";
-    rotation: number;
-  }>;
-};
 
 const cell: React.CSSProperties = {
   padding: "8px 10px",
@@ -42,7 +32,7 @@ export function PageDimensionsScreen() {
         </thead>
         <tbody>
           {pages.map((p, i) => (
-            <tr key={i} data-testid="dimensions-row">
+            <tr key={i}>
               <td style={cell}>{i + 1}</td>
               <td style={cell}>{p.widthPt} × {p.heightPt}</td>
               <td style={cell}>{p.widthMm} × {p.heightMm}</td>

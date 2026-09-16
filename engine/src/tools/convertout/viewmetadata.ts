@@ -1,21 +1,11 @@
 import { stat } from "node:fs/promises";
 import { ViewMetadataInputSchema } from "@pogopdf/contracts";
+import type { MetadataData } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { assertNotCancelled } from "../organize/organize";
 import { loadPdf } from "../pdfdoc";
 
-export type MetadataData = {
-  title: string | null;
-  author: string | null;
-  subject: string | null;
-  keywords: string | null;
-  creator: string | null;
-  producer: string | null;
-  creationDate: string | null;
-  modificationDate: string | null;
-  pageCount: number;
-  fileSizeBytes: number;
-};
+export type { MetadataData };
 
 export async function runViewMetadata(
   input: unknown,

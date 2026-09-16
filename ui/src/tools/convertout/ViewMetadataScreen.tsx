@@ -1,21 +1,9 @@
 import type { ReactNode } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
+import type { MetadataData } from "@pogopdf/contracts";
 import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
 import { DataToolScreen } from "./DataToolScreen";
-
-export type MetadataData = {
-  title: string | null;
-  author: string | null;
-  subject: string | null;
-  keywords: string | null;
-  creator: string | null;
-  producer: string | null;
-  creationDate: string | null;
-  modificationDate: string | null;
-  pageCount: number;
-  fileSizeBytes: number;
-};
 
 // Technical units stay literal (KB/MB); they read the same in every language.
 function formatBytes(bytes: number): string {

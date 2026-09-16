@@ -29,6 +29,29 @@ export const FileCopyParamsSchema = z.object({
   dest: z.string().min(1),
 });
 
+/**
+ * Wrap a tool's raw return value in the right result envelope. Multi-output
+ * tools (e.g. split) return string[]; data tools (e.g. viewMetadata) return a
+ * plain object; everything else returns a single path. `undefined` is a tool
+ * bug, not an empty data result: reject it so it surfaces as an RPC error
+ * instead of silently resolving as `{data: undefined}`.
+ */
+export function shapeJobResult(
+  jobId: string,
+  result: unknown
+): JobResult | MultiFileResult | DataResult {
+  if (result === undefined) {
+    throw Object.assign(new Error("Tool returned no result"), { code: -32000 });
+  }
+  if (Array.isArray(result)) {
+    return MultiFileResultSchema.parse({ jobId, outputPaths: result });
+  }
+  if (typeof result === "string") {
+    return JobResultSchema.parse({ jobId, outputPath: result });
+  }
+  return DataResultSchema.parse({ jobId, data: result });
+}
+
 export function registerFileCopy(
   dispatcher: ReturnType<typeof createDispatcher>
 ): void {
@@ -115,24 +138,10 @@ export function startEngine(options: {
             reject(err);
             return;
           }
-          // Multi-output tools (e.g. split) return string[]; data tools (e.g.
-          // viewMetadata) return a plain object; everything else returns a
-          // single path.
-          if (Array.isArray(result)) {
-            resolve(
-              MultiFileResultSchema.parse({
-                jobId: p.jobId,
-                outputPaths: result,
-              })
-            );
-          } else if (typeof result === "string") {
-            resolve(
-              JobResultSchema.parse({ jobId: p.jobId, outputPath: result })
-            );
-          } else {
-            resolve(
-              DataResultSchema.parse({ jobId: p.jobId, data: result })
-            );
+          try {
+            resolve(shapeJobResult(p.jobId, result));
+          } catch (e) {
+            reject(e);
           }
         },
       });

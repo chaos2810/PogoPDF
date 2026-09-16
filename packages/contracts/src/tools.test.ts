@@ -394,6 +394,17 @@ describe("DataResultSchema", () => {
   it("rejects a non-uuid jobId", () => {
     expect(DataResultSchema.safeParse({ jobId: "nope", data: {} }).success).toBe(false);
   });
+  it("rejects undefined data", () => {
+    expect(DataResultSchema.safeParse({
+      jobId: "123e4567-e89b-12d3-a456-426614174000",
+      data: undefined,
+    }).success).toBe(false);
+  });
+  it("rejects a missing data key", () => {
+    expect(DataResultSchema.safeParse({
+      jobId: "123e4567-e89b-12d3-a456-426614174000",
+    }).success).toBe(false);
+  });
 });
 
 describe("TOOL_IDS", () => {
