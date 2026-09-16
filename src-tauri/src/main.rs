@@ -46,8 +46,10 @@ fn show_fatal_error(msg: &str) {
 ///
 /// Dev: run the TypeScript entry through `tsx` from the `engine/` package dir
 /// so Node resolves the engine's own `node_modules`.
-/// Release: extract the embedded engine blob to the per-user cache and run the
-/// cached executable (single-file install; no sidecar next to the app).
+/// Release: extract the embedded engine executable and its dependency archive
+/// to the per-user cache and run the cached executable (single-file install; no
+/// sidecar next to the app). The working directory is the extracted deps dir so
+/// the SEA bootstrap finds `engine.cjs` and its native `node_modules`.
 fn engine_launch_spec() -> Result<(String, String), String> {
     if cfg!(debug_assertions) {
         let engine_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -59,13 +61,11 @@ fn engine_launch_spec() -> Result<(String, String), String> {
             .unwrap_or_else(|_| "node --import tsx src/engine.ts".to_string());
         Ok((cmd, cwd))
     } else {
-        let engine_path = engine_blob::ensure_engine_exe()?;
-        let cmd = engine_path.to_string_lossy().to_string();
-        let cwd = engine_path
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_default();
-        Ok((cmd, cwd))
+        let runtime = engine_blob::ensure_runtime()?;
+        Ok((
+            runtime.exe.to_string_lossy().to_string(),
+            runtime.deps.to_string_lossy().to_string(),
+        ))
     }
 }
 
