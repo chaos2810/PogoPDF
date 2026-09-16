@@ -23,7 +23,14 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { collectPageMetrics, evaluateState, evaluateDragover } from "./metrics.mjs";
+import {
+  collectPageMetrics,
+  evaluateState,
+  evaluateDragover,
+  evaluateGridRotate,
+  evaluateGridDragging,
+  evaluateSaveAllError,
+} from "./metrics.mjs";
 import { writeAuditBrief, STATES } from "./write-audit-prompt.mjs";
 
 const KNOWN_STATES = new Set(STATES.map((s) => s.name));
@@ -112,6 +119,91 @@ async function clickAria(page, label) {
   if (!ok) throw new Error(`No button with aria-label "${label}"`);
 }
 
+// Home tool card lookup by its rendered title (English or zh-TW). Scrolls the
+// card into view before clicking so long grids (15 tools) are reachable.
+async function openTool(page, title, altTitle) {
+  const ok = await page.evaluate(
+    ([needle, alt]) => {
+      const btn = [...document.querySelectorAll("button")].find((b) => {
+        const strong = b.querySelector("strong");
+        const text = strong?.textContent?.trim();
+        return text === needle || (alt && text === alt);
+      });
+      if (!btn) return false;
+      btn.scrollIntoView({ block: "center" });
+      btn.click();
+      return true;
+    },
+    [title, altTitle ?? null]
+  );
+  if (!ok) throw new Error(`Tool card "${title}" not found on home`);
+  await sleep(200);
+}
+
+async function clickTestId(page, id) {
+  const ok = await page.evaluate((tid) => {
+    const el = document.querySelector(`[data-testid="${tid}"]`);
+    if (!el) return false;
+    el.click();
+    return true;
+  }, id);
+  if (!ok) throw new Error(`No element with data-testid "${id}"`);
+}
+
+// React installs a value setter on the input prototype; assigning through it
+// then dispatching `input` is what makes a controlled component update.
+async function typeInto(page, id, text) {
+  const ok = await page.evaluate(
+    ([tid, value]) => {
+      const el = document.querySelector(`[data-testid="${tid}"]`);
+      if (!el) return false;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(el, value);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    },
+    [id, text]
+  );
+  if (!ok) throw new Error(`No input with data-testid "${id}"`);
+  await sleep(80);
+}
+
+// The option controls are label-wrapped: click the label whose text matches.
+async function clickLabel(page, name, text) {
+  const ok = await page.evaluate(
+    ([n, needle]) => {
+      const label = [...document.querySelectorAll(`input[name="${n}"]`)].find((i) => {
+        const l = i.closest("label");
+        return l?.textContent?.trim() === needle;
+      })?.closest("label");
+      if (!label) return false;
+      label.click();
+      return true;
+    },
+    [name, text]
+  );
+  if (!ok) throw new Error(`No radio labelled "${text}" in group "${name}"`);
+  await sleep(80);
+}
+
+async function selectByValue(page, id, value) {
+  const ok = await page.evaluate(
+    ([tid, val]) => {
+      const sel = document.querySelector(`[data-testid="${tid}"]`);
+      if (!sel) return false;
+      sel.value = val;
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    },
+    [id, value]
+  );
+  if (!ok) throw new Error(`No select with data-testid "${id}"`);
+  await sleep(80);
+}
+
 async function setPrefs(page, prefs) {
   await page.goto(URL, { waitUntil: "networkidle0" });
   await page.evaluate((p) => {
@@ -147,6 +239,12 @@ const LONG = [
 ];
 
 const MANY = Array.from({ length: 8 }, (_, i) => `C:\\Users\\demo\\batch\\document-${i + 1}.pdf`);
+
+const SPLIT_OUT = [
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-1.pdf",
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-2.pdf",
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-3.pdf",
+];
 
 async function main() {
   rmSync(shotsDir, { recursive: true, force: true });
@@ -268,6 +366,107 @@ async function main() {
     await sleep(120);
     await shot("merge-zhtw");
 
+    // --- split: valid ranges form ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Split PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock(() => window.__mockSetOutputPaths(null));
+    await typeInto(page, "split-ranges", "1-3,5");
+    await shot("split-form");
+
+    // --- split: invalid ranges (validation error, CTA disabled) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Split PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "split-ranges", "abc");
+    await shot("split-invalid");
+
+    // --- extract pages form ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Extract Pages");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "extract-pages", "2-4");
+    await shot("extract-form");
+
+    // --- organize grid (6 mocked page thumbnails) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Organize Pages");
+    await mock(() => window.__mockPdfThumbs(6));
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(300);
+    await shot("organize-grid");
+
+    // --- organize grid: one cell rotated ---
+    await clickTestId(page, "grid-rotate");
+    await sleep(200);
+    await shot("organize-grid-rotated");
+
+    // --- organize grid: mid pointer-drag (pointerdown + move over cell 3) ---
+    const cells = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="grid-cell"]')].slice(0, 3).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      })
+    );
+    await page.mouse.move(cells[0].x, cells[0].y);
+    await page.mouse.down();
+    await page.mouse.move(cells[1].x, cells[1].y, { steps: 6 });
+    await page.mouse.move(cells[2].x, cells[2].y, { steps: 6 });
+    await sleep(150);
+    await shot("organize-dragging");
+    await page.mouse.up();
+    await sleep(100);
+
+    // --- rotate form ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Rotate PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "rotate-angle", "90°");
+    await typeInto(page, "rotate-pages", "2-3");
+    await shot("rotate-form");
+
+    // --- booklet (no options) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Booklet");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await shot("booklet-form");
+
+    // --- nup form ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "N-up");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await selectByValue(page, "nup-layout", "2x2");
+    await shot("nup-form");
+
+    // --- split done: 3 outputs, Save All → 3 happy rows ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Split PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock((p) => window.__mockSetOutputPaths(p), SPLIT_OUT);
+    await mock(() => window.__mockCopyFail("part-2.pdf", false));
+    await mock(() => window.__mockJobControl("auto"));
+    await typeInto(page, "split-ranges", "1-3,5");
+    await clickTestId(page, "split-cta");
+    await sleep(400);
+    await clickTestId(page, "save-all");
+    await sleep(400);
+    await shot("saveas-multi");
+
+    // --- split done: one copy fails → error row + Retry ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Split PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock((p) => window.__mockSetOutputPaths(p), SPLIT_OUT);
+    await mock(() => window.__mockCopyFail("part-2.pdf", true));
+    await mock(() => window.__mockJobControl("auto"));
+    await typeInto(page, "split-ranges", "1-3,5");
+    await clickTestId(page, "split-cta");
+    await sleep(400);
+    await clickTestId(page, "save-all");
+    await sleep(400);
+    await shot("saveas-multi-error");
+    await mock(() => window.__mockCopyFail("part-2.pdf", false));
+
     // --- palette ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
     await page.keyboard.down("Control");
@@ -289,12 +488,42 @@ async function main() {
     }
   }
 
-  // --- cross-state invariant + report.json ---
+  // --- cross-state invariants + report.json ---
   const dragover = evaluateDragover(captures.get("merge-empty")?.raw, captures.get("merge-dragover")?.raw);
   const dragoverCapture = captures.get("merge-dragover");
   if (dragoverCapture) {
     dragoverCapture.invariants["dragover-state-visible"] = dragover.pass;
     dragoverCapture.evidence.dragoverEvidence = dragover;
+  }
+
+  const gridRotate = evaluateGridRotate(
+    captures.get("organize-grid")?.raw,
+    captures.get("organize-grid-rotated")?.raw
+  );
+  const gridRotateCapture = captures.get("organize-grid-rotated");
+  if (gridRotateCapture) {
+    gridRotateCapture.invariants["grid-rotate-visible"] = gridRotate.pass;
+    gridRotateCapture.evidence.gridRotate = gridRotate;
+  }
+
+  const gridDrag = evaluateGridDragging(
+    captures.get("organize-grid")?.raw,
+    captures.get("organize-dragging")?.raw
+  );
+  const gridDragCapture = captures.get("organize-dragging");
+  if (gridDragCapture) {
+    gridDragCapture.invariants["grid-dragging-visible"] = gridDrag.pass;
+    gridDragCapture.evidence.gridDragging = gridDrag;
+  }
+
+  const saveAllError = evaluateSaveAllError(
+    captures.get("saveas-multi")?.raw,
+    captures.get("saveas-multi-error")?.raw
+  );
+  const saveAllErrorCapture = captures.get("saveas-multi-error");
+  if (saveAllErrorCapture) {
+    saveAllErrorCapture.invariants["saveall-error-row"] = saveAllError.pass;
+    saveAllErrorCapture.evidence.saveAllError = saveAllError;
   }
 
   const states = [...captures.entries()].map(([name, c]) => ({
@@ -316,6 +545,9 @@ async function main() {
     allPass: failures.length === 0,
     failures,
     dragover: dragover,
+    gridRotate: gridRotate,
+    gridDragging: gridDrag,
+    saveAllError: saveAllError,
     states,
   };
 

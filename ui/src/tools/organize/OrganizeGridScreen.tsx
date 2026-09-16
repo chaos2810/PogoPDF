@@ -71,7 +71,9 @@ export function OrganizeGridScreen() {
   const [error, setError] = useState("");
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  // Grabbed source (dimmed) and the cell currently under the pointer (ringed).
+  const [dragSource, setDragSource] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   const dragFrom = useRef<number | null>(null);
   const dragTo = useRef<number | null>(null);
@@ -98,7 +100,8 @@ export function OrganizeGridScreen() {
     if (from != null && to != null) setPages((prev) => movePage(prev, from, to));
     dragFrom.current = null;
     dragTo.current = null;
-    setDragIndex(null);
+    setDragSource(null);
+    setDragOver(null);
   }, [removeDragListeners]);
 
   useEffect(
@@ -106,7 +109,8 @@ export function OrganizeGridScreen() {
       removeDragListeners();
       dragFrom.current = null;
       dragTo.current = null;
-      setDragIndex(null);
+      setDragSource(null);
+      setDragOver(null);
     },
     [removeDragListeners]
   );
@@ -200,12 +204,12 @@ export function OrganizeGridScreen() {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
         started = true;
         dragFrom.current = index;
-        setDragIndex(index);
+        setDragSource(index);
       }
       const over = cellAt(ev.clientX, ev.clientY);
       if (over != null) {
         dragTo.current = over;
-        setDragIndex(over);
+        setDragOver(over);
       }
     };
     dragHandlers.current = { move: onMove, end: endDrag };
@@ -323,12 +327,15 @@ export function OrganizeGridScreen() {
                     position: "relative", display: "flex", flexDirection: "column",
                     gap: 6, padding: 8, borderRadius: "var(--radius-tile)",
                     border:
-                      dragIndex === i
+                      dragSource === i || dragOver === i
                         ? "2px solid var(--accent)"
                         : "1px solid var(--border)",
-                    background: "var(--bg)",
+                    background:
+                      dragOver === i && dragSource !== i
+                        ? "color-mix(in srgb, var(--accent) 8%, var(--bg))"
+                        : "var(--bg)",
                     cursor: "grab", touchAction: "none",
-                    opacity: dragIndex === i ? 0.6 : 1,
+                    opacity: dragSource === i ? 0.5 : 1,
                   }}
                 >
                   <div

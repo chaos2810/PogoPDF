@@ -58,34 +58,80 @@ export function collectPageMetrics() {
   }
 
   // --- 2. sibling overlap within flex/grid rows ---
-  const overlaps = [];
-  for (const parent of document.querySelectorAll("li, header, ul, section, form, div")) {
-    if (!isVisible(parent)) continue;
-    const cs = getComputedStyle(parent);
-    if (!/flex|grid/.test(cs.display)) continue;
-    // Leaf siblings only: comparing layout containers flags intentional modals
-    // (a fixed overlay genuinely covers the page) and nested boxes.
-    const kids = [...parent.children].filter((el) => isVisible(el) && el.childElementCount === 0);
-    if (kids.length < 2 || kids.length > 20) continue;
+  // leafOnly skips layout containers: comparing them would flag intentional
+  // modals (a fixed overlay genuinely covers the page) and nested boxes. The
+  // option-form scan compares whole controls (labels wrap their inputs), so it
+  // passes leafOnly=false; siblings are never ancestor/descendant of each other.
+  const scanOverlaps = (root, leafOnly) => {
+    const out = [];
+    for (const parent of root.querySelectorAll("li, header, ul, section, form, div")) {
+      if (!isVisible(parent)) continue;
+      const cs = getComputedStyle(parent);
+      if (!/flex|grid/.test(cs.display)) continue;
+      const kids = [...parent.children].filter(
+        (el) => isVisible(el) && (!leafOnly || el.childElementCount === 0)
+      );
+      if (kids.length < 2 || kids.length > 20) continue;
+      for (let i = 0; i < kids.length; i++) {
+        for (let j = i + 1; j < kids.length; j++) {
+          const a = rectOf(kids[i]);
+          const b = rectOf(kids[j]);
+          const ix = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+          const iy = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+          const area = +(ix * iy).toFixed(2);
+          if (area > 0.5) {
+            out.push({
+              parent: parent.tagName.toLowerCase(),
+              parentTestid: testId(parent),
+              a: { tag: kids[i].tagName.toLowerCase(), text: snippet(kids[i], 40), rect: a },
+              b: { tag: kids[j].tagName.toLowerCase(), text: snippet(kids[j], 40), rect: b },
+              area,
+            });
+          }
+        }
+      }
+    }
+    return out;
+  };
+
+  const overlaps = scanOverlaps(document, true);
+
+  // --- 2b. option-form (shared by every file tool) overlap/containment ---
+  // The form stacks block children, so the flex/grid scan above never sees it.
+  // Compare the direct children (fields, radio rows, hints) pairwise and check
+  // they stay inside the form box.
+  const formOverlaps = [];
+  const formEscapes = [];
+  const optForm = document.querySelector('[data-testid="options-form"]');
+  if (optForm && isVisible(optForm)) {
+    const formRect = rectOf(optForm);
+    const kids = [...optForm.children].filter(isVisible);
     for (let i = 0; i < kids.length; i++) {
+      const a = rectOf(kids[i]);
+      if (
+        a.x < formRect.x - 1 ||
+        a.y < formRect.y - 1 ||
+        a.x + a.width > formRect.x + formRect.width + 1 ||
+        a.y + a.height > formRect.y + formRect.height + 1
+      ) {
+        formEscapes.push({ text: snippet(kids[i], 40), rect: a, formRect });
+      }
       for (let j = i + 1; j < kids.length; j++) {
-        const a = rectOf(kids[i]);
         const b = rectOf(kids[j]);
         const ix = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
         const iy = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
         const area = +(ix * iy).toFixed(2);
         if (area > 0.5) {
-          overlaps.push({
-            parent: parent.tagName.toLowerCase(),
-            parentTestid: testId(parent),
-            a: { tag: kids[i].tagName.toLowerCase(), text: snippet(kids[i], 40), rect: a },
-            b: { tag: kids[j].tagName.toLowerCase(), text: snippet(kids[j], 40), rect: b },
+          formOverlaps.push({
+            a: { text: snippet(kids[i], 40), rect: a },
+            b: { text: snippet(kids[j], 40), rect: b },
             area,
           });
         }
       }
     }
   }
+  const optionsForm = optForm ? { testid: "options-form", rect: rectOf(optForm) } : null;
 
   // --- 3. clipping (text overflowing its box) ---
   // Intentional scroll containers (computed overflow auto/scroll) and the
@@ -135,6 +181,92 @@ export function collectPageMetrics() {
     };
   });
 
+  // --- 4b. organize grid cells (generic: any [data-testid="grid-cell"]) ---
+  // rotate(0deg) still computes as matrix(1, 0, 0, 1, 0, 0), so an identity
+  // matrix counts as "not rotated"; anything else is a real rotation.
+  const isIdentityTransform = (t) => {
+    if (!t || t === "none") return true;
+    const n = t.match(/-?\d*\.?\d+/g)?.map(Number) ?? [];
+    return (
+      t.startsWith("matrix(") &&
+      n[0] === 1 && n[1] === 0 && n[2] === 0 && n[3] === 1
+    );
+  };
+  const grid = document.querySelector('[data-testid="organize-grid"]');
+  const gridCells = [...document.querySelectorAll('[data-testid="grid-cell"]')].map((li) => {
+    const r = li.getBoundingClientRect();
+    const thumb = li.querySelector('[data-testid="grid-thumb"]');
+    const transform = thumb ? getComputedStyle(thumb).transform : null;
+    return {
+      rect: rectOf(li),
+      row: Math.round(r.top), // cells on one grid row share a top edge
+      rotate: transform,
+      isRotated: !isIdentityTransform(transform),
+      isDragSource: getComputedStyle(li).opacity !== "1",
+    };
+  });
+
+  // Group into rows so widths compare within a row, gaps across columns.
+  const gridRows = [];
+  for (const cell of gridCells) {
+    const row = gridRows.find((r) => Math.abs(r[0].rect.y - cell.rect.y) <= 1);
+    if (row) row.push(cell);
+    else gridRows.push([cell]);
+  }
+  const gapOf = (row) => {
+    const xs = row.map((c) => c.rect.x).sort((a, b) => a - b);
+    return xs.map((x, i) => (i === 0 ? null : +(x - (xs[i - 1] + row[i - 1].rect.width)).toFixed(2)));
+  };
+  const gridInfo = {
+    count: gridCells.length,
+    rect: grid ? rectOf(grid) : null,
+    columnCount: grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : null,
+    rowCount: gridRows.length,
+    rowWidthSpreads: gridRows.map((row) =>
+      +(
+        Math.max(...row.map((c) => c.rect.width)) - Math.min(...row.map((c) => c.rect.width))
+      ).toFixed(2)
+    ),
+    rowHeightSpreads: gridRows.map((row) =>
+      +(
+        Math.max(...row.map((c) => c.rect.height)) - Math.min(...row.map((c) => c.rect.height))
+      ).toFixed(2)
+    ),
+    gaps: gridRows.map(gapOf),
+    rotatedCount: gridCells.filter((c) => c.isRotated).length,
+    dragSourceCount: gridCells.filter((c) => c.isDragSource).length,
+  };
+
+  // --- 4c. Save All status rows (icon centered against the row text) ---
+  const saveAllRows = [...document.querySelectorAll('[data-testid="save-all-row"]')].map((li) => {
+    const icon = li.querySelector("svg");
+    const text = li.querySelector("span:nth-of-type(2)") ?? li.lastElementChild;
+    const ir = icon ? icon.getBoundingClientRect() : null;
+    const tr = text ? text.getBoundingClientRect() : null;
+    const lr = li.getBoundingClientRect();
+    return {
+      text: (text?.textContent || "").trim().slice(0, 80),
+      centerDelta:
+        ir && tr ? +(ir.y + ir.height / 2 - (tr.y + tr.height / 2)).toFixed(2) : null,
+      rowHeight: +lr.height.toFixed(2),
+    };
+  });
+  const saveAllRowCount = saveAllRows.length;
+  const saveAllErrorCount = document.querySelectorAll('[data-testid="save-all-row"] .lucide-x, [data-testid="save-all-row"] svg.lucide-x').length;
+
+  // --- 4d. primary CTA runnable/disabled state ---
+  // The testid ends in -cta for FileToolScreen tools; grid tools reuse it too.
+  const ctaEl = document.querySelector('[data-testid$="-cta"]');
+  const cta = ctaEl
+    ? {
+        testid: testId(ctaEl),
+        disabled: ctaEl.disabled === true,
+        background: getComputedStyle(ctaEl).backgroundColor,
+        color: getComputedStyle(ctaEl).color,
+        opacity: getComputedStyle(ctaEl).opacity,
+      }
+    : null;
+
   // --- 5. drop zone + theme tokens ---
   const dz = document.querySelector('[data-testid="merge-dropzone"]');
   const dropZone = dz
@@ -153,8 +285,16 @@ export function collectPageMetrics() {
     bodyBg: getComputedStyle(document.body).backgroundColor,
     textNodes,
     overlaps,
+    optionsForm,
+    formOverlaps,
+    formEscapes,
     clipped,
     rows,
+    gridInfo,
+    saveAllRows,
+    saveAllRowCount,
+    saveAllErrorCount,
+    cta,
     dropZone,
   };
 }
@@ -194,13 +334,92 @@ function checkThemeTokens(state) {
   };
 }
 
+// Grid: cells on one row share a width; every cell shares one size (no layout
+// shift when a page is rotated).
+function checkGridCellsAligned(info) {
+  if (!info || info.count === 0) return { pass: true, detail: "no grid cells" };
+  const maxWidthSpread = info.rowWidthSpreads.length
+    ? Math.max(...info.rowWidthSpreads)
+    : 0;
+  return {
+    pass: maxWidthSpread <= 1,
+    rowWidthSpreads: info.rowWidthSpreads,
+    maxWidthSpread: +maxWidthSpread.toFixed(2),
+    rowCount: info.rowCount,
+  };
+}
+
+function checkGridCellsEqualSize(info) {
+  if (!info || info.count === 0) return { pass: true, detail: "no grid cells" };
+  const maxHeightSpread = info.rowHeightSpreads.length
+    ? Math.max(...info.rowHeightSpreads)
+    : 0;
+  return {
+    pass: maxHeightSpread <= 1,
+    rowHeightSpreads: info.rowHeightSpreads,
+    maxHeightSpread: +maxHeightSpread.toFixed(2),
+  };
+}
+
+function checkFormNoOverlap(state) {
+  const form = state.optionsForm;
+  if (!form) return { pass: true, detail: "no options form" };
+  const overlaps = state.formOverlaps ?? [];
+  const escapes = state.formEscapes ?? [];
+  return {
+    pass: overlaps.length === 0 && escapes.length === 0,
+    count: overlaps.length,
+    overlaps,
+    escapes,
+  };
+}
+
+function checkSaveAllRowsCentered(rows) {
+  if (!rows) return { pass: true, detail: "no rows" };
+  const deltas = rows.map((r) => r.centerDelta).filter((d) => d !== null);
+  if (deltas.length === 0) return { pass: true, detail: "no icons" };
+  const maxAbs = Math.max(...deltas.map((d) => Math.abs(d)));
+  return { pass: maxAbs <= 1, maxAbsDelta: maxAbs, deltas };
+}
+
+// A disabled CTA must still be visibly non-actionable: faded/neutral background.
+const DISABLED_CTA_BG = new Set([
+  "rgb(237, 238, 239)", // light --border
+  "rgb(58, 57, 52)", // dark --border
+]);
+
+// States where the primary CTA's enabled/disabled rendering is an asserted
+// invariant. Keyed by state name so the check scales as tools are added.
+const CTA_EXPECTATIONS = {
+  "split-form": false, // valid ranges → enabled
+  "split-invalid": true, // "abc" → disabled
+  "extract-form": false,
+  "booklet-form": false,
+  "nup-form": false,
+  "rotate-form": false,
+};
+
+function checkCtaDisabledVisible(cta, expectedDisabled) {
+  if (!cta) return { pass: true, detail: "no cta" };
+  const pass = expectedDisabled
+    ? cta.disabled &&
+      (DISABLED_CTA_BG.has(cta.background) || cta.background === "rgba(0, 0, 0, 0)")
+    : !cta.disabled && !DISABLED_CTA_BG.has(cta.background);
+  return { pass, cta, expectedDisabled };
+}
+
 // Returns { invariants, evidence } for one captured state.
 export function evaluateState(name, state) {
   const invariants = {
     "no-overlap": state.overlaps.length === 0,
+    "form-no-overlap": checkFormNoOverlap(state).pass,
     "no-unintended-clipping": state.clipped.length === 0,
     "rows-centered": checkRowsCentered(state.rows).pass,
     "rows-consistent-height": checkRowsConsistentHeight(state.rows).pass,
+    "grid-cells-aligned": checkGridCellsAligned(state.gridInfo).pass,
+    "grid-cells-equal-size": checkGridCellsEqualSize(state.gridInfo).pass,
+    "saveall-rows-centered": checkSaveAllRowsCentered(state.saveAllRows).pass,
+    "cta-disabled-visible": null, // only asserted for states in CTA_EXPECTATIONS
     "dragover-state-visible": null, // cross-state, filled in by buildReport
     "theme-tokens-correct": null, // only meaningful for home-* states
   };
@@ -208,25 +427,98 @@ export function evaluateState(name, state) {
   if (name === "home-light" || name === "home-dark") {
     invariants["theme-tokens-correct"] = checkThemeTokens(state).pass;
   }
+  if (name in CTA_EXPECTATIONS) {
+    invariants["cta-disabled-visible"] = checkCtaDisabledVisible(
+      state.cta,
+      CTA_EXPECTATIONS[name]
+    ).pass;
+  }
+
+  const expectations = {
+    grid: checkGridCellsAligned(state.gridInfo),
+    gridEqualSize: checkGridCellsEqualSize(state.gridInfo),
+    gridCellsDifferAcrossRotate: state.gridInfo
+      ? { count: state.gridInfo.count, rotated: state.gridInfo.rotatedCount }
+      : null,
+  };
 
   const evidence = {
     overlapCount: state.overlaps.length,
     overlaps: state.overlaps,
+    formNoOverlap: checkFormNoOverlap(state),
     clippedCount: state.clipped.length,
     clipped: state.clipped,
     rowCount: state.rows.length,
     rows: state.rows,
     rowsCentered: checkRowsCentered(state.rows),
     rowsConsistentHeight: checkRowsConsistentHeight(state.rows),
+    gridCellsAligned: checkGridCellsAligned(state.gridInfo),
+    gridCellsEqualSize: checkGridCellsEqualSize(state.gridInfo),
+    gridInfo: state.gridInfo,
+    saveAllRows: state.saveAllRows,
+    saveAllRowsCentered: checkSaveAllRowsCentered(state.saveAllRows),
+    saveAllRowCount: state.saveAllRowCount,
+    cta: state.cta,
     textNodeCount: state.textNodes.length,
     bodyBg: state.bodyBg,
     isDark: state.isDark,
     themeTokens: name === "home-light" || name === "home-dark" ? checkThemeTokens(state) : null,
     dropZone: state.dropZone,
     viewport: state.viewport,
+    expectations,
   };
 
-  return { invariants, evidence };
+  return { invariants, evidence, expectations };
+}
+
+// Cross-state: the rotate action must show up as a transform on the thumbnail
+// while the grid geometry itself stays identical.
+export function evaluateGridRotate(plainState, rotatedState) {
+  const a = plainState?.gridInfo;
+  const b = rotatedState?.gridInfo;
+  const pass = Boolean(
+    a &&
+      b &&
+      a.count === b.count &&
+      a.rowCount === b.rowCount &&
+      b.rotatedCount > a.rotatedCount &&
+      a.columnCount === b.columnCount &&
+      Math.abs(a.rect?.width - b.rect?.width) < 1
+  );
+  return {
+    pass,
+    plain: a ? { count: a.count, rowCount: a.rowCount, rotated: a.rotatedCount } : null,
+    rotated: b ? { count: b.count, rowCount: b.rowCount, rotated: b.rotatedCount } : null,
+  };
+}
+
+// Cross-state: the dragged cell must be visually distinguished from the cells
+// around it (opacity/border), and the grid geometry must not change.
+export function evaluateGridDragging(restState, dragState) {
+  const a = restState?.gridInfo;
+  const b = dragState?.gridInfo;
+  const pass = Boolean(
+    a && b && a.count === b.count && b.dragSourceCount > 0 && a.dragSourceCount === 0
+  );
+  return {
+    pass,
+    rest: a ? { count: a.count, dragSources: a.dragSourceCount } : null,
+    dragging: b ? { count: b.count, dragSources: b.dragSourceCount } : null,
+  };
+}
+
+// Cross-state: the Save All error state must render exactly one failed row and
+// a Retry action, while keeping every row icon centered.
+export function evaluateSaveAllError(happyState, errorState) {
+  const happy = happyState?.saveAllRowCount ?? 0;
+  const rows = errorState?.saveAllRowCount ?? 0;
+  const pass = Boolean(happy > 0 && rows === happy && errorState?.saveAllErrorCount === 1);
+  return {
+    pass,
+    happyRows: happy,
+    errorRows: rows,
+    errorRowsWithX: errorState?.saveAllErrorCount ?? 0,
+  };
 }
 
 // Cross-state invariant: drag-over must visibly change the drop zone.

@@ -199,7 +199,7 @@ export function FileToolScreen({
             </button>
           )}
 
-          {options && <div style={{ marginTop: 16 }}>{options}</div>}
+          {options && <div data-testid="options-form" style={{ marginTop: 16 }}>{options}</div>}
 
           {showError && (
             <div data-testid={`${toolId}-validation`} style={{ color: "var(--danger)", fontSize: 13, marginTop: 12 }}>
