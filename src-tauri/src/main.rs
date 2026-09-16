@@ -93,6 +93,7 @@ fn main() {
             commands::rpc_call,
             commands::dialog_open_pdf,
             commands::dialog_save,
+            commands::dialog_pick_folder,
             commands::reveal
         ])
         .on_window_event(|window, event| {

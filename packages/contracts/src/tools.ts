@@ -31,7 +31,12 @@ export const SplitInputSchema = z
     ranges: z.string().optional(),
     // Required when mode="every"; int >= 1.
     every: z.number().int().min(1).optional(),
-    filePrefix: z.string().optional(),
+    // A bare file-name stem: path separators would let it escape the output
+    // dir. Empty is allowed and falls back to the source basename.
+    filePrefix: z
+      .string()
+      .regex(/^[^\\/]*$/, "filePrefix must not contain path separators")
+      .optional(),
   })
   .strict();
 export type SplitInput = z.infer<typeof SplitInputSchema>;

@@ -60,7 +60,10 @@ export async function runSplit(
     groups = singleGroups(pageCount);
   }
 
-  const prefix = filePrefix ?? basename(filePath, extname(filePath));
+  const trimmedPrefix = filePrefix?.trim();
+  const prefix = trimmedPrefix
+    ? trimmedPrefix
+    : basename(filePath, extname(filePath));
   const out: string[] = [];
   for (let n = 0; n < groups.length; n++) {
     assertNotCancelled(ctx);

@@ -72,6 +72,19 @@ pub async fn dialog_save(
 }
 
 #[tauri::command]
+pub async fn dialog_pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    // Folders need no asset-protocol scope registration (unlike dialog_open_pdf):
+    // nothing renders their contents through convertFileSrc.
+    let picked = app.dialog().file().blocking_pick_folder();
+
+    Ok(picked
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
 pub fn reveal(path: String) -> Result<(), String> {
     std::process::Command::new("explorer")
         .arg("/select,")

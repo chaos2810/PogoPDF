@@ -36,6 +36,15 @@ describe("SplitInputSchema", () => {
   it("rejects unknown mode", () => {
     expect(SplitInputSchema.safeParse({ filePath: PDF, mode: "chunks" }).success).toBe(false);
   });
+  it("rejects a filePrefix containing path separators", () => {
+    expect(SplitInputSchema.safeParse({ filePath: PDF, mode: "single", filePrefix: "a/b" }).success).toBe(false);
+    expect(SplitInputSchema.safeParse({ filePath: PDF, mode: "single", filePrefix: "a\\b" }).success).toBe(false);
+  });
+  it("accepts a plain filePrefix and an empty string", () => {
+    expect(SplitInputSchema.safeParse({ filePath: PDF, mode: "single", filePrefix: "myout" }).success).toBe(true);
+    // Empty is allowed here; the engine falls back to the source basename.
+    expect(SplitInputSchema.safeParse({ filePath: PDF, mode: "single", filePrefix: "" }).success).toBe(true);
+  });
 });
 
 describe("ExtractPagesInputSchema", () => {

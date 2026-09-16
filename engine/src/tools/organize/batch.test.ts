@@ -103,6 +103,29 @@ describe("batch page tools", () => {
       ]);
     });
 
+    it("empty filePrefix falls back to the source basename", async () => {
+      const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
+      const out = await runSplit(
+        { filePath: eight, mode: "ranges", ranges: "1,2", filePrefix: "" },
+        ctx,
+        outDir
+      );
+      expect(out).toEqual([
+        join(outDir, "eight-1.pdf"),
+        join(outDir, "eight-2.pdf"),
+      ]);
+    });
+
+    it("rejects a filePrefix containing path separators", async () => {
+      await expect(
+        runSplit(
+          { filePath: eight, mode: "single", filePrefix: "../evil" },
+          ctx,
+          mkdtempSync(join(tmpdir(), "pogopdf-test-"))
+        )
+      ).rejects.toThrow(/path separators/);
+    });
+
     it("every: consecutive chunks with a trailing remainder", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out3 = await runSplit(
