@@ -157,9 +157,11 @@ export function Hint({ keyName }: { keyName: string }) {
         color: "var(--muted)",
         fontSize: 12,
         marginTop: 6,
-        // Keep a hint from butting against the next field label when it sits
-        // between two fields (e.g. the conditional quality hint).
-        marginBottom: 6,
+        // Match the field gutter so a hint between two fields stays closer to
+        // the field it describes than to the next field's label (the margin
+        // above collapses with the preceding Field's 12px, so an equal bottom
+        // margin reads as one field group rather than tagging the next label).
+        marginBottom: 12,
       }}
     >
       {t(keyName, lang)}

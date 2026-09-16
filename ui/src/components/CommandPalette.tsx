@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../app/store";
 import { registry } from "../tools/registry";
 import { t } from "@pogopdf/i18n";
@@ -7,6 +7,19 @@ export function CommandPalette() {
   const { navigate, lang } = useApp();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [scrollable, setScrollable] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const matches = registry.filter((tool) =>
+    t(tool.titleKey, lang).toLowerCase().includes(query.toLowerCase())
+  );
+
+  // Fade the list's bottom edge only when it overflows, so a partly visible
+  // row reads as scrollable rather than clipped.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el) setScrollable(el.scrollHeight > el.clientHeight + 1);
+  }, [open, query]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -21,10 +34,6 @@ export function CommandPalette() {
   }, []);
 
   if (!open) return null;
-  const matches = registry.filter((tool) =>
-    t(tool.titleKey, lang).toLowerCase().includes(query.toLowerCase())
-  );
-
   const go = (toolId: string) => {
     setOpen(false);
     navigate({ kind: "tool", toolId });
@@ -59,7 +68,18 @@ export function CommandPalette() {
             color: "var(--text)", fontSize: 14,
           }}
         />
-        <div style={{ marginTop: 8, maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}>
+        <div
+          ref={listRef}
+          style={{
+            marginTop: 8, maxHeight: "calc(100vh - 260px)", overflowY: "auto",
+            WebkitMaskImage: scrollable
+              ? "linear-gradient(to bottom, black calc(100% - 28px), transparent)"
+              : undefined,
+            maskImage: scrollable
+              ? "linear-gradient(to bottom, black calc(100% - 28px), transparent)"
+              : undefined,
+          }}
+        >
           {matches.map((tool) => (
             <button
               key={tool.id}
