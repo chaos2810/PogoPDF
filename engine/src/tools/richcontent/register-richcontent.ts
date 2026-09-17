@@ -3,12 +3,15 @@ import {
   ComicToPdfInputSchema,
   EbookToPdfInputSchema,
   EditAttachmentsInputSchema,
+  EditBookmarksInputSchema,
   ExtractAttachmentsInputSchema,
   ExtractTablesInputSchema,
   OcrInputSchema,
   PdfToMarkdownInputSchema,
   PrepareForAiInputSchema,
   TOOL_IDS,
+  TocInputSchema,
+  ViewBookmarksInputSchema,
   XpsToPdfInputSchema,
 } from "@pogopdf/contracts";
 import type { ToolRegistry } from "../registry";
@@ -24,6 +27,7 @@ import {
   runEditAttachments,
   runExtractAttachments,
 } from "./attachments";
+import { runEditBookmarks, runToc, runViewBookmarks } from "./bookmarks";
 
 export function registerRichContentTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.ebookToPdf, {
@@ -65,5 +69,17 @@ export function registerRichContentTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.editAttachments, {
     schema: EditAttachmentsInputSchema,
     run: runEditAttachments,
+  });
+  tools.set(TOOL_IDS.viewBookmarks, {
+    schema: ViewBookmarksInputSchema,
+    run: runViewBookmarks,
+  });
+  tools.set(TOOL_IDS.editBookmarks, {
+    schema: EditBookmarksInputSchema,
+    run: runEditBookmarks,
+  });
+  tools.set(TOOL_IDS.toc, {
+    schema: TocInputSchema,
+    run: runToc,
   });
 }
