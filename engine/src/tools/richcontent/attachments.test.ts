@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, afterAll } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFString,
+} from "pdf-lib";
 import { mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -38,6 +45,36 @@ function makeAttachment(path: string, bytes: Buffer): string {
 async function loadAttachmentNames(path: string): Promise<string[]> {
   const doc = await PDFDocument.load(readFileSync(path));
   return listEmbeddedFiles(doc).map((a) => a.name);
+}
+
+/**
+ * Build a PDF whose EmbeddedFiles tree uses nested /Kids, the shape Acrobat
+ * portfolio PDFs use, instead of the flat root /Names array pdf-lib writes.
+ * Each kid holds one name pair in its own /Names array.
+ */
+async function makeKidsTreePdf(
+  path: string,
+  files: { name: string; bytes: Buffer }[]
+): Promise<string> {
+  const doc = await PDFDocument.create();
+  doc.addPage();
+  const ctx = doc.context;
+  const kids = PDFArray.withContext(ctx);
+  for (const { name, bytes } of files) {
+    const ref = ctx.register(
+      ctx.flateStream(bytes, { Type: "EmbeddedFile", Params: { Size: bytes.length } })
+    );
+    const spec = ctx.register(
+      ctx.obj({ Type: "Filespec", F: PDFString.of(name), EF: { F: ref } })
+    );
+    const kid = ctx.obj({ Names: [PDFHexString.fromText(name), spec] });
+    kids.push(ctx.register(kid));
+  }
+  const embeddedFiles = ctx.obj({});
+  embeddedFiles.set(PDFName.of("Kids"), kids);
+  doc.catalog.set(PDFName.of("Names"), ctx.obj({ EmbeddedFiles: embeddedFiles }));
+  writeFileSync(path, await doc.save());
+  return path;
 }
 
 describe("runAddAttachments", () => {
@@ -124,6 +161,42 @@ describe("runExtractAttachments", () => {
     expect(readFileSync(byName.get("two.bin")!).equals(two)).toBe(true);
   });
 
+  it("roundtrips duplicate basenames with distinct bytes", async () => {
+    const dir = outDir();
+    const src = await makePdf(join(dir, "src.pdf"), 1);
+    const dirA = outDir();
+    const dirB = outDir();
+    const first = Buffer.from("first duplicate report");
+    const second = Buffer.from("second duplicate report");
+    const a = makeAttachment(join(dirA, "report.pdf"), first);
+    const b = makeAttachment(join(dirB, "report.pdf"), second);
+    const withAtt = await runAddAttachments({ filePath: src, attachments: [a, b] }, okCtx, dir);
+
+    const extracted = await runExtractAttachments({ filePath: withAtt }, okCtx, dir);
+    expect(extracted.map((p) => basename(p)).sort()).toEqual(["report-2.pdf", "report.pdf"]);
+    const byName = new Map(extracted.map((p) => [basename(p), p]));
+    const firstBytes = readFileSync(byName.get("report.pdf")!);
+    const secondBytes = readFileSync(byName.get("report-2.pdf")!);
+    expect(firstBytes.equals(secondBytes)).toBe(false);
+    expect(firstBytes.equals(first)).toBe(true);
+    expect(secondBytes.equals(second)).toBe(true);
+  });
+
+  it("reports extract progress to 100", async () => {
+    const dir = outDir();
+    const src = await makePdf(join(dir, "src.pdf"), 1);
+    const a = makeAttachment(join(dir, "one.txt"), Buffer.from("aaa"));
+    const b = makeAttachment(join(dir, "two.txt"), Buffer.from("bbbbb"));
+    const withAtt = await runAddAttachments({ filePath: src, attachments: [a, b] }, okCtx, dir);
+    const events: ProgressParams[] = [];
+    await runExtractAttachments(
+      { filePath: withAtt },
+      { cancelled: () => false, notifyProgress: (p) => events.push(p) },
+      dir
+    );
+    expect(events.at(-1)?.percent).toBe(100);
+  });
+
   it("reports UNSUPPORTED_FORMAT when the PDF has no embedded files", async () => {
     const dir = outDir();
     const src = await makePdf(join(dir, "plain.pdf"), 1);
@@ -146,6 +219,43 @@ describe("runExtractAttachments", () => {
     expect(extracted[0].startsWith(dir)).toBe(true);
     expect(existsSync(join(dir, "evil"))).toBe(false);
     expect(readFileSync(extracted[0]).toString()).toBe("traversal");
+  });
+
+  it("lists and extracts entries from a nested /Kids name tree", async () => {
+    const dir = outDir();
+    const one = Buffer.from("kids tree one");
+    const two = Buffer.from([9, 8, 7, 6, 5]);
+    const src = await makeKidsTreePdf(join(dir, "kids.pdf"), [
+      { name: "alpha.txt", bytes: one },
+      { name: "beta.bin", bytes: two },
+    ]);
+
+    expect((await loadAttachmentNames(src)).sort()).toEqual(["alpha.txt", "beta.bin"]);
+
+    const extracted = await runExtractAttachments({ filePath: src }, okCtx, dir);
+    const byName = new Map(extracted.map((p) => [basename(p), p]));
+    expect(byName.has("alpha.txt")).toBe(true);
+    expect(byName.has("beta.bin")).toBe(true);
+    expect(readFileSync(byName.get("alpha.txt")!).equals(one)).toBe(true);
+    expect(readFileSync(byName.get("beta.bin")!).equals(two)).toBe(true);
+  });
+
+  it("skips a malformed /Kids entry instead of failing the list", async () => {
+    const dir = outDir();
+    const src = await makeKidsTreePdf(join(dir, "kids.pdf"), [
+      { name: "good.txt", bytes: Buffer.from("good bytes") },
+    ]);
+    const doc = await PDFDocument.load(readFileSync(src));
+    const ef = doc.catalog
+      .lookup(PDFName.of("Names"), PDFDict)
+      .lookup(PDFName.of("EmbeddedFiles"), PDFDict);
+    const kids = ef.get(PDFName.of("Kids"));
+    if (!(kids instanceof PDFArray)) throw new Error("fixture not built");
+    kids.push(doc.context.register(doc.context.obj({ Names: "not-an-array" })));
+    const broken = join(dir, "broken.pdf");
+    writeFileSync(broken, await doc.save());
+
+    expect((await loadAttachmentNames(broken)).sort()).toEqual(["good.txt"]);
   });
 
   it("maps an encrypted source to ENCRYPTED_PDF", async () => {

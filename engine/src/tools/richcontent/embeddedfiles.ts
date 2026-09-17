@@ -14,9 +14,20 @@ import {
 
 export type EmbeddedFileInfo = { name: string; size: number };
 
-type Entry = { name: string; ref: PDFRef; filespec: PDFDict };
+/**
+ * Entries carry their own filespec ref. Extraction must fetch by entry, not by
+ * name: two attachments can share a basename, and a name lookup returns the
+ * first match for both.
+ */
+export type EmbeddedFileEntry = {
+  name: string;
+  size: number;
+  ref: PDFRef;
+  filespec: PDFDict;
+};
 
 const NAMES = PDFName.of("Names");
+const KIDS = PDFName.of("Kids");
 const EMBEDDED_FILES = PDFName.of("EmbeddedFiles");
 const AF = PDFName.of("AF");
 const EF = PDFName.of("EF");
@@ -25,10 +36,10 @@ const PARAMS = PDFName.of("Params");
 const SIZE = PDFName.of("Size");
 
 /**
- * Name-tree keys and file spec /F fields can be literal or hex strings. v1 only
- * traverses the flat root /Names array that pdf-lib's attach() writes; nested
- * /Kids subtrees are not walked (a real-world name tree with 50+ files is out of
- * scope for this tool).
+ * Name-tree keys and file spec /F fields can be literal or hex strings. The
+ * reader walks both the flat root /Names array pdf-lib writes and nested /Kids
+ * subtrees (Acrobat portfolios). A kid whose /Names or /Kids value has the
+ * wrong type is skipped rather than aborting the whole list.
  */
 function decodeText(obj: unknown): string | undefined {
   if (obj instanceof PDFHexString || obj instanceof PDFString || obj instanceof PDFName) {
@@ -42,19 +53,50 @@ function embeddedFilesRoot(doc: PDFDocument): PDFDict | undefined {
   return names?.lookupMaybe(EMBEDDED_FILES, PDFDict);
 }
 
-function collectEntries(doc: PDFDocument): Entry[] {
-  const root = embeddedFilesRoot(doc);
-  if (!root) return [];
-  const names = root.lookupMaybe(NAMES, PDFArray);
-  if (!names) return [];
+/** Resolve a ref or direct object without pdf-lib's throwing type check. */
+function resolve(doc: PDFDocument, obj: unknown): unknown {
+  return obj instanceof PDFRef ? doc.context.lookup(obj) : obj;
+}
 
-  const entries: Entry[] = [];
+function resolveDict(doc: PDFDocument, obj: unknown): PDFDict | undefined {
+  const value = resolve(doc, obj);
+  return value instanceof PDFDict ? value : undefined;
+}
+
+function resolveArray(doc: PDFDocument, obj: unknown): PDFArray | undefined {
+  const value = resolve(doc, obj);
+  return value instanceof PDFArray ? value : undefined;
+}
+
+function pushPairs(doc: PDFDocument, names: PDFArray, out: EmbeddedFileEntry[]): void {
   for (let i = 0; i + 1 < names.size(); i += 2) {
     const name = decodeText(names.get(i));
     const ref = names.get(i + 1);
     if (name === undefined || !(ref instanceof PDFRef)) continue;
-    entries.push({ name, ref, filespec: doc.context.lookup(ref, PDFDict) });
+    const filespec = resolveDict(doc, ref);
+    if (!filespec) continue;
+    out.push({ name, size: sizeOf(doc, filespec), ref, filespec });
   }
+}
+
+function collectFromNode(doc: PDFDocument, node: PDFDict, out: EmbeddedFileEntry[]): void {
+  const names = resolveArray(doc, node.get(NAMES));
+  if (names) pushPairs(doc, names, out);
+
+  const kids = resolveArray(doc, node.get(KIDS));
+  if (!kids) return;
+  for (let i = 0; i < kids.size(); i++) {
+    const kid = resolveDict(doc, kids.get(i));
+    if (!kid) continue;
+    collectFromNode(doc, kid, out);
+  }
+}
+
+function collectEntries(doc: PDFDocument): EmbeddedFileEntry[] {
+  const root = embeddedFilesRoot(doc);
+  if (!root) return [];
+  const entries: EmbeddedFileEntry[] = [];
+  collectFromNode(doc, root, entries);
   return entries;
 }
 
@@ -80,22 +122,34 @@ function sizeOf(doc: PDFDocument, filespec: PDFDict): number {
   return decodePDFRawStream(stream).decode().length;
 }
 
-export function listEmbeddedFiles(doc: PDFDocument): EmbeddedFileInfo[] {
-  return collectEntries(doc).map(({ name, filespec }) => ({
-    name,
-    size: sizeOf(doc, filespec),
-  }));
+/**
+ * Entries with their filespec refs; use this when fetching bytes so duplicate
+ * basenames resolve to their own streams. The public list RPC maps to
+ * { name, size }.
+ */
+export function listEmbeddedFileEntries(doc: PDFDocument): EmbeddedFileEntry[] {
+  return collectEntries(doc);
 }
 
-export function getEmbeddedFile(doc: PDFDocument, name: string): Uint8Array | undefined {
-  const entry = collectEntries(doc).find((e) => e.name === name);
-  if (!entry) return undefined;
+export function listEmbeddedFiles(doc: PDFDocument): EmbeddedFileInfo[] {
+  return collectEntries(doc).map(({ name, size }) => ({ name, size }));
+}
+
+export function getEmbeddedFile(
+  doc: PDFDocument,
+  entry: EmbeddedFileEntry
+): Uint8Array | undefined {
   const stream = embeddedStream(doc, entry.filespec);
   if (!stream) return undefined;
   return decodePDFRawStream(stream).decode();
 }
 
-/** Drops the matched /Names pair and its /AF reference. False when absent. */
+/**
+ * Drops the matched /Names pair and its /AF reference. False when absent.
+ * Only the flat root /Names array is searched and only the FIRST entry with a
+ * matching name is removed: with duplicate names, call again to remove the
+ * next one, and list will still show the other until then.
+ */
 export function removeEmbeddedFile(doc: PDFDocument, name: string): boolean {
   const root = embeddedFilesRoot(doc);
   const names = root?.lookupMaybe(NAMES, PDFArray);

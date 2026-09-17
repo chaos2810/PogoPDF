@@ -12,7 +12,7 @@ import { assertNotCancelled } from "../organize/organize";
 import { loadPdf, savePdf } from "../pdfdoc";
 import {
   getEmbeddedFile,
-  listEmbeddedFiles,
+  listEmbeddedFileEntries,
   removeEmbeddedFile,
 } from "./embeddedfiles";
 
@@ -62,9 +62,10 @@ export async function runAddAttachments(
 }
 
 /**
- * v1 extracts the flat root /Names array only. Names are sanitized to their
- * last path segment and duplicates get a "-2", "-3" suffix so no entry is
- * silently dropped and a crafted embedded name cannot escape outDir.
+ * Extracts every entry in the EmbeddedFiles name tree, flat /Names or nested
+ * /Kids. Names are sanitized to their last path segment and duplicates get a
+ * "-2", "-3" suffix so no entry is silently dropped and a crafted embedded name
+ * cannot escape outDir.
  */
 export async function runExtractAttachments(
   input: unknown,
@@ -75,7 +76,7 @@ export async function runExtractAttachments(
   assertNotCancelled(ctx);
 
   const doc = await loadPdf(filePath, { updateMetadata: false });
-  const files = listEmbeddedFiles(doc);
+  const files = listEmbeddedFileEntries(doc);
   if (files.length === 0) {
     throw Object.assign(new Error("No embedded files in this PDF"), {
       code: TOOL_ERROR_CODES.UNSUPPORTED_FORMAT,
@@ -86,17 +87,17 @@ export async function runExtractAttachments(
   const out: string[] = [];
   for (let i = 0; i < files.length; i++) {
     assertNotCancelled(ctx);
-    const bytes = getEmbeddedFile(doc, files[i].name);
-    if (bytes === undefined) continue;
+    const bytes = getEmbeddedFile(doc, files[i]);
+    if (bytes !== undefined) {
+      const safe = sanitizeName(files[i].name);
+      let entry = safe;
+      for (let n = 2; used.has(entry); n++) entry = withSuffix(safe, n);
+      used.add(entry);
 
-    const safe = sanitizeName(files[i].name);
-    let entry = safe;
-    for (let n = 2; used.has(entry); n++) entry = withSuffix(safe, n);
-    used.add(entry);
-
-    const outPath = join(outDir, entry);
-    await writeFile(outPath, bytes);
-    out.push(outPath);
+      const outPath = join(outDir, entry);
+      await writeFile(outPath, bytes);
+      out.push(outPath);
+    }
     const done = i + 1;
     ctx.notifyProgress({
       jobId: "",
@@ -113,6 +114,12 @@ export async function runExtractAttachments(
  * sends names it just listed, so a miss means the file changed underneath).
  * An empty removeNames list is a no-op copy, valid because the schema defaults
  * it to [].
+ *
+ * Removal is logical, not byte-level: it drops the name-tree entry and the /AF
+ * reference, but pdf-lib still serializes the now-unreferenced embedded-file
+ * stream, so its bytes stay in the file until a rewrite pass (compress or
+ * rasterize) rebuilds it. Task 9 should surface this on the edit-attachments
+ * screen.
  */
 export async function runEditAttachments(
   input: unknown,
