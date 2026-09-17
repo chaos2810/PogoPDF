@@ -1,6 +1,6 @@
 # Third-party notices
 
-PogoPDF's own source code is licensed under the MIT License (see [LICENSE](LICENSE)).
+PogoPDF is licensed under the GNU AGPL-3.0 (see [LICENSE](LICENSE)).
 This file lists the third-party components that ship inside the released
 `pogopdf.exe` and their licenses, and carries the attribution notices required
 by the LGPL-3.0-or-later components.
@@ -55,7 +55,7 @@ license texts ship alongside the packages. Across those two closures the
 licenses are MIT, ISC, BSD (2- and 3-clause), Apache-2.0 (@swc/helpers,
 xml-name-validator), MIT-0, 0BSD, CC0-1.0 (mdn-data) and `MIT AND Zlib` (pako);
 `dompurify` is dual-licensed `MPL-2.0 OR Apache-2.0`. All are permissive or, in
-dompurify's MPL path, weak-copyleft; no AGPL component is present.
+dompurify's MPL path, weak-copyleft. The AGPL engines land in Phase 2 (see the section below).
 
 ## UI (bundled into the app)
 
@@ -76,6 +76,12 @@ dompurify's MPL path, weak-copyleft; no AGPL component is present.
 | sha2 | 0.10 | Apache-2.0 OR MIT |
 | zstd | 0.13 | MIT |
 | tar | 0.4 | Apache-2.0 OR MIT |
+
+## Planned AGPL engines (Phase 2+)
+
+mupdf (npm), PyMuPDF, and Ghostscript are AGPL-3.0-or-later and will ship in
+the engine from Phase 2 onward. Their notices will be added here as each
+lands.
 
 ## LGPL-3.0-or-later component: libvips (via sharp)
 
