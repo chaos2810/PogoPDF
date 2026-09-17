@@ -15,6 +15,12 @@ import {
   ProtectInputSchema, UnlockInputSchema, FlattenInputSchema,
   RemoveMetadataInputSchema, ComparePdfsInputSchema, PdfsToZipInputSchema,
   RasterizeInputSchema, DataResultSchema,
+  OfficeToPdfInputSchema, EbookToPdfInputSchema, XpsToPdfInputSchema,
+  ComicToPdfInputSchema, OcrInputSchema, ExtractTablesInputSchema,
+  PdfToMarkdownInputSchema, PrepareForAiInputSchema, AddAttachmentsInputSchema,
+  ExtractAttachmentsInputSchema, EditAttachmentsInputSchema,
+  ViewBookmarksInputSchema, EditBookmarksInputSchema, BookmarkNodeSchema,
+  TocInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -756,11 +762,219 @@ describe("RasterizeInputSchema", () => {
   });
 });
 
+describe("OfficeToPdfInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(OfficeToPdfInputSchema.safeParse({ filePath: "C:\\a.docx" }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(OfficeToPdfInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(OfficeToPdfInputSchema.safeParse({ filePath: "a.docx", format: "docx" }).success).toBe(false);
+  });
+});
+
+describe("EbookToPdfInputSchema", () => {
+  it("accepts filePath with default fontSize and margins", () => {
+    const parsed = EbookToPdfInputSchema.parse({ filePath: "a.epub" });
+    expect(parsed.fontSize).toBe(12);
+    expect(parsed.margins).toBe(72);
+  });
+  it("rejects fontSize above 72 and non-integer fontSize", () => {
+    expect(EbookToPdfInputSchema.safeParse({ filePath: "a.epub", fontSize: 73 }).success).toBe(false);
+    expect(EbookToPdfInputSchema.safeParse({ filePath: "a.epub", fontSize: 12.5 }).success).toBe(false);
+  });
+  it("rejects margins above 144", () => {
+    expect(EbookToPdfInputSchema.safeParse({ filePath: "a.epub", margins: 145 }).success).toBe(false);
+  });
+});
+
+describe("XpsToPdfInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(XpsToPdfInputSchema.safeParse({ filePath: "a.xps" }).success).toBe(true);
+  });
+  it("rejects a missing filePath", () => {
+    expect(XpsToPdfInputSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("ComicToPdfInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(ComicToPdfInputSchema.safeParse({ filePath: "a.cbz" }).success).toBe(true);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(ComicToPdfInputSchema.safeParse({ filePath: "a.cbz", dpi: 150 }).success).toBe(false);
+  });
+});
+
+describe("OcrInputSchema", () => {
+  it("accepts filePath + language with defaults", () => {
+    const parsed = OcrInputSchema.parse({ filePath: PDF, language: "eng" });
+    expect(parsed.dpi).toBe(150);
+    expect(parsed.searchableOutput).toBe(true);
+    expect(parsed.pages).toBeUndefined();
+  });
+  it("accepts an explicit language, pages, dpi and searchableOutput", () => {
+    expect(OcrInputSchema.safeParse({
+      filePath: PDF, language: "chi_tra", pages: "1-3", dpi: 600, searchableOutput: false,
+    }).success).toBe(true);
+  });
+  it("rejects an unknown language code", () => {
+    expect(OcrInputSchema.safeParse({ filePath: PDF, language: "xxx" }).success).toBe(false);
+  });
+  it("defaults an omitted language to eng", () => {
+    expect(OcrInputSchema.parse({ filePath: PDF }).language).toBe("eng");
+  });
+  it("rejects dpi below 72, above 600 and non-integer", () => {
+    expect(OcrInputSchema.safeParse({ filePath: PDF, language: "eng", dpi: 71 }).success).toBe(false);
+    expect(OcrInputSchema.safeParse({ filePath: PDF, language: "eng", dpi: 601 }).success).toBe(false);
+    expect(OcrInputSchema.safeParse({ filePath: PDF, language: "eng", dpi: 150.5 }).success).toBe(false);
+  });
+});
+
+describe("ExtractTablesInputSchema", () => {
+  it("accepts filePath with default csv format", () => {
+    const parsed = ExtractTablesInputSchema.parse({ filePath: PDF });
+    expect(parsed.format).toBe("csv");
+  });
+  it("accepts an explicit format and pages", () => {
+    expect(ExtractTablesInputSchema.safeParse({ filePath: PDF, pages: "2", format: "markdown" }).success).toBe(true);
+  });
+  it("rejects an unknown format", () => {
+    expect(ExtractTablesInputSchema.safeParse({ filePath: PDF, format: "xlsx" }).success).toBe(false);
+  });
+});
+
+describe("PdfToMarkdownInputSchema", () => {
+  it("accepts filePath alone", () => {
+    expect(PdfToMarkdownInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects non-string pages", () => {
+    expect(PdfToMarkdownInputSchema.safeParse({ filePath: PDF, pages: 1 }).success).toBe(false);
+  });
+});
+
+describe("PrepareForAiInputSchema", () => {
+  it("accepts filePath + pages", () => {
+    expect(PrepareForAiInputSchema.safeParse({ filePath: PDF, pages: "1-2" }).success).toBe(true);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(PrepareForAiInputSchema.safeParse({ filePath: PDF, model: "gpt" }).success).toBe(false);
+  });
+});
+
+describe("AddAttachmentsInputSchema", () => {
+  it("accepts filePath with one attachment", () => {
+    expect(AddAttachmentsInputSchema.safeParse({ filePath: PDF, attachments: ["a.txt"] }).success).toBe(true);
+  });
+  it("rejects an empty attachments array (min 1)", () => {
+    expect(AddAttachmentsInputSchema.safeParse({ filePath: PDF, attachments: [] }).success).toBe(false);
+  });
+  it("rejects more than 50 attachments", () => {
+    const many = Array.from({ length: 51 }, (_, i) => `f${i}.txt`);
+    expect(AddAttachmentsInputSchema.safeParse({ filePath: PDF, attachments: many }).success).toBe(false);
+  });
+});
+
+describe("ExtractAttachmentsInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(ExtractAttachmentsInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(ExtractAttachmentsInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+});
+
+describe("EditAttachmentsInputSchema", () => {
+  it("defaults removeNames to an empty array", () => {
+    const parsed = EditAttachmentsInputSchema.parse({ filePath: PDF });
+    expect(parsed.removeNames).toEqual([]);
+  });
+  it("accepts explicit removeNames", () => {
+    expect(EditAttachmentsInputSchema.safeParse({ filePath: PDF, removeNames: ["a.txt"] }).success).toBe(true);
+  });
+  it("rejects a non-array removeNames", () => {
+    expect(EditAttachmentsInputSchema.safeParse({ filePath: PDF, removeNames: "a.txt" }).success).toBe(false);
+  });
+});
+
+describe("BookmarkNodeSchema", () => {
+  it("accepts a node with defaulted empty children", () => {
+    const parsed = BookmarkNodeSchema.parse({ title: "Chapter 1", page: 1 });
+    expect(parsed.children).toEqual([]);
+  });
+  it("accepts a deep nested tree (grandchild)", () => {
+    expect(BookmarkNodeSchema.safeParse({
+      title: "Ch 1", page: 1,
+      children: [{
+        title: "Sec 1.1", page: 2,
+        children: [{ title: "Sub 1.1.1", page: 3, children: [] }],
+      }],
+    }).success).toBe(true);
+  });
+  it("rejects page below 1", () => {
+    expect(BookmarkNodeSchema.safeParse({ title: "x", page: 0 }).success).toBe(false);
+  });
+  it("rejects an unknown key via .strict()", () => {
+    expect(BookmarkNodeSchema.safeParse({ title: "x", page: 1, color: "red" }).success).toBe(false);
+  });
+});
+
+describe("ViewBookmarksInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(ViewBookmarksInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(ViewBookmarksInputSchema.safeParse({ filePath: PDF, depth: 2 }).success).toBe(false);
+  });
+});
+
+describe("EditBookmarksInputSchema", () => {
+  it("accepts a bookmark tree and keeps recursion intact", () => {
+    const parsed = EditBookmarksInputSchema.parse({
+      filePath: PDF,
+      bookmarks: [{
+        title: "Ch 1", page: 1,
+        children: [{
+          title: "Sec 1.1", page: 2,
+          children: [{ title: "Sub 1.1.1", page: 3 }],
+        }],
+      }],
+    });
+    expect(parsed.bookmarks[0].children[0].children[0].title).toBe("Sub 1.1.1");
+  });
+  it("rejects an empty bookmarks array (min 1)", () => {
+    expect(EditBookmarksInputSchema.safeParse({ filePath: PDF, bookmarks: [] }).success).toBe(false);
+  });
+  it("rejects a nested node with page below 1", () => {
+    expect(EditBookmarksInputSchema.safeParse({
+      filePath: PDF,
+      bookmarks: [{ title: "Ch 1", page: 1, children: [{ title: "bad", page: 0 }] }],
+    }).success).toBe(false);
+  });
+});
+
+describe("TocInputSchema", () => {
+  it("accepts filePath with default position and title", () => {
+    const parsed = TocInputSchema.parse({ filePath: PDF });
+    expect(parsed.position).toBe("beginning");
+    expect(parsed.title).toBe("Table of Contents");
+  });
+  it("accepts an explicit position and title", () => {
+    expect(TocInputSchema.safeParse({
+      filePath: PDF, position: "after-cover", title: "Contents",
+    }).success).toBe(true);
+  });
+  it("rejects an unknown position", () => {
+    expect(TocInputSchema.safeParse({ filePath: PDF, position: "end" }).success).toBe(false);
+  });
+});
+
 describe("TOOL_IDS", () => {
-  it("contains all 40 tools with values equal to their keys", () => {
+  it("contains all 54 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(40);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(54);
   });
 });

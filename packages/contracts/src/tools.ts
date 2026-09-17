@@ -41,6 +41,20 @@ export const TOOL_IDS = {
   comparePdfs: "comparePdfs",
   pdfsToZip: "pdfsToZip",
   rasterize: "rasterize",
+  officeToPdf: "officeToPdf",
+  ebookToPdf: "ebookToPdf",
+  xpsToPdf: "xpsToPdf",
+  comicToPdf: "comicToPdf",
+  ocr: "ocr",
+  extractTables: "extractTables",
+  pdfToMarkdown: "pdfToMarkdown",
+  prepareForAi: "prepareForAi",
+  addAttachments: "addAttachments",
+  extractAttachments: "extractAttachments",
+  editAttachments: "editAttachments",
+  viewBookmarks: "viewBookmarks",
+  editBookmarks: "editBookmarks",
+  toc: "toc",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -547,6 +561,152 @@ export const RasterizeInputSchema = z
   })
   .strict();
 export type RasterizeInput = z.infer<typeof RasterizeInputSchema>;
+
+/** Office/ODF input (docx/xlsx/pptx/odt/rtf, etc); the extension drives the filter. */
+export const OfficeToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type OfficeToPdfInput = z.infer<typeof OfficeToPdfInputSchema>;
+
+/** EPUB/FB2: mupdf lays the book out onto A4 pages. */
+export const EbookToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    fontSize: z.number().int().min(6).max(72).default(12),
+    margins: z.number().min(0).max(144).default(72),
+  })
+  .strict();
+export type EbookToPdfInput = z.infer<typeof EbookToPdfInputSchema>;
+
+export const XpsToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type XpsToPdfInput = z.infer<typeof XpsToPdfInputSchema>;
+
+/** v1 CBZ only (zip of images); named generically to allow CBR later. */
+export const ComicToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type ComicToPdfInput = z.infer<typeof ComicToPdfInputSchema>;
+
+/**
+ * searchableOutput=true (default) places an invisible OCR text layer under the
+ * page image; false emits a plain .txt per page (multi-output).
+ */
+export const OcrInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    language: z
+      .enum(["eng", "chi_tra", "chi_sim", "jpn", "kor", "deu", "fra", "spa"])
+      .default("eng"),
+    pages: z.string().optional(),
+    dpi: z.number().int().min(72).max(600).default(150),
+    searchableOutput: z.boolean().default(true),
+  })
+  .strict();
+export type OcrInput = z.infer<typeof OcrInputSchema>;
+
+/** v1 detects tables by clustering text-item x-gaps; best on ruled/simple tables. */
+export const ExtractTablesInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    pages: z.string().optional(),
+    format: z.enum(["csv", "json", "markdown"]).default("csv"),
+  })
+  .strict();
+export type ExtractTablesInput = z.infer<typeof ExtractTablesInputSchema>;
+
+/** v1 detects headings from pdf.js font-size heuristics. */
+export const PdfToMarkdownInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    pages: z.string().optional(),
+  })
+  .strict();
+export type PdfToMarkdownInput = z.infer<typeof PdfToMarkdownInputSchema>;
+
+/** LlamaIndex-style JSON document: { pages: [{ text, page }] } + metadata. */
+export const PrepareForAiInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    pages: z.string().optional(),
+  })
+  .strict();
+export type PrepareForAiInput = z.infer<typeof PrepareForAiInputSchema>;
+
+export const AddAttachmentsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    attachments: z.array(z.string().min(1)).min(1).max(50),
+  })
+  .strict();
+export type AddAttachmentsInput = z.infer<typeof AddAttachmentsInputSchema>;
+
+/** Multi-output: every embedded file extracted to disk. */
+export const ExtractAttachmentsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type ExtractAttachmentsInput = z.infer<typeof ExtractAttachmentsInputSchema>;
+
+/** v1 remove-only; removeNames defaults to [] (nothing removed). */
+export const EditAttachmentsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    removeNames: z.array(z.string()).default([]),
+  })
+  .strict();
+export type EditAttachmentsInput = z.infer<typeof EditAttachmentsInputSchema>;
+
+/** Recursive bookmark tree node; page is 1-based. */
+export const BookmarkNodeSchema: z.ZodType<BookmarkNode, z.ZodTypeDef, unknown> = z.lazy(() =>
+  z
+    .object({
+      title: z.string(),
+      page: z.number().int().min(1),
+      children: z.array(BookmarkNodeSchema).default([]),
+    })
+    .strict(),
+);
+export type BookmarkNode = {
+  title: string;
+  page: number;
+  children: BookmarkNode[];
+};
+
+/** Data result: { bookmarks: BookmarkNode[] }. */
+export const ViewBookmarksInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type ViewBookmarksInput = z.infer<typeof ViewBookmarksInputSchema>;
+
+/** Replaces the whole outline (the UI editor is the source of truth after View). */
+export const EditBookmarksInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    bookmarks: z.array(BookmarkNodeSchema).min(1),
+  })
+  .strict();
+export type EditBookmarksInput = z.infer<typeof EditBookmarksInputSchema>;
+
+/** Generates a TOC page from the existing outline; requires bookmarks present. */
+export const TocInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    position: z.enum(["after-cover", "beginning"]).default("beginning"),
+    title: z.string().default("Table of Contents"),
+  })
+  .strict();
+export type TocInput = z.infer<typeof TocInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),
