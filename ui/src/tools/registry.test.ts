@@ -10,10 +10,11 @@ describe("registry", () => {
   it("merge tool exists", () => {
     expect(registry.some((t) => t.id === "merge")).toBe(true);
   });
-  it("covers every tool id", () => {
+  it("covers exactly the known tool ids, with nothing missing or extra", () => {
     const registered = new Set(registry.map((t) => t.id));
-    const missing = Object.values(TOOL_IDS).filter((id) => !registered.has(id));
-    expect(missing).toEqual([]);
+    const known = new Set<string>(Object.values(TOOL_IDS));
+    expect(Object.values(TOOL_IDS).filter((id) => !registered.has(id))).toEqual([]);
+    expect(registry.map((t) => t.id).filter((id) => !known.has(id))).toEqual([]);
   });
   it("uses only known categories", () => {
     const categories = new Set([
