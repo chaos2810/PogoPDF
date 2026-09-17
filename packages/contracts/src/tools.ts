@@ -380,7 +380,8 @@ export const WatermarkInputSchema = z
     text: z.string().optional(),
     imagePath: z.string().min(1).optional(),
     opacity: z.number().min(0.05).max(1).default(0.15),
-    fontSize: z.number().int().min(6).max(72).default(48),
+    // A watermark is a display element, not body copy: allow it to span a page.
+    fontSize: z.number().int().min(6).max(200).default(48),
     rotation: z.number().min(-360).max(360).default(45),
     color: z
       .string()

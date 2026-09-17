@@ -568,6 +568,11 @@ describe("WatermarkInputSchema", () => {
   it("rejects an unknown position", () => {
     expect(WatermarkInputSchema.safeParse({ filePath: PDF, text: "x", position: "corner" }).success).toBe(false);
   });
+  it("accepts fontSize up to 200 and rejects beyond", () => {
+    expect(WatermarkInputSchema.safeParse({ filePath: PDF, text: "x", fontSize: 200 }).success).toBe(true);
+    expect(WatermarkInputSchema.safeParse({ filePath: PDF, text: "x", fontSize: 201 }).success).toBe(false);
+    expect(WatermarkInputSchema.safeParse({ filePath: PDF, text: "x", fontSize: 5 }).success).toBe(false);
+  });
 });
 
 describe("CropInputSchema", () => {
