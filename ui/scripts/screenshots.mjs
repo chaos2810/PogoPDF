@@ -596,6 +596,37 @@ async function main() {
     await sleep(150);
     await shot("palette-open");
 
+    // Filter to the utility tools so their category label is in view.
+    // Keyboard typing into a just-mounted autoFocus input is unreliable in
+    // headless captures, so set the query through the DOM and verify it
+    // actually landed before shooting (the state is meaningless otherwise).
+    // React overrides the native value setter, so clear its _valueTracker
+    // before setting or React will swallow the change event.
+    await page.evaluate(() => {
+      const input = document.querySelector('[data-testid="palette-input"]');
+      if (!(input instanceof HTMLInputElement)) return false;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      input._valueTracker?.setValue?.("");
+      setter?.call(input, "metadata");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      return input.value === "metadata";
+    });
+    await sleep(150);
+    await shot("palette-utility");
+    // Assert the palette panel itself shows the filtered utility rows (the
+    // home grid underneath still lists every tool, so scope to the panel).
+    const filtered = await page.evaluate(() => {
+      const panel = document
+        .querySelector('[data-testid="palette-input"]')
+        ?.closest("div");
+      const rows = panel ? [...panel.querySelectorAll("button")] : [];
+      return (
+        rows.length > 0 &&
+        rows.every((b) => b.textContent?.includes("Utility"))
+      );
+    });
+    if (!filtered) throw new Error("palette-utility: filter did not apply or Utility label missing");
+
     // --- settings ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
     await clickAria(page, "Settings");

@@ -11,6 +11,7 @@ export const en = {
   "nav.settings": "Settings",
   "palette.placeholder": "Type a tool name…",
   "palette.hint": "Ctrl+K to open · Esc to close",
+  "palette.noResults": "No tools match your search.",
   "home.search": "Search 100+ tools…",
   "home.browse": "Or browse by category",
 

@@ -13,6 +13,7 @@ export const zhTW: Record<Key, string> = {
   "nav.settings": "設定",
   "palette.placeholder": "輸入工具名稱…",
   "palette.hint": "Ctrl+K 開啟 · Esc 關閉",
+  "palette.noResults": "沒有符合搜尋條件的工具。",
   "home.search": "搜尋 100+ 工具…",
   "home.browse": "或依分類瀏覽",
 

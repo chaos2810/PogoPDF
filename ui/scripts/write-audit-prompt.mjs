@@ -55,6 +55,7 @@ export const STATES = [
   { name: "saveas-multi", intent: "Split done with 3 outputs (mocked): Save All bar + 3 happy status rows with check icons" },
   { name: "saveas-multi-error", intent: "Split done, one copy fails: error row with ✕, failure count and Retry action" },
   { name: "palette-open", intent: "Command palette overlay after Ctrl+K: centered panel, readable list" },
+  { name: "palette-utility", intent: "Command palette filtered to 'metadata': utility tools visible with their 'Utility' category label (nav.utility) rendered in the category column" },
   { name: "settings", intent: "Settings screen: theme + language pills with the current choice highlighted" },
 ];
 

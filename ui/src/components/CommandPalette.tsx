@@ -56,6 +56,7 @@ export function CommandPalette() {
       >
         <input
           autoFocus
+          data-testid="palette-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -97,6 +98,11 @@ export function CommandPalette() {
               </span>
             </button>
           ))}
+          {matches.length === 0 && (
+            <div style={{ padding: "8px 10px", color: "var(--muted)", fontSize: 14 }}>
+              {t("palette.noResults", lang)}
+            </div>
+          )}
         </div>
         <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 8 }}>
           {t("palette.hint", lang)}
