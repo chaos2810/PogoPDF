@@ -5,6 +5,16 @@ import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import Tesseract from "tesseract.js";
 
 /**
+ * One recognized word: the text plus its tesseract bounding box in IMAGE pixels
+ * (y grows downward). Word boxes let the searchable-PDF layer drop only the
+ * tokens it cannot encode instead of losing the whole line.
+ */
+export type OcrWord = {
+  text: string;
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+};
+
+/**
  * One recognized text line: the text plus tesseract's bounding boxes in IMAGE
  * pixels (y grows downward). The searchable-PDF layer scales these to page
  * points to place an invisible text run near its visual position.
@@ -13,6 +23,8 @@ export type OcrLine = {
   text: string;
   bbox: { x0: number; y0: number; x1: number; y1: number };
   baseline: { x0: number; y0: number; x1: number; y1: number };
+  /** Per-word geometry; empty when the recognition produced no words. */
+  words: OcrWord[];
 };
 
 export type OcrPageResult = {
@@ -124,13 +136,18 @@ export function resolveOcrDataDir(language: string): string {
  * touches the network (the default CDN is only used when langPath is absent)
  * and never writes into the process cwd.
  */
+export function ocrWorkerOptions(
+  language: string
+): { langPath: string; gzip: false; cacheMethod: "none" } {
+  return { langPath: resolveOcrDataDir(language), gzip: false, cacheMethod: "none" };
+}
+
 export async function createOcrWorker(language: string, dpi?: number): Promise<Tesseract.Worker> {
-  const langPath = resolveOcrDataDir(language);
-  const worker = await Tesseract.createWorker(language, Tesseract.OEM.LSTM_ONLY, {
-    langPath,
-    gzip: false,
-    cacheMethod: "none",
-  });
+  const worker = await Tesseract.createWorker(
+    language,
+    Tesseract.OEM.LSTM_ONLY,
+    ocrWorkerOptions(language)
+  );
   // The rendered PNG carries no resolution metadata, so tesseract would warn
   // "Invalid resolution 25 dpi" and assume 70; passing the real render dpi
   // keeps its layout heuristics correct.
@@ -156,7 +173,12 @@ export async function runOcrPage(
     for (const paragraph of block.paragraphs) {
       for (const line of paragraph.lines) {
         if (!line.text.trim()) continue;
-        lines.push({ text: line.text, bbox: line.bbox, baseline: line.baseline });
+        const words: OcrWord[] = [];
+        for (const word of line.words ?? []) {
+          if (!word.text.trim()) continue;
+          words.push({ text: word.text, bbox: word.bbox });
+        }
+        lines.push({ text: line.text, bbox: line.bbox, baseline: line.baseline, words });
       }
     }
   }

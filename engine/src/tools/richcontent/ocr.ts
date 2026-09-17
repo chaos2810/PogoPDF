@@ -21,32 +21,62 @@ import { openRenderer } from "../convertout/shared";
  * but remain in the content stream, so viewers can select and search them. This
  * is the PDF-native way to build a searchable layer, rather than relying on
  * zero opacity. Characters the standard font cannot encode (e.g. CJK, which
- * needs an embedded Unicode font we do not ship) are skipped per line, so a
- * mixed page keeps its Latin text layer; the plain-text mode is unaffected
- * because it never re-encodes anything.
+ * needs an embedded Unicode font we do not ship) cannot be drawn, so each word
+ * is probed with `encodeText` and only the failing token is skipped; the line's
+ * remaining words keep their positions from tesseract's word boxes. A line that
+ * loses at least one word makes the layer incomplete and is counted so the job
+ * can surface a warning. The plain-text mode is unaffected because it never
+ * re-encodes anything.
+ *
+ * Returns 1 when the line lost at least one word, else 0. Lines without word
+ * boxes (no recognition blocks) fall back to probing the whole line text.
  */
-function drawInvisibleLine(
+export function drawInvisibleLine(
   page: PDFPage,
   font: PDFFont,
   line: OcrLine,
   scale: number,
   pageHeightPt: number
-): void {
-  // tesseract line text keeps its trailing newline; pdf-lib's encodeText
-  // rejects control characters, so collapse whitespace before encoding.
-  const text = line.text.replace(/\s+/g, " ").trim();
-  if (!text) return;
+): number {
   const size = Math.max(1, (line.bbox.y1 - line.bbox.y0) * scale);
-  const x = line.bbox.x0 * scale;
   const y = pageHeightPt - line.baseline.y0 * scale;
-  // pdf-lib's encodeText throws for characters outside the font's encoding;
-  // probe it before drawText so one CJK line cannot abort the whole page.
-  try {
-    font.encodeText(text);
-  } catch {
-    return;
+  const words = line.words.length > 0 ? line.words : [{ text: line.text, bbox: line.bbox }];
+  let lost = false;
+  for (const word of words) {
+    // tesseract text keeps trailing newlines; pdf-lib's encodeText rejects
+    // control characters, so collapse whitespace before encoding.
+    const text = word.text.replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    try {
+      font.encodeText(text);
+    } catch {
+      // pdf-lib throws for characters outside the font's encoding; skipping
+      // only this token keeps the rest of the line searchable.
+      lost = true;
+      continue;
+    }
+    page.drawText(text, { x: word.bbox.x0 * scale, y, size, font });
   }
-  page.drawText(text, { x, y, size, font });
+  return lost ? 1 : 0;
+}
+
+/**
+ * Surface a searchable layer with dropped words. JobResultSchema is fixed at
+ * {jobId, outputPath}, so the count travels on the progress channel: one final
+ * notification with stage "ocr.droppedLines" and pagesDone = dropped count. The
+ * UI (Task 9) observes it and shows a one-time "Latin-script only" hint.
+ */
+export function notifyDroppedLines(
+  ctx: { notifyProgress: RpcCtx["notifyProgress"] },
+  dropped: number
+): void {
+  if (dropped <= 0) return;
+  ctx.notifyProgress({
+    jobId: "",
+    percent: 100,
+    stage: "ocr.droppedLines",
+    pagesDone: dropped,
+  });
 }
 
 /**
@@ -81,6 +111,9 @@ export async function runOcr(
     const font = out ? await out.embedFont(StandardFonts.Helvetica) : undefined;
     const stem = basename(filePath, extname(filePath));
     const txtPaths: string[] = [];
+    // Lines with at least one word the standard font cannot encode; surfaced to
+    // the UI so it can warn that the searchable layer is Latin-script only.
+    let droppedLines = 0;
 
     for (let n = 0; n < selected.length; n++) {
       assertNotCancelled(ctx);
@@ -105,7 +138,7 @@ export async function runOcr(
         const scale = 72 / dpi;
         page.pushOperators(setTextRenderingMode(TextRenderingMode.Invisible));
         for (const line of lines) {
-          drawInvisibleLine(page, font, line, scale, page.getHeight());
+          droppedLines += drawInvisibleLine(page, font, line, scale, page.getHeight());
         }
         page.pushOperators(setTextRenderingMode(TextRenderingMode.Fill));
       } else {
@@ -122,6 +155,8 @@ export async function runOcr(
         pagesDone: done,
       });
     }
+
+    if (searchableOutput) notifyDroppedLines(ctx, droppedLines);
 
     if (!out) return txtPaths;
     return await savePdf(out, outDir, "ocr.pdf");
