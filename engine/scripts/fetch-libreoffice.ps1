@@ -4,6 +4,9 @@
 # administrative (extract-only) install that writes no registry entries.
 $ErrorActionPreference = "Stop"
 
+# Pinned to 26.2.6: this is the staged and tested tree. 26.8.0 also exists on the
+# mirror (the earlier 404 was transient propagation), but changing the pin means a
+# fresh 350 MB fetch and a full re-test, so the pin is deliberate for now.
 $version = "26.2.6"
 $msiName = "LibreOffice_${version}_Win_x86-64.msi"
 $url = "https://download.documentfoundation.org/libreoffice/stable/${version}/win/x86_64/${msiName}"
@@ -32,7 +35,6 @@ if (-not (Test-Path (Join-Path $extractDir "program\soffice.exe"))) {
     throw "extraction did not produce program\soffice.exe"
 }
 
-New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 if (Test-Path $stageDir) { Remove-Item $stageDir -Recurse -Force }
 Move-Item $extractDir $stageDir
 
@@ -42,7 +44,10 @@ $soffice = Join-Path $stageDir "program\soffice.exe"
 # hang (it can start a persistent process instead of exiting), so the script
 # never blocks on the binary.
 $versionIni = Join-Path $stageDir "program\version.ini"
-$buildId = (Select-String -Path $versionIni -Pattern '^buildid=').Line -replace '^buildid=', ''
+# Tolerant read: a tree without a buildid= line prints "unknown" instead of
+# throwing, since $ErrorActionPreference is Stop.
+$buildIdMatch = Select-String -Path $versionIni -Pattern '^buildid=' -ErrorAction SilentlyContinue
+$buildId = if ($buildIdMatch) { $buildIdMatch.Line -replace '^buildid=', '' } else { "unknown" }
 $size = "{0:N0} MB" -f ((Get-ChildItem $stageDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
 Write-Output "staged: $soffice"
 Write-Output "version: LibreOffice $version (buildid $buildId)"

@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 
 /** Typed error with an RPC error code. */
@@ -200,9 +199,12 @@ export async function runOfficeConvert(
   try {
     ({ code, stdout, stderr } = await spawnSoffice(bin, args, outDir));
   } catch (e) {
+    // The binary resolved but the process could not start: a corrupt install or
+    // a bad path, not an unsupported format. The missing-binary case is handled
+    // earlier by resolveSoffice, which stays UNSUPPORTED_FORMAT.
     throw officeError(
       `${SPAWN_FAILED_MESSAGE} (${e instanceof Error ? e.message : String(e)})`,
-      TOOL_ERROR_CODES.UNSUPPORTED_FORMAT
+      TOOL_ERROR_CODES.CORRUPT_PDF
     );
   }
 
