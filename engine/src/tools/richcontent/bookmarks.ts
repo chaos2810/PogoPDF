@@ -11,7 +11,6 @@ import {
 import {
   EditBookmarksInputSchema,
   TocInputSchema,
-  TOOL_ERROR_CODES,
   ViewBookmarksInputSchema,
   type BookmarkNode,
 } from "@pogopdf/contracts";
@@ -99,8 +98,20 @@ export function readBookmarks(doc: PdfDoc): BookmarkNode[] {
   return readOutlineNode(doc, firstRaw);
 }
 
-/** Build a fresh /Outlines name tree from BookmarkNode[] and wire the
- * catalog. Any existing outline is replaced wholesale. */
+/** Depth-first flatten of a bookmark tree. */
+function flatten(nodes: BookmarkNode[]): BookmarkNode[] {
+  return nodes.flatMap((node) => [node, ...flatten(node.children)]);
+}
+
+/** Total visible descendants including the node itself, per the PDF spec's
+ * /Count semantics for fully-expanded outlines. */
+function countDescendants(node: BookmarkNode): number {
+  return 1 + node.children.reduce((sum, child) => sum + countDescendants(child), 0);
+}
+
+/** Build a fresh outline dictionary from BookmarkNode[] and wire the
+ * catalog. Any existing outline is replaced wholesale. Out-of-range pages
+ * clamp to the last page. */
 function writeBookmarks(doc: PdfDoc, nodes: BookmarkNode[]): void {
   const ctx = doc.context;
 
@@ -118,7 +129,10 @@ function writeBookmarks(doc: PdfDoc, nodes: BookmarkNode[]): void {
       const childRefs = node.children.map((child) => buildNode(child, selfRef));
       dict.set(PDFName.of("First"), childRefs[0]);
       dict.set(PDFName.of("Last"), childRefs[childRefs.length - 1]);
-      dict.set(PDFName.of("Count"), PDFNumber.of(childRefs.length));
+      dict.set(
+        PDFName.of("Count"),
+        PDFNumber.of(node.children.reduce((sum, child) => sum + countDescendants(child), 0))
+      );
       childRefs.forEach((childRef, i) => {
         const child = ctx.lookup(childRef, PDFDict);
         if (i > 0) child.set(PDFName.of("Prev"), childRefs[i - 1]);
@@ -141,7 +155,10 @@ function writeBookmarks(doc: PdfDoc, nodes: BookmarkNode[]): void {
   });
   outlines.set(PDFName.of("First"), topRefs[0]);
   outlines.set(PDFName.of("Last"), topRefs[topRefs.length - 1]);
-  outlines.set(PDFName.of("Count"), PDFNumber.of(nodes.length));
+  outlines.set(
+    PDFName.of("Count"),
+    PDFNumber.of(nodes.reduce((sum, node) => sum + countDescendants(node), 0))
+  );
   topRefs.forEach((ref, i) => {
     const dict = ctx.lookup(ref, PDFDict);
     if (i > 0) dict.set(PDFName.of("Prev"), topRefs[i - 1]);
@@ -201,7 +218,17 @@ export async function runToc(
 
   // Numbers shown are the bookmark's stored (semantic) page numbers. When the
   // TOC is inserted at the beginning, the viewer's physical page numbers shift
-  // by one; the UI hint explains this.
+  // by one; the UI hint explains this. Titles are drawn with Helvetica and
+  // pdfkit silently renders garbage for non-Latin text (it never throws), so
+  // non-WinAnsi titles are rejected up front with a typed error.
+  for (const node of flatten(bookmarks)) {
+    if (/[^\u0000-\u00FF]/.test(node.title)) {
+      throw invalidInput(
+        'Only Latin-1 characters can be drawn on pages (bookmark titles contain unsupported non-Latin text)'
+      );
+    }
+  }
+
   const tocBytes = await buildPdf({ fontSize: 12, margins: 56 }, (kit) => {
     kit.fontSize(20).text(title, { align: "center" });
     kit.moveDown(1.5);
@@ -229,7 +256,9 @@ export async function runToc(
     tocDoc,
     tocDoc.getPageIndices()
   );
-  copied.forEach((page) => doc.insertPage(insertAt, page));
+  // insertPage prepends at its index, so insert in order at increasing
+  // positions to keep multi-page TOCs in reading order.
+  copied.forEach((page, i) => doc.insertPage(insertAt + i, page));
 
   return savePdf(doc, outDir, "toc.pdf");
 }

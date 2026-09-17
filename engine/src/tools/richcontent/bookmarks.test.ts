@@ -92,7 +92,7 @@ describe("bookmark view and edit", () => {
     expect(result.bookmarks[0].title).toBe("第一章 緒論");
   });
 
-  it("edit rejects a page beyond the document as INVALID_INPUT", async () => {
+  it("clamps an out-of-range bookmark page to the last page", async () => {
     const work = mkdtempSync(join(tmpdir(), "pogopdf-bm-"));
     await makePdf(join(work, "one.pdf"), 1);
     const doc = await PDFDocument.load(await readFile(join(work, "one.pdf")));
@@ -147,6 +147,9 @@ describe("table of contents", () => {
     expect(tocText).toContain("Methods");
     expect(tocText).toContain("Setup");
     expect(tocText).toContain("Results");
+    // The rendered number is the bookmark's stored (semantic) page number.
+    expect(tocText).toContain("1");
+    expect(tocText).toContain("3");
     await renderer.close();
   });
 
@@ -190,8 +193,28 @@ describe("table of contents", () => {
     const out = await runToc({ filePath: src, position: "beginning" }, ctx, work);
     const renderer = await getPdfRenderer(out);
     expect(renderer.pageCount).toBe(3 + 2);
+    const tocPage1 = await extractPageText(await renderer.getPage(0));
     const tocPage2 = await extractPageText(await renderer.getPage(1));
-    expect(tocPage2.length).toBeGreaterThan(0);
+    // Reading order preserved across the paginated TOC: chapter 1 on the
+    // first TOC page, chapter 40 on the last.
+    expect(tocPage1).toContain("Chapter 1");
+    expect(tocPage2).toContain("Chapter 40");
     await renderer.close();
+  });
+
+  it("throws typed INVALID_INPUT for a non-Latin bookmark title", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogopdf-toc-"));
+    await makePdf(join(work, "cjk.pdf"), 1);
+    const src = await runEditBookmarks(
+      {
+        filePath: join(work, "cjk.pdf"),
+        bookmarks: [{ title: "第一章", page: 1, children: [] }],
+      },
+      ctx,
+      work
+    );
+    await expect(
+      runToc({ filePath: src, position: "beginning" }, ctx, work)
+    ).rejects.toMatchObject({ code: -32001 });
   });
 });
