@@ -25,6 +25,22 @@ export const TOOL_IDS = {
   viewMetadata: "viewMetadata",
   pageDimensions: "pageDimensions",
   fixPageSize: "fixPageSize",
+  imagesToPdf: "imagesToPdf",
+  textToPdf: "textToPdf",
+  markdownToPdf: "markdownToPdf",
+  csvToPdf: "csvToPdf",
+  pageNumbers: "pageNumbers",
+  watermark: "watermark",
+  crop: "crop",
+  headerFooter: "headerFooter",
+  editMetadata: "editMetadata",
+  protect: "protect",
+  unlock: "unlock",
+  flatten: "flatten",
+  removeMetadata: "removeMetadata",
+  comparePdfs: "comparePdfs",
+  pdfsToZip: "pdfsToZip",
+  rasterize: "rasterize",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -281,6 +297,237 @@ export const FixPageSizeInputSchema = z
   })
   .strict();
 export type FixPageSizeInput = z.infer<typeof FixPageSizeInputSchema>;
+
+/**
+ * fit = each page is sized to its own image; a4/letter impose one page size for
+ * all images, so orientation is only meaningful (and only allowed) there.
+ */
+export const ImagesToPdfInputSchema = z
+  .object({
+    filePaths: z.array(z.string().min(1)).min(1).max(100),
+    pageSize: z.enum(["fit", "a4", "letter"]).default("fit"),
+    orientation: z.enum(["portrait", "landscape"]).optional(),
+    margin: z.number().min(0).max(72).default(0),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.pageSize === "fit" && v.orientation !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["orientation"],
+        message: "orientation is only supported with a4 or letter pageSize",
+      });
+    }
+  });
+export type ImagesToPdfInput = z.infer<typeof ImagesToPdfInputSchema>;
+
+/** Single .txt output "basename.pdf". */
+export const TextToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    fontSize: z.number().int().min(6).max(72).default(12),
+    margins: z.number().min(0).max(144).default(72),
+  })
+  .strict();
+export type TextToPdfInput = z.infer<typeof TextToPdfInputSchema>;
+
+/** Single .md output "basename.pdf"; marked renders the markdown body. */
+export const MarkdownToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    fontSize: z.number().int().min(6).max(72).default(12),
+    margins: z.number().min(0).max(144).default(72),
+  })
+  .strict();
+export type MarkdownToPdfInput = z.infer<typeof MarkdownToPdfInputSchema>;
+
+/** Single .csv output "basename.pdf": the rows become one table. */
+export const CsvToPdfInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    fontSize: z.number().int().min(6).max(72).default(10),
+    orientation: z.enum(["portrait", "landscape"]).default("portrait"),
+  })
+  .strict();
+export type CsvToPdfInput = z.infer<typeof CsvToPdfInputSchema>;
+
+/** v1 formats render as "1", "1 / 5" and "Page 1". */
+export const PageNumbersInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    position: z.enum([
+      "bottom-center",
+      "bottom-right",
+      "bottom-left",
+      "top-center",
+      "top-right",
+      "top-left",
+    ]),
+    format: z.enum(["n", "n-of-total", "page-n"]),
+    startNumber: z.number().int().default(1),
+    fontSize: z.number().int().min(6).max(72).default(10),
+    margin: z.number().min(0).max(144).default(28),
+    pages: z.string().optional(),
+    skipFirst: z.boolean().default(false),
+  })
+  .strict();
+export type PageNumbersInput = z.infer<typeof PageNumbersInputSchema>;
+
+/** Text or image watermark; exactly one source must be given. */
+export const WatermarkInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    text: z.string().optional(),
+    imagePath: z.string().min(1).optional(),
+    opacity: z.number().min(0.05).max(1).default(0.15),
+    fontSize: z.number().int().min(6).max(72).default(48),
+    rotation: z.number().min(-360).max(360).default(45),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "color must be a #RRGGBB hex string")
+      .default("#808080"),
+    pages: z.string().optional(),
+    position: z.enum(["center", "tile"]).default("center"),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    const hasText = v.text !== undefined;
+    const hasImage = v.imagePath !== undefined;
+    if (hasText === hasImage) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["text"],
+        message: "provide exactly one of text or imagePath",
+      });
+    }
+  });
+export type WatermarkInput = z.infer<typeof WatermarkInputSchema>;
+
+/**
+ * Crop insets the MediaBox/CropBox; the resulting box must stay >= 10pt, which
+ * the engine checks against the actual page size. All-zero is rejected here
+ * because it would be a silent no-op.
+ */
+export const CropInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    top: z.number().min(0).max(500).default(0),
+    bottom: z.number().min(0).max(500).default(0),
+    left: z.number().min(0).max(500).default(0),
+    right: z.number().min(0).max(500).default(0),
+    pages: z.string().optional(),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.top === 0 && v.bottom === 0 && v.left === 0 && v.right === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["top"],
+        message: "at least one crop inset must be non-zero",
+      });
+    }
+  });
+export type CropInput = z.infer<typeof CropInputSchema>;
+
+/** At least one of header/footer must be non-empty after trimming. */
+export const HeaderFooterInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    header: z.string().optional(),
+    footer: z.string().optional(),
+    fontSize: z.number().int().min(6).max(72).default(10),
+    margin: z.number().min(0).max(144).default(28),
+    pages: z.string().optional(),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (!v.header?.trim() && !v.footer?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["header"],
+        message: "provide a non-empty header or footer",
+      });
+    }
+  });
+export type HeaderFooterInput = z.infer<typeof HeaderFooterInputSchema>;
+
+/**
+ * null removes the field, undefined (absent) leaves it unchanged; the engine
+ * edits the info dict only (v1 has no date editing).
+ */
+export const EditMetadataInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    title: z.string().nullable().optional(),
+    author: z.string().nullable().optional(),
+    subject: z.string().nullable().optional(),
+    keywords: z.string().nullable().optional(),
+    creator: z.string().nullable().optional(),
+    producer: z.string().nullable().optional(),
+  })
+  .strict();
+export type EditMetadataInput = z.infer<typeof EditMetadataInputSchema>;
+
+/** qpdf AES-256; the owner password is always set. */
+export const ProtectInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    userPassword: z.string().optional(),
+    ownerPassword: z.string().min(1),
+    allowPrinting: z.boolean().default(true),
+    allowCopying: z.boolean().default(false),
+  })
+  .strict();
+export type ProtectInput = z.infer<typeof ProtectInputSchema>;
+
+export const UnlockInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    password: z.string(),
+  })
+  .strict();
+export type UnlockInput = z.infer<typeof UnlockInputSchema>;
+
+/** Flattens annotations + form fields via qpdf. */
+export const FlattenInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type FlattenInput = z.infer<typeof FlattenInputSchema>;
+
+/** Strips both the info dict and the XMP metadata stream. */
+export const RemoveMetadataInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type RemoveMetadataInput = z.infer<typeof RemoveMetadataInputSchema>;
+
+/** Data result: page counts, per-page dimensions and low-dpi pixel diff pages. */
+export const ComparePdfsInputSchema = z
+  .object({
+    filePaths: z.array(z.string().min(1)).length(2),
+  })
+  .strict();
+export type ComparePdfsInput = z.infer<typeof ComparePdfsInputSchema>;
+
+/** Single basename.zip output. */
+export const PdfsToZipInputSchema = z
+  .object({
+    filePaths: z.array(z.string().min(1)).min(2).max(100),
+  })
+  .strict();
+export type PdfsToZipInput = z.infer<typeof PdfsToZipInputSchema>;
+
+/** Renders each page to an image and rebuilds a single image-only PDF. */
+export const RasterizeInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    dpi: z.number().int().min(72).max(600).default(150),
+  })
+  .strict();
+export type RasterizeInput = z.infer<typeof RasterizeInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),
