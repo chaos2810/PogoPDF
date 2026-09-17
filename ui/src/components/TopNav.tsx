@@ -38,9 +38,12 @@ export function TopNav() {
       >
         <span
           style={{
-            width: 18, height: 18, borderRadius: 6,
-            background: "var(--accent)", display: "inline-block",
+            width: 18, height: 18, borderRadius: 6, display: "inline-block",
+            backgroundImage: "url(logo.png)", backgroundSize: "contain",
+            backgroundRepeat: "no-repeat", backgroundPosition: "center",
           }}
+          role="img"
+          aria-label={t("app.name", lang)}
         />
         <strong style={{ color: "var(--text)" }}>{t("app.name", lang)}</strong>
       </button>
