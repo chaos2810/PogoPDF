@@ -262,6 +262,8 @@ w.__mockPdfThumbs = (arg?: number | string, maxPages?: number) => {
   // A name registered by __mockBlobPath must run the real pdf.js pipeline too.
   if (typeof arg === "string" && arg in state.blobFiles) return null;
   const count = Math.min(state.thumbCount, maxPages ?? state.thumbCount);
-  const label = typeof arg === "string" ? pathLabel(arg) : undefined;
+  // Only queue-style calls (maxPages provided) get the path-derived label; the
+  // organize grid passes no maxPages and must keep numbering 1..N.
+  const label = typeof arg === "string" && maxPages != null ? pathLabel(arg) : undefined;
   return Array.from({ length: count }, (_, i) => makeFakeThumb(i, 160, 210, label ?? i + 1));
 };

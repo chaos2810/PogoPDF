@@ -82,11 +82,9 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
             {t(isDragActive ? "tool.common.dropActive" : "tool.common.dropSingle", lang)}
           </button>
 
-          {file && (
-            <div style={{ marginTop: 12 }}>
-              <FileQueueCards toolId={toolId} files={[file]} onRemove={() => setFiles([])} />
-            </div>
-          )}
+          <div style={{ marginTop: 12 }}>
+            <FileQueueCards toolId={toolId} files={file ? [file] : []} onRemove={() => setFiles([])} />
+          </div>
 
           <button
             data-testid={`${toolId}-cta`}

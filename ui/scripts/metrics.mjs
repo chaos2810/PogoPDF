@@ -448,6 +448,22 @@ function checkCardLayout(cards) {
   };
 }
 
+// Queue cards must show a real preview image (the card's <img>), not the
+// FileText placeholder, for every queued PDF. A placeholder regression drops
+// thumbCount below the card count and fails this gate.
+function checkCardsThumbnailsPresent(cards, requireCount) {
+  if (!cards || cards.count === 0) {
+    return requireCount
+      ? { pass: false, detail: "expected cards, found none", count: 0 }
+      : { pass: true, detail: "no cards" };
+  }
+  return {
+    pass: cards.thumbCount === cards.count,
+    count: cards.count,
+    thumbCount: cards.thumbCount,
+  };
+}
+
 function checkThemeTokens(state) {
   const expected = state.isDark ? THEME_TOKENS.dark.bg : THEME_TOKENS.light.bg;
   return {
@@ -565,6 +581,18 @@ const CTA_EXPECTATIONS = {
 const DATA_CARD_STATES = new Set(["metadata-view"]);
 const DATA_TABLE_STATES = new Set(["dimensions-view"]);
 
+// States whose pick phase queues PDF files as thumbnail cards. If the preview
+// pipeline regresses to placeholders, thumbCount drops below the card count and
+// the invariant fails. Every state listed here must show at least one card.
+const CARD_STATES = new Set([
+  "merge-files",
+  "merge-longnames",
+  "merge-many",
+  "merge-zhtw",
+  "merge-cancelled",
+  ...Object.keys(CTA_EXPECTATIONS).filter((n) => n.endsWith("-form")),
+]);
+
 function checkCtaDisabledVisible(cta, expectedDisabled) {
   if (!cta) return { pass: true, detail: "no cta" };
   const pass = expectedDisabled
@@ -594,6 +622,7 @@ export function evaluateState(name, state) {
     "cards-remove-positioned": checkCardRemovePositioned(state.cardsInfo).pass,
     "cards-consistent-size": checkCardsConsistentSize(state.cardsInfo).pass,
     "cards-layout": checkCardLayout(state.cardsInfo).pass,
+    "cards-thumbnails-present": null, // only asserted for states in CARD_STATES
     "grid-cells-aligned": checkGridCellsAligned(state.gridInfo).pass,
     "grid-cells-equal-size": checkGridCellsEqualSize(state.gridInfo).pass,
     "saveall-rows-centered": checkSaveAllRowsCentered(state.saveAllRows).pass,
@@ -623,6 +652,12 @@ export function evaluateState(name, state) {
   if (DATA_TABLE_STATES.has(name)) {
     invariants["data-table-aligned"] = checkDataTablesAligned(state.dataTables).pass;
   }
+  if (CARD_STATES.has(name)) {
+    invariants["cards-thumbnails-present"] = checkCardsThumbnailsPresent(
+      state.cardsInfo,
+      true
+    ).pass;
+  }
 
   const expectations = {
     grid: checkGridCellsAligned(state.gridInfo),
@@ -644,6 +679,10 @@ export function evaluateState(name, state) {
     cardsRemovePositioned: checkCardRemovePositioned(state.cardsInfo),
     cardsConsistentSize: checkCardsConsistentSize(state.cardsInfo),
     cardsLayout: checkCardLayout(state.cardsInfo),
+    cardsThumbnailsPresent: checkCardsThumbnailsPresent(
+      state.cardsInfo,
+      CARD_STATES.has(name)
+    ),
     gridCellsAligned: checkGridCellsAligned(state.gridInfo),
     gridCellsEqualSize: checkGridCellsEqualSize(state.gridInfo),
     gridInfo: state.gridInfo,

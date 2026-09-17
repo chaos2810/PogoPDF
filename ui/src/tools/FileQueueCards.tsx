@@ -20,7 +20,9 @@ function QueueCard({
   onRemove: (path: string) => void;
 }) {
   const { lang } = useApp();
-  const [thumb, setThumb] = useState<string | null>(null);
+  // undefined = still loading, null = no preview available; both paint the
+  // placeholder icon, and neither triggers a re-fetch (getQueueThumb memoizes).
+  const [thumb, setThumb] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -61,8 +63,9 @@ function QueueCard({
         )}
         <button
           data-testid={`${toolId}-file-remove`}
+          className="pogopdf-card-remove"
           onClick={() => onRemove(path)}
-          aria-label={t("tool.common.remove", lang)}
+          aria-label={`${t("tool.common.remove", lang)}: ${basename(path)}`}
           title={t("tool.common.remove", lang)}
           style={{
             position: "absolute", top: 4, right: 4, width: 22, height: 22,
