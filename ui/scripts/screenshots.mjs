@@ -125,7 +125,10 @@ async function blurActive(page) {
 async function scrollCtaIntoView(page) {
   await page.evaluate(() => {
     const cta = document.querySelector('[data-testid$="-cta"]');
+    // "end" parks the CTA flush against the fold; leave ~20px breathing
+    // room so the capture shows the button comfortably inside the card.
     if (cta) cta.scrollIntoView({ block: "end" });
+    if (cta) window.scrollBy({ top: -20 });
   });
 }
 
