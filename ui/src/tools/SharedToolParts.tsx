@@ -208,6 +208,23 @@ export function ToolHeader({ toolId, onBack }: { toolId: string; onBack: () => v
   );
 }
 
+/** Non-fatal per-job notice on the done card (OCR's dropped searchable lines). */
+export function JobWarning({ toolId, warningKey }: { toolId: string; warningKey: string }) {
+  const { lang } = useApp();
+  return (
+    <div
+      data-testid={`${toolId}-warning`}
+      style={{
+        marginTop: 10, padding: "8px 12px", borderRadius: 8,
+        background: "color-mix(in srgb, var(--danger) 12%, var(--card))",
+        color: "var(--text)", fontSize: 13,
+      }}
+    >
+      {t(warningKey, lang)}
+    </div>
+  );
+}
+
 /** Inline validation message under the form (null key renders nothing). */
 export function ValidationMessage({
   toolId,

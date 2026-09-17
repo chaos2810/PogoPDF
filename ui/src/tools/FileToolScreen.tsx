@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
-import { pickPdfs } from "../app/rpc";
+import { pickPdfs, type ProgressPayload } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
 import { usePdfJob } from "./usePdfJob";
 import {
@@ -10,6 +10,7 @@ import {
   DropZone,
   ErrorCard,
   Footnote,
+  JobWarning,
   Queue,
   RunningCard,
   ToolHeader,
@@ -23,7 +24,12 @@ export type FileToolScreenProps = {
   buildInput: (files: string[]) => unknown;
   // Returns an i18n key to show/hide inline, or null when the input is usable.
   validationError?: (files: string[]) => string | null;
-  options?: ReactNode;
+  // Static form nodes, or a function of the current file list when the form
+  // must react to the picked file (the attachment editor's Load list step).
+  options?: ReactNode | ((ctx: { files: string[] }) => ReactNode);
+  // Fired whenever the picked files change (the attachment editor resets its
+  // loaded list when the primary PDF is replaced).
+  onFilesChange?: (files: string[]) => void;
   // Defaults to "at least 2 files" (multiple) / "at least 1 file" (single).
   canRun?: (files: string[]) => boolean;
   // Extensions accepted by drag-drop; defaults to PDF-only.
@@ -34,6 +40,9 @@ export type FileToolScreenProps = {
   footnoteKey?: string;
   // Drop-zone wording override; defaults to the PDF phrasing.
   dropKeys?: { multiple: string; single: string };
+  // Optional i18n key for a warning banner derived from the last progress
+  // notification (OCR's dropped searchable lines). Renders on the done card.
+  progressWarningKey?: (last: ProgressPayload | null) => string | null;
 };
 
 export function FileToolScreen({
@@ -43,11 +52,13 @@ export function FileToolScreen({
   buildInput,
   validationError,
   options,
+  onFilesChange,
   canRun,
   extensions,
   pick: pickOverride,
   footnoteKey,
   dropKeys,
+  progressWarningKey,
 }: FileToolScreenProps) {
   const { lang, navigate } = useApp();
   const {
@@ -58,6 +69,7 @@ export function FileToolScreen({
     percent,
     error,
     errorCode,
+    lastProgress,
     isDragActive,
     reset,
     cancel,
@@ -86,6 +98,21 @@ export function FileToolScreen({
       }
       throw new Error("Expected a file result");
     });
+
+  const warningKey = progressWarningKey ? progressWarningKey(lastProgress) : null;
+
+  // Notify only when the file list actually changes, not on the initial mount
+  // (the attachment editor clears its loaded list on a genuine replacement).
+  const filesRef = useRef(files);
+  useEffect(() => {
+    if (filesRef.current !== files) {
+      filesRef.current = files;
+      onFilesChange?.(files);
+    }
+  }, [files, onFilesChange]);
+
+  const optionsNode: ReactNode =
+    typeof options === "function" ? options({ files }) : options;
 
   const clearOutputs = () => {
     setOutputPath(null);
@@ -130,7 +157,7 @@ export function FileToolScreen({
             onAddMore={acceptMultiple ? () => void pick() : undefined}
           />
 
-          {options && (
+          {optionsNode && (
             <div
               data-testid="options-form"
               // Two columns on wide cards so tall option forms stay inside the
@@ -142,7 +169,7 @@ export function FileToolScreen({
                 columnGap: 16,
               }}
             >
-              {options}
+              {optionsNode}
             </div>
           )}
 
@@ -171,6 +198,7 @@ export function FileToolScreen({
       {phase === "done" && outputPaths && (
         <div style={CARD_STYLE}>
           <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
+          {warningKey && <JobWarning toolId={toolId} warningKey={warningKey} />}
           <SaveAsBar outputPaths={outputPaths} onReset={handleReset} />
         </div>
       )}
@@ -178,6 +206,7 @@ export function FileToolScreen({
       {phase === "done" && outputPath && (
         <div style={CARD_STYLE}>
           <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
+          {warningKey && <JobWarning toolId={toolId} warningKey={warningKey} />}
           <SaveAsBar outputPath={outputPath} onReset={handleReset} />
         </div>
       )}

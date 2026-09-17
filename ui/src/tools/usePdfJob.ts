@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
-import { cancelJob, onProgress, startJob } from "../app/rpc";
+import { cancelJob, onProgress, startJob, type ProgressPayload } from "../app/rpc";
 
 export type PdfJobPhase = "pick" | "running" | "done" | "data" | "error";
 
@@ -29,10 +29,20 @@ export function usePdfJob(
   const [errorCode, setErrorCode] = useState<number | undefined>(undefined);
   const [data, setData] = useState<unknown>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  // The latest progress notification, kept whole so a screen can react to a
+  // specific stage (OCR's "ocr.droppedLines" warning).
+  const [lastProgress, setLastProgress] = useState<ProgressPayload | null>(null);
   // Set while a job is in flight so the running card can cancel it.
   const jobIdRef = useRef<string | null>(null);
 
-  useEffect(() => onProgress((p) => setPercent(p.percent)), []);
+  useEffect(
+    () =>
+      onProgress((p) => {
+        setPercent(p.percent);
+        setLastProgress(p);
+      }),
+    []
+  );
 
   useEffect(() => {
     const win = getCurrentWindow();
@@ -68,6 +78,7 @@ export function usePdfJob(
     setError("");
     setErrorCode(undefined);
     setData(null);
+    setLastProgress(null);
     jobIdRef.current = null;
   };
 
@@ -93,6 +104,9 @@ export function usePdfJob(
     if (files.length === 0) return;
     setPhase("running");
     setPercent(0);
+    // A fresh job must not inherit the previous run's final stage (the OCR
+    // dropped-lines warning is derived from the last notification).
+    setLastProgress(null);
     try {
       const result = await startJob(toolId, buildInput(files), {
         onJobId: (id) => {
@@ -126,6 +140,7 @@ export function usePdfJob(
     errorCode,
     data,
     setData,
+    lastProgress,
     isDragActive,
     reset,
     cancel,

@@ -45,6 +45,19 @@ import { RemoveMetadataScreen } from "../tools/secure/RemoveMetadataScreen";
 import { CompareScreen } from "../tools/utility/CompareScreen";
 import { PdfsToZipScreen } from "../tools/utility/PdfsToZipScreen";
 import { RasterizeScreen } from "../tools/utility/RasterizeScreen";
+import { OfficeToPdfScreen } from "../tools/office/OfficeToPdfScreen";
+import { EbookToPdfScreen } from "../tools/richcontent/EbookToPdfScreen";
+import { ComicToPdfScreen } from "../tools/richcontent/ComicToPdfScreen";
+import { OcrScreen } from "../tools/richcontent/OcrScreen";
+import { ExtractTablesScreen } from "../tools/richcontent/ExtractTablesScreen";
+import { PdfToMarkdownScreen } from "../tools/richcontent/PdfToMarkdownScreen";
+import { PrepareForAiScreen } from "../tools/richcontent/PrepareForAiScreen";
+import { AddAttachmentsScreen } from "../tools/richcontent/AddAttachmentsScreen";
+import { ExtractAttachmentsScreen } from "../tools/richcontent/ExtractAttachmentsScreen";
+import { EditAttachmentsScreen } from "../tools/richcontent/EditAttachmentsScreen";
+import { ViewBookmarksScreen } from "../tools/richcontent/ViewBookmarksScreen";
+import { EditBookmarksScreen } from "../tools/richcontent/EditBookmarksScreen";
+import { TocScreen } from "../tools/richcontent/TocScreen";
 
 export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
@@ -87,6 +100,19 @@ export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.comparePdfs]: CompareScreen,
   [TOOL_IDS.pdfsToZip]: PdfsToZipScreen,
   [TOOL_IDS.rasterize]: RasterizeScreen,
+  [TOOL_IDS.officeToPdf]: OfficeToPdfScreen,
+  [TOOL_IDS.ebookToPdf]: EbookToPdfScreen,
+  [TOOL_IDS.comicToPdf]: ComicToPdfScreen,
+  [TOOL_IDS.ocr]: OcrScreen,
+  [TOOL_IDS.extractTables]: ExtractTablesScreen,
+  [TOOL_IDS.pdfToMarkdown]: PdfToMarkdownScreen,
+  [TOOL_IDS.prepareForAi]: PrepareForAiScreen,
+  [TOOL_IDS.addAttachments]: AddAttachmentsScreen,
+  [TOOL_IDS.extractAttachments]: ExtractAttachmentsScreen,
+  [TOOL_IDS.editAttachments]: EditAttachmentsScreen,
+  [TOOL_IDS.viewBookmarks]: ViewBookmarksScreen,
+  [TOOL_IDS.editBookmarks]: EditBookmarksScreen,
+  [TOOL_IDS.toc]: TocScreen,
 };
 
 export function Router() {

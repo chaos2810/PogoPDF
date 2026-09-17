@@ -22,6 +22,16 @@ const CANNED_IMAGES = [
   "C:\\Users\\demo\\Pictures\\photo.webp",
 ];
 
+// Canned office/ebook/comic/any picker results so the new convert-in screens
+// show a realistic queue card for their own file type.
+const CANNED_OFFICE = ["C:\\Users\\demo\\Documents\\quarterly-report.docx"];
+const CANNED_EBOOK = ["C:\\Users\\demo\\Documents\\designing-data-intensive-applications.epub"];
+const CANNED_COMIC = ["C:\\Users\\demo\\Downloads\\saga-volume-1.cbz"];
+const CANNED_ANY = [
+  "C:\\Users\\demo\\Documents\\appendix-data.zip",
+  "C:\\Users\\demo\\Pictures\\chart.png",
+];
+
 const state = {
   files: [] as string[],
   imageFiles: CANNED_IMAGES.slice(),
@@ -119,6 +129,31 @@ const DEFAULT_DATA_RESULTS: Record<string, unknown> = {
     differingPages: [3, 7, 11],
     pageSizeMismatchPages: [7],
   },
+  viewBookmarks: {
+    bookmarks: [
+      {
+        title: "Introduction",
+        page: 1,
+        children: [
+          { title: "Background", page: 2, children: [] },
+          { title: "Scope", page: 3, children: [] },
+        ],
+      },
+      {
+        title: "Method",
+        page: 5,
+        children: [
+          { title: "Data collection", page: 6, children: [] },
+          {
+            title: "Analysis",
+            page: 8,
+            children: [{ title: "Statistics", page: 9, children: [] }],
+          },
+        ],
+      },
+      { title: "Conclusion", page: 12, children: [] },
+    ],
+  },
 };
 
 function addListener(event: string, id: number) {
@@ -141,6 +176,15 @@ function emit(event: string, payload: unknown) {
 
 function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): unknown {
   if (method === "engine.ping") return { pong: true };
+  if (method === "attachments.list") {
+    return {
+      attachments: [
+        { name: "appendix-data.zip", size: 184320 },
+        { name: "chart.png", size: 42112 },
+        { name: "source-notes.txt", size: 2048 },
+      ],
+    };
+  }
   if (method === "file.copy") {
     const dest = String((params as { dest?: string }).dest ?? "");
     const name = dest.split(/[\\/]/).pop() ?? "";
@@ -191,11 +235,15 @@ function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): 
 async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   if (cmd === "rpc_call") return rpc(String(args.method), (args.params ?? {}) as { jobId?: string });
   if (cmd === "dialog_open_pdf") {
-    // The images preset returns canned image paths so imagesToPdf / watermark
-    // image-mode states render without real files.
-    return String(args.filter ?? "") === "images"
-      ? state.imageFiles.slice()
-      : state.files.slice();
+    // Preset filters return canned paths so each convert-in screen renders a
+    // queue card for its own file type without real files.
+    const filter = String(args.filter ?? "");
+    if (filter === "images") return state.imageFiles.slice();
+    if (filter === "office") return CANNED_OFFICE.slice();
+    if (filter === "ebook") return CANNED_EBOOK.slice();
+    if (filter === "comic") return CANNED_COMIC.slice();
+    if (filter === "any") return CANNED_ANY.slice();
+    return state.files.slice();
   }
   if (cmd === "dialog_save") return "C:\\Users\\demo\\Downloads\\merged.pdf";
   if (cmd === "dialog_pick_folder") return state.folder;

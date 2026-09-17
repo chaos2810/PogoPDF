@@ -428,6 +428,144 @@ export const en = {
   "tool.rasterize.dpiInvalid": "Enter a resolution from 72 to 600",
   "tool.rasterize.rasterHint": "Pages are rebuilt as images, so text becomes non-selectable.",
 
+  "tool.officeToPdf.title": "Office to PDF",
+  "tool.officeToPdf.desc": "Convert Word, Excel, PowerPoint and ODF documents",
+  "tool.officeToPdf.cta": "Convert to PDF",
+  "tool.officeToPdf.drop": "Drop an office document here or click to browse",
+  "tool.officeToPdf.dropSingle": "Drop an office document here or click to browse",
+  "tool.officeToPdf.formatHint":
+    "Supports docx, doc, odt, rtf, xlsx, xls, ods, pptx, ppt, odp and odg. LibreOffice renders with high, but not perfect, fidelity for complex documents.",
+
+  "tool.ebookToPdf.title": "Ebook to PDF",
+  "tool.ebookToPdf.desc": "Lay out an EPUB or FB2 book as a PDF",
+  "tool.ebookToPdf.cta": "Convert to PDF",
+  "tool.ebookToPdf.drop": "Drop an ebook here or click to browse",
+  "tool.ebookToPdf.dropSingle": "Drop an ebook here or click to browse",
+  "tool.ebookToPdf.fontSize": "Font size",
+  "tool.ebookToPdf.fontSizeInvalid": "Enter a font size from 6 to 72",
+  "tool.ebookToPdf.margins": "Margins in points",
+  "tool.ebookToPdf.marginsHint": "0 to 144 points",
+  "tool.ebookToPdf.marginsInvalid": "Enter margins from 0 to 144",
+  "tool.ebookToPdf.formatHint":
+    "EPUB and FB2 only. The book flows onto A4 pages; fixed-layout ebooks may not match their reader exactly.",
+
+  "tool.comicToPdf.title": "Comic to PDF",
+  "tool.comicToPdf.desc": "Combine comic archive images into a PDF",
+  "tool.comicToPdf.cta": "Convert to PDF",
+  "tool.comicToPdf.drop": "Drop a CBZ comic here or click to browse",
+  "tool.comicToPdf.dropSingle": "Drop a CBZ comic here or click to browse",
+  "tool.comicToPdf.formatHint":
+    "CBZ archives only. Pages follow the archive's file-name order; CBR is not supported.",
+
+  "tool.ocr.title": "OCR PDF",
+  "tool.ocr.desc": "Add a searchable text layer or extract text",
+  "tool.ocr.cta": "Run OCR",
+  "tool.ocr.language": "OCR language",
+  "tool.ocr.langEng": "English",
+  "tool.ocr.langChiTra": "繁體中文",
+  "tool.ocr.langChiSim": "简体中文",
+  "tool.ocr.langJpn": "日本語",
+  "tool.ocr.langKor": "한국어",
+  "tool.ocr.langDeu": "Deutsch",
+  "tool.ocr.langFra": "Français",
+  "tool.ocr.langSpa": "Español",
+  "tool.ocr.dpi": "Resolution (DPI)",
+  "tool.ocr.dpiInvalid": "Enter a resolution from 72 to 600",
+  "tool.ocr.pages": "Pages (optional)",
+  "tool.ocr.pagesHint": "Leave empty to recognize all pages",
+  "tool.ocr.searchable": "Add a searchable text layer",
+  "tool.ocr.searchableHint": "Clear this to write one plain-text file per page instead.",
+  "tool.ocr.latinHint":
+    "The searchable layer is Latin-script only. CJK and other non-Latin text is recognized and rendered but is not searchable; pick the matching language and clear the searchable layer to extract that text.",
+  "tool.ocr.droppedWarning":
+    "Some text could not be made searchable: the invisible layer only supports Latin script. Use plain-text mode if the page contains CJK text.",
+
+  "tool.extractTables.title": "Extract Tables",
+  "tool.extractTables.desc": "Pull table rows out of a PDF",
+  "tool.extractTables.cta": "Extract Tables",
+  "tool.extractTables.format": "Output format",
+  "tool.extractTables.formatCsv": "CSV",
+  "tool.extractTables.formatJson": "JSON",
+  "tool.extractTables.formatMarkdown": "Markdown",
+  "tool.extractTables.pages": "Pages (optional)",
+  "tool.extractTables.pagesHint": "Leave empty to scan all pages",
+  "tool.extractTables.hint":
+    "Reads positioned text, so it works best on simple, cleanly spaced tables. Merged, multi-line or empty cells can misread. CSV files are numbered in output order; JSON and Markdown keep the true page numbers.",
+
+  "tool.pdfToMarkdown.title": "PDF to Markdown",
+  "tool.pdfToMarkdown.desc": "Convert PDF text into Markdown",
+  "tool.pdfToMarkdown.cta": "Convert to Markdown",
+  "tool.pdfToMarkdown.pages": "Pages (optional)",
+  "tool.pdfToMarkdown.pagesHint": "Leave empty to convert all pages",
+  "tool.pdfToMarkdown.hint":
+    "Structure is approximate: headings come from the dominant font sizes and paragraphs from line gaps. It is not a reconstruction of the original document.",
+
+  "tool.prepareForAi.title": "Prepare for AI",
+  "tool.prepareForAi.desc": "Export page text as JSON for LLM ingestion",
+  "tool.prepareForAi.cta": "Export JSON",
+  "tool.prepareForAi.pages": "Pages (optional)",
+  "tool.prepareForAi.pagesHint": "Leave empty to export all pages",
+
+  "tool.addAttachments.title": "Add Attachments",
+  "tool.addAttachments.desc": "Embed files inside a PDF",
+  "tool.addAttachments.cta": "Add Attachments",
+  "tool.addAttachments.drop": "Drop a PDF here or click to browse",
+  "tool.addAttachments.dropSingle": "Drop a PDF here or click to browse",
+  "tool.addAttachments.addFiles": "Add attachment files",
+  "tool.addAttachments.filesLabel": "Attachment files",
+  "tool.addAttachments.selected": "{{count}} attachment file(s) selected",
+  "tool.addAttachments.emptyHint": "Add at least one attachment file.",
+  "tool.addAttachments.hint":
+    "Any file type can be embedded. Attachments keep their original file names.",
+
+  "tool.extractAttachments.title": "Extract Attachments",
+  "tool.extractAttachments.desc": "Save the files embedded in a PDF",
+  "tool.extractAttachments.cta": "Extract Attachments",
+
+  "tool.editAttachments.title": "Remove Attachments",
+  "tool.editAttachments.desc": "Delete embedded files from a PDF",
+  "tool.editAttachments.cta": "Remove Selected",
+  "tool.editAttachments.load": "Load list",
+  "tool.editAttachments.loading": "Loading…",
+  "tool.editAttachments.listHint":
+    "Load the list of embedded files, then tick the ones to remove.",
+  "tool.editAttachments.none": "This PDF has no embedded files.",
+  "tool.editAttachments.removeHint":
+    "Removal is logical: the entry is dropped but its bytes can remain in the file until a rewrite pass. Compress or rasterize the PDF for full removal.",
+
+  "tool.viewBookmarks.title": "View Bookmarks",
+  "tool.viewBookmarks.desc": "Show the document outline",
+  "tool.viewBookmarks.cta": "View Bookmarks",
+  "tool.viewBookmarks.empty": "This PDF has no bookmarks.",
+  "tool.viewBookmarks.pageLabel": "Page {{page}}",
+
+  "tool.editBookmarks.title": "Edit Bookmarks",
+  "tool.editBookmarks.desc": "Rebuild the document outline from a list",
+  "tool.editBookmarks.cta": "Save Bookmarks",
+  "tool.editBookmarks.loading": "Loading bookmarks…",
+  "tool.editBookmarks.titleField": "Title",
+  "tool.editBookmarks.pageField": "Page",
+  "tool.editBookmarks.addRow": "Add row",
+  "tool.editBookmarks.remove": "Delete row",
+  "tool.editBookmarks.replaceHint":
+    "Saving replaces the outline with the list you build. Nested bookmarks are flattened into a single-level list.",
+  "tool.editBookmarks.latinHint":
+    "A bookmark title drawn on a TOC page must use Latin-1 characters. CJK titles can be stored but cannot be drawn there.",
+  "tool.editBookmarks.noBookmarks": "This PDF has no bookmarks. Add a row to create one.",
+  "tool.editBookmarks.rowInvalid": "Every row needs a title and a page number of 1 or more.",
+
+  "tool.toc.title": "Table of Contents",
+  "tool.toc.desc": "Generate a TOC page from the bookmarks",
+  "tool.toc.cta": "Create TOC",
+  "tool.toc.position": "Position",
+  "tool.toc.beginning": "At the beginning",
+  "tool.toc.afterCover": "After the first page",
+  "tool.toc.titleField": "TOC title",
+  "tool.toc.hint":
+    "Uses the existing bookmarks. The listed page numbers are the bookmarks' stored (semantic) pages, so physical page numbers shift by one when the TOC is inserted at the beginning.",
+  "tool.toc.latinHint":
+    "The TOC is drawn with a Latin-1 font: bookmark titles outside Latin-1 are rejected up front.",
+
   "common.back": "Back",
   "common.cancel": "Cancel",
   "common.saveAs": "Save As",
