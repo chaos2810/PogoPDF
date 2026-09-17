@@ -558,6 +558,7 @@ export const zhTW: Record<Key, string> = {
   "tool.toc.beginning": "置於開頭",
   "tool.toc.afterCover": "置於第一頁之後",
   "tool.toc.titleField": "目錄標題",
+  "tool.toc.defaultTitle": "目錄",
   "tool.toc.hint":
     "使用現有的書籤。列出的頁碼為書籤儲存的語意頁碼；目錄置於開頭時，實際頁碼會整體後移一頁。",
   "tool.toc.latinHint":

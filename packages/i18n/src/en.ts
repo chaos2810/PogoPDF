@@ -561,6 +561,7 @@ export const en = {
   "tool.toc.beginning": "At the beginning",
   "tool.toc.afterCover": "After the first page",
   "tool.toc.titleField": "TOC title",
+  "tool.toc.defaultTitle": "Table of Contents",
   "tool.toc.hint":
     "Uses the existing bookmarks. The listed page numbers are the bookmarks' stored (semantic) pages, so physical page numbers shift by one when the TOC is inserted at the beginning.",
   "tool.toc.latinHint":

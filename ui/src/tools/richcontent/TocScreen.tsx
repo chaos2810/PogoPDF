@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
+import { useApp } from "../../app/store";
+import { t } from "@pogopdf/i18n";
 import { FileToolScreen } from "../FileToolScreen";
 import { Field, Hint, RadioGroup, TextInput } from "../organize/forms";
 
 type Position = "beginning" | "after-cover";
 
 export function TocScreen() {
+  const { lang } = useApp();
   const [position, setPosition] = useState<Position>("beginning");
-  const [title, setTitle] = useState("Table of Contents");
+  const [title, setTitle] = useState(t("tool.toc.defaultTitle", lang));
 
   return (
     <FileToolScreen
