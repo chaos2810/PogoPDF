@@ -1,10 +1,10 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { t } from "@pogopdf/i18n";
 import { pickImages } from "../../app/rpc";
 import { useApp } from "../../app/store";
 import { FileToolScreen } from "../FileToolScreen";
-import { Field, NumberInput, RadioGroup, Select } from "../organize/forms";
+import { Field, Hint, NumberInput, RadioGroup, Select } from "../organize/forms";
 
 // The extensions the engine can decode; the picker accepts the same set.
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "svg"];
@@ -76,6 +76,7 @@ export function ImagesToPdfScreen() {
               invalid={marginInvalid}
             />
           </Field>
+          <Hint keyName="tool.imagesToPdf.formatHint" stacked />
         </>
       }
     />

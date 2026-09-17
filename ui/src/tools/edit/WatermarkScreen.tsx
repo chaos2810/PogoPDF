@@ -1,7 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { t } from "@pogopdf/i18n";
-import { pickFiles, pickImages } from "../../app/rpc";
+import { pickImages } from "../../app/rpc";
 import { useApp } from "../../app/store";
 import { FileToolScreen } from "../FileToolScreen";
 import {
