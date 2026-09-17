@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { Canvas } from "@napi-rs/canvas";
 
-export type ImageFormat = "jpg" | "png" | "webp" | "tiff" | "bmp";
+export type OutputImageFormat = "jpg" | "png" | "webp" | "tiff" | "bmp";
 
 const DEFAULT_QUALITY = 80;
 
@@ -51,7 +51,7 @@ async function encodeBmp(canvas: Canvas): Promise<Buffer> {
 
 export async function encodeCanvas(
   canvas: Canvas,
-  format: ImageFormat,
+  format: OutputImageFormat,
   quality?: number
 ): Promise<Buffer> {
   if (format === "bmp") return encodeBmp(canvas);

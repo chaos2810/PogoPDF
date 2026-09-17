@@ -1,10 +1,18 @@
 import type { ReactNode } from "react";
 import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
-import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import { pickPdfs } from "../../app/rpc";
-import { FileQueueCards } from "../FileQueueCards";
 import { usePdfJob } from "../usePdfJob";
+import {
+  CARD_STYLE,
+  DropZone,
+  ErrorCard,
+  Footnote,
+  Queue,
+  RunningCard,
+  ToolHeader,
+  ValidationMessage,
+} from "../SharedToolParts";
 
 export type DataToolScreenProps = {
   toolId: string;
@@ -73,83 +81,33 @@ export function DataToolScreen({
 
   const singleFiles = files.length > 0 ? [files[0]] : [];
 
-  const cardStyle = {
-    background: "var(--card)", borderRadius: "var(--radius-card)",
-    padding: 20, boxShadow: "var(--shadow-card)",
-  } as const;
-
   return (
     <main style={{ padding: 24, width: "100%", maxWidth: 720, margin: "0 auto" }}>
-      <button
-        onClick={() => navigate({ kind: "home" })}
-        style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}
-      >
-        ← {t("common.back", lang)}
-      </button>
-      <h1 style={{ fontSize: 20, fontWeight: 800, margin: "8px 0" }}>{t(`tool.${toolId}.title`, lang)}</h1>
+      <ToolHeader toolId={toolId} onBack={() => navigate({ kind: "home" })} />
 
       {phase === "pick" && (
-        <div style={cardStyle}>
-          <button
-            data-testid={`${toolId}-dropzone`}
+        <div style={CARD_STYLE}>
+          <DropZone
+            toolId={toolId}
+            isDragActive={isDragActive}
+            multiple={minFiles > 1}
             onClick={() => void pick()}
-            style={{
-              width: "100%", padding: "28px 12px", borderRadius: "var(--radius-tile)",
-              border: isDragActive ? "2px solid var(--accent)" : "1.5px dashed var(--muted)",
-              background: isDragActive ? "color-mix(in srgb, var(--accent) 12%, var(--bg))" : "var(--bg)",
-              color: isDragActive ? "var(--accent)" : "var(--muted)",
-              fontSize: 14, fontWeight: isDragActive ? 700 : 400, cursor: "pointer",
-            }}
-          >
-            {t(
-              isDragActive
-                ? "tool.common.dropActive"
-                : minFiles > 1
-                  ? "tool.common.drop"
-                  : "tool.common.dropSingle",
-              lang
-            )}
-          </button>
+          />
 
-          {footnoteKey && (
-            <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 8 }}>
-              {t(footnoteKey, lang)}
-            </div>
-          )}
+          <Footnote footnoteKey={footnoteKey} />
 
-          <div style={{ marginTop: 12 }}>
-            <FileQueueCards
-              toolId={toolId}
-              files={minFiles > 1 ? files : singleFiles}
-              onRemove={(path) =>
-                setFiles((prev) =>
-                  minFiles > 1 ? prev.filter((x) => x !== path) : []
-                )
-              }
-            />
-          </div>
+          <Queue
+            toolId={toolId}
+            files={minFiles > 1 ? files : singleFiles}
+            onRemove={(path) =>
+              setFiles((prev) =>
+                minFiles > 1 ? prev.filter((x) => x !== path) : []
+              )
+            }
+            onAddMore={minFiles > 1 ? () => void pick() : undefined}
+          />
 
-          {minFiles > 1 && files.length > 0 && (
-            <button
-              onClick={() => void pick()}
-              style={{
-                marginTop: 12, marginRight: 10, padding: "10px 18px", borderRadius: "var(--radius-pill)",
-                fontWeight: 600, background: "transparent", border: "1px solid var(--border)",
-                color: "var(--text)", cursor: "pointer",
-              }}
-            >
-              {t("tool.common.addMore", lang)}
-            </button>
-          )}
-
-          {showError && (
-            <div
-              data-testid={`${toolId}-validation`}
-              style={{ color: "var(--danger)", fontSize: 13, marginTop: 12 }}
-            >
-              {t(showError, lang)}
-            </div>
-          )}
+          <ValidationMessage toolId={toolId} errorKey={showError} />
 
           <button
             data-testid={`${toolId}-cta`}
@@ -168,36 +126,13 @@ export function DataToolScreen({
       )}
 
       {phase === "running" && (
-        <div style={cardStyle}>
-          <div>{t("common.processing", lang)} {percent}%</div>
-          <div style={{ height: 8, borderRadius: 999, background: "var(--border)", marginTop: 8 }}>
-            <div style={{ width: `${percent}%`, height: "100%", borderRadius: 999, background: "var(--accent)", transition: "width 200ms" }} />
-          </div>
-          <button
-            data-testid={`${toolId}-cancel`}
-            onClick={() => void cancel()}
-            style={{
-              marginTop: 12, padding: "8px 16px", borderRadius: "var(--radius-pill)",
-              fontWeight: 600, background: "transparent", border: "1px solid var(--border)",
-              color: "var(--text)", cursor: "pointer",
-            }}
-          >
-            {t("common.cancel", lang)}
-          </button>
-        </div>
+        <RunningCard toolId={toolId} percent={percent} onCancel={() => void cancel()} />
       )}
 
       {phase === "data" && (
-        <div style={cardStyle} data-testid={`${toolId}-data`}>
+        <div style={CARD_STYLE} data-testid={`${toolId}-data`}>
           {renderData(data)}
-          {footnoteKey && (
-            <div
-              data-testid={`${toolId}-footnote`}
-              style={{ color: "var(--muted)", fontSize: 12, marginTop: 12 }}
-            >
-              {t(footnoteKey, lang)}
-            </div>
-          )}
+          <Footnote footnoteKey={footnoteKey} testId={`${toolId}-footnote`} />
           <button
             data-testid={`${toolId}-back`}
             onClick={reset}
@@ -214,34 +149,12 @@ export function DataToolScreen({
       )}
 
       {phase === "error" && (
-        <div data-testid={`${toolId}-error`} style={{ ...cardStyle, boxShadow: undefined }}>
-          <div style={{ color: "var(--danger)", fontWeight: 700 }}>{t("common.error", lang)}</div>
-          <div
-            data-testid={`${toolId}-error-detail`}
-            style={{
-              marginTop: 6, fontFamily: "ui-monospace, monospace", fontSize: 13,
-              color: "var(--muted)", overflowWrap: "anywhere", wordBreak: "break-word",
-            }}
-          >
-            {error}
-          </div>
-          {errorCode === TOOL_ERROR_CODES.INVALID_INPUT && (
-            <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)" }}>
-              {t("common.checkInput", lang)}
-            </div>
-          )}
-          <button
-            onClick={() => setPhase("pick")}
-            style={{
-              display: "block", marginTop: 12, padding: "8px 14px",
-              borderRadius: "var(--radius-pill)", fontWeight: 600,
-              background: "transparent", border: "1px solid var(--danger)",
-              color: "var(--danger)", cursor: "pointer",
-            }}
-          >
-            {t("common.back", lang)}
-          </button>
-        </div>
+        <ErrorCard
+          toolId={toolId}
+          error={error}
+          errorCode={errorCode}
+          onBack={() => setPhase("pick")}
+        />
       )}
     </main>
   );

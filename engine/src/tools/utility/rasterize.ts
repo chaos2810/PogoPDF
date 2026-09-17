@@ -3,7 +3,7 @@ import { RasterizeInputSchema } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { encodeCanvas } from "../../render/encode";
 import { assertNotCancelled, normalizeAngle } from "../organize/organize";
-import { displayedPageSize } from "../edit/pagedraw";
+import { displayedPageSize } from "../../render/pagegeometry";
 import { loadPdf, savePdf } from "../pdfdoc";
 import { openRenderer } from "../convertout/shared";
 

@@ -17,7 +17,7 @@ export type EmbeddableImage = {
 };
 
 /** Input containers v1 understands, by extension (`.jpe`/`.tif` etc. included). */
-export type ImageFormat =
+export type InputImageFormat =
   | "jpg"
   | "png"
   | "webp"
@@ -27,7 +27,7 @@ export type ImageFormat =
   | "bmp"
   | "heic";
 
-const EXTENSION_FORMAT: Record<string, ImageFormat> = {
+const EXTENSION_FORMAT: Record<string, InputImageFormat> = {
   jpg: "jpg",
   jpeg: "jpg",
   jpe: "jpg",
@@ -49,7 +49,7 @@ const EXTENSION_FORMAT: Record<string, ImageFormat> = {
  * these). `heic` is handled separately because the same binary ships libheif
  * without an HEVC decoder.
  */
-const SHARP_TRANSCODE: ReadonlySet<ImageFormat> = new Set([
+const SHARP_TRANSCODE: ReadonlySet<InputImageFormat> = new Set([
   "webp",
   "tiff",
   "gif",
@@ -72,7 +72,7 @@ function ascii(bytes: Buffer, start: number, length: number): string {
  * Content sniffing for files whose extension is absent or wrong. Mirrors the
  * formats the extension table knows; BMP and HEIC have unambiguous signatures.
  */
-export function sniffImageFormat(bytes: Buffer): ImageFormat | undefined {
+export function sniffImageFormat(bytes: Buffer): InputImageFormat | undefined {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
     return "jpg";
   }
@@ -161,7 +161,7 @@ function hasToolCode(e: unknown): boolean {
   return typeof (e as { code?: unknown })?.code === "number";
 }
 
-async function transcodeSharp(path: string, format: ImageFormat): Promise<EmbeddableImage> {
+async function transcodeSharp(path: string, format: InputImageFormat): Promise<EmbeddableImage> {
   try {
     const meta = await sharp(path).metadata();
     const dims = dimsFrom(meta);

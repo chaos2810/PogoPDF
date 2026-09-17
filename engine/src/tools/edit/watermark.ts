@@ -10,7 +10,8 @@ import {
 } from "../organize/organize";
 import { loadPdf, savePdf } from "../pdfdoc";
 import { loadImageEmbeddable } from "../../render/decode";
-import { embedStandardFont, encodeFailure, displayedPageSize, parseHexColor, toUnrotated } from "./pagedraw";
+import { displayedPageSize, toUnrotated } from "../../render/pagegeometry";
+import { embedStandardFont, encodeFailure, parseHexColor } from "./pagedraw";
 
 const CANONICAL = new Set([0, 90, 180, 270]);
 
@@ -52,7 +53,7 @@ type TextStamp = {
 /**
  * Draw one text stamp with its BASELINE START at displayed (rx, ry). The page's
  * /Rotate is countered so `rotation` is measured in displayed space (see
- * pagedraw.toUnrotated): visual angle == draw angle - pageRotation.
+ * pagegeometry.toUnrotated): visual angle == draw angle - pageRotation.
  */
 function stampText(
   doc: PDFDocument,

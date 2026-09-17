@@ -3,6 +3,7 @@ import { FixPageSizeInputSchema } from "@pogopdf/contracts";
 import type { FixPageSizeInput } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { assertNotCancelled, normalizeAngle } from "../organize/organize";
+import { displayedPageSize } from "../../render/pagegeometry";
 import { loadPdf, savePdf } from "../pdfdoc";
 
 // Portrait dimensions in points (ISO 216 / US Letter at 72 dpi).
@@ -35,9 +36,7 @@ export async function runFixPageSize(
     // /Rotate turns the page in the viewer, so the box the user sees swaps
     // width and height for 90/270 even though the MediaBox is unchanged.
     const { width: mediaW, height: mediaH } = srcPage.getSize();
-    const swaps = rotation === 90 || rotation === 270;
-    const dispW = swaps ? mediaH : mediaW;
-    const dispH = swaps ? mediaW : mediaH;
+    const { width: dispW, height: dispH } = displayedPageSize(rotation, mediaW, mediaH);
 
     // scale: always fit (may upscale). pad: fit only when the source overflows,
     // otherwise draw at 1:1 so smaller pages keep their true size. The fit is

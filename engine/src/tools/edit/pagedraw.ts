@@ -1,6 +1,7 @@
 import { StandardFonts, degrees, rgb } from "pdf-lib";
 import type { PDFDocument, PDFFont } from "pdf-lib";
 import { invalidInput, normalizeAngle } from "../organize/organize";
+import { displayedPageSize, toUnrotated } from "../../render/pagegeometry";
 
 export type TextPosition =
   | "top-center"
@@ -47,41 +48,6 @@ export function encodeFailure(err: unknown): Error | undefined {
       ? `Only Latin-1 characters can be drawn on pages (character "${ch}" not supported)`
       : "Only Latin-1 characters can be drawn on pages (text contains unsupported non-Latin characters)"
   );
-}
-
-/**
- * Convert a baseline anchor in DISPLAYED space (x from the left, y from the
- * top) back to the page's unrotated user space. Derived by composing pdf.js's
- * viewport matrix for each /Rotate with the text matrix produced by drawing at
- * `rotate: degrees(rotation)` (see the rotation test in edit.test.ts).
- */
-export function toUnrotated(
-  rotation: number,
-  width: number,
-  height: number,
-  rx: number,
-  ry: number
-): { x: number; y: number } {
-  switch (rotation) {
-    case 90:
-      return { x: ry, y: rx };
-    case 180:
-      return { x: width - rx, y: ry };
-    case 270:
-      return { x: width - ry, y: height - rx };
-    default:
-      return { x: rx, y: height - ry };
-  }
-}
-
-/** The page's size as displayed by a viewer under its (canonical) /Rotate. */
-export function displayedPageSize(
-  rotationDeg: number,
-  wPt: number,
-  hPt: number
-): { width: number; height: number } {
-  const swaps = rotationDeg === 90 || rotationDeg === 270;
-  return { width: swaps ? hPt : wPt, height: swaps ? wPt : hPt };
 }
 
 /**
