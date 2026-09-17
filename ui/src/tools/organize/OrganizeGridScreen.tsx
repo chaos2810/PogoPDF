@@ -326,10 +326,15 @@ export function OrganizeGridScreen() {
                   style={{
                     position: "relative", display: "flex", flexDirection: "column",
                     gap: 6, padding: 8, borderRadius: "var(--radius-tile)",
+                    // The lifted source reads as dashed; the cell under the
+                    // pointer keeps the solid accent, so the two ends of the
+                    // drag are distinguishable by border style alone.
                     border:
-                      dragSource === i || dragOver === i
-                        ? "2px solid var(--accent)"
-                        : "1px solid var(--border)",
+                      dragSource === i
+                        ? "2px dashed var(--accent)"
+                        : dragOver === i
+                          ? "2px solid var(--accent)"
+                          : "1px solid var(--border)",
                     background:
                       dragOver === i && dragSource !== i
                         ? "color-mix(in srgb, var(--accent) 8%, var(--bg))"

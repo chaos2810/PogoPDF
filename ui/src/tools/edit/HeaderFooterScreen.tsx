@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { FileToolScreen } from "../FileToolScreen";
-import { Field, NumberInput, TextInput } from "../organize/forms";
+import { Field, Hint, NumberInput, TextInput } from "../organize/forms";
 import { validateOptionalPageSpec } from "../pagespec";
 
 export function HeaderFooterScreen() {
@@ -38,12 +38,17 @@ export function HeaderFooterScreen() {
       }}
       options={
         <>
-          <Field labelKey="tool.headerFooter.header" hintKey="tool.headerFooter.latinHint">
+          <Field labelKey="tool.headerFooter.header">
             <TextInput testId="headerfooter-header" value={header} onChange={setHeader} />
           </Field>
-          <Field labelKey="tool.headerFooter.footer" hintKey="tool.headerFooter.latinHint">
+          <Field labelKey="tool.headerFooter.footer">
             <TextInput testId="headerfooter-footer" value={footer} onChange={setFooter} />
           </Field>
+          {/* One shared note spans both text columns, so neither column's hint
+              wraps and pushes its next field row out of rhythm. */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Hint keyName="tool.headerFooter.latinHint" stacked />
+          </div>
           <Field labelKey="tool.headerFooter.fontSize">
             <NumberInput
               testId="headerfooter-fontsize"

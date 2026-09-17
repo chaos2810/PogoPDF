@@ -120,15 +120,36 @@ async function blurActive(page) {
 }
 
 // Tall option forms push the primary CTA below the 800px fold, so a capture would
-// cut off mid-form. Scroll just enough to park the CTA's bottom 20px above the
-// fold; if the form already fits there is nothing to scroll and this is a no-op.
+// cut off mid-form. The action helpers (clickLabel/clickCheckbox) scroll a control
+// to the center as a side effect, so a capture can begin part way down the page
+// even when the form fits. Always measure from the top:
+//
+//   scroll = min(max(0, cta.bottom - innerHeight), max(0, back.top - 4))
+//
+// A form that fits stays at scroll 0, so its title and Back action stay visible.
+// When the form outgrows the viewport the CTA wins (every option form must show
+// its CTA), but the scroll is still clamped to the Back action so the page chrome
+// never leaves the frame; only a form taller than the gap between chrome and fold
+// can leave the CTA's last few pixels below the edge.
 async function scrollCtaIntoView(page) {
   await page.evaluate(() => {
+    window.scrollTo(0, 0);
     const cta = document.querySelector('[data-testid$="-cta"]');
     if (!cta) return;
-    const r = cta.getBoundingClientRect();
-    const overflowBelow = r.bottom - (window.innerHeight - 20);
-    if (overflowBelow > 0) window.scrollBy({ top: overflowBelow });
+    // Target the CTA's bottom edge at the fold exactly; a form is "framed" once
+    // the whole button is on screen.
+    const overflowBelow = cta.getBoundingClientRect().bottom - window.innerHeight;
+    if (overflowBelow <= 0) return;
+    // The Back action sits at the very top of the page, so it is the tightest
+    // clamp: scrolling past it would leave no page chrome in frame. 4px of
+    // clearance absorbs sub-pixel scroll rounding.
+    const back = [...document.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("←")
+    );
+    const chromeClamp = back
+      ? Math.max(0, back.getBoundingClientRect().top - 4)
+      : overflowBelow;
+    window.scrollBy({ top: Math.min(overflowBelow, chromeClamp) });
   });
 }
 
@@ -343,7 +364,45 @@ async function main() {
   const captures = new Map();
   const shot = async (name) => {
     // Every option form state must show its CTA, even when the form overflows.
-    if (name.endsWith("-form")) await scrollCtaIntoView(page);
+    if (name.endsWith("-form")) {
+      await scrollCtaIntoView(page);
+      // Framing guard: scrollCtaIntoView clamps its scroll so the Back action and
+      // title can never leave the top of the frame. Asserting it here makes a
+      // future over-scroll (or a control that scrolls the page as a side effect)
+      // fail loudly instead of silently clipping the header.
+      const framed = await page.evaluate(() => {
+        const h1 = document.querySelector("h1");
+        const back = [...document.querySelectorAll("button")].find((b) =>
+          b.textContent?.includes("←")
+        );
+        const cta = document.querySelector('[data-testid$="-cta"]');
+        const top = (el) => (el ? el.getBoundingClientRect().top : null);
+        const bottom = (el) => (el ? el.getBoundingClientRect().bottom : null);
+        return {
+          h1Top: top(h1),
+          backTop: top(back),
+          ctaBottom: bottom(cta),
+          viewportHeight: window.innerHeight,
+        };
+      });
+      if (framed.backTop !== null && framed.backTop < -1) {
+        throw new Error(`${name}: Back clipped above the fold (${framed.backTop}px)`);
+      }
+      if (framed.h1Top !== null && framed.h1Top < -1) {
+        throw new Error(`${name}: title clipped above the fold (${framed.h1Top}px)`);
+      }
+      if (
+        framed.ctaBottom !== null &&
+        framed.ctaBottom > framed.viewportHeight
+      ) {
+        // Geometry, not a regression: the form is taller than the space between
+        // the page chrome and the fold. Kept as a warning so taller forms are
+        // visible during review without failing the gate.
+        console.warn(
+          `    ! ${name}: CTA bottom ${framed.ctaBottom.toFixed(1)}px exceeds the ${framed.viewportHeight}px fold`
+        );
+      }
+    }
     await blurActive(page);
     await page.screenshot({ path: join(shotsDir, `${name}.png`) });
     const raw = await page.evaluate(collectPageMetrics);
@@ -759,6 +818,17 @@ async function main() {
       .trim();
     if (compareRows.length !== 5 || differing !== "2") {
       throw new Error(`compare-view: canned diff card missing (${JSON.stringify(compareRows)})`);
+    }
+    // The similarity caveat must reach the result view (not just the pick phase):
+    // it is the whole point of the hint once a diff is on screen.
+    const compareHint = await page.evaluate(
+      () =>
+        document
+          .querySelector('[data-testid="comparePdfs-footnote"]')
+          ?.textContent?.trim() ?? null
+    );
+    if (!compareHint) {
+      throw new Error("compare-view: similarity hint missing from the result card");
     }
     await shot("compare-view");
     await mock(() => window.__mockSetDataResult("comparePdfs", null));

@@ -190,6 +190,14 @@ export function DataToolScreen({
       {phase === "data" && (
         <div style={cardStyle} data-testid={`${toolId}-data`}>
           {renderData(data)}
+          {footnoteKey && (
+            <div
+              data-testid={`${toolId}-footnote`}
+              style={{ color: "var(--muted)", fontSize: 12, marginTop: 12 }}
+            >
+              {t(footnoteKey, lang)}
+            </div>
+          )}
           <button
             data-testid={`${toolId}-back`}
             onClick={reset}

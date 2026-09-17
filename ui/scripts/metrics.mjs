@@ -451,11 +451,24 @@ function checkCardLayout(cards) {
 // Queue cards must show a real preview image (the card's <img>), not the
 // FileText placeholder, for every queued PDF. A placeholder regression drops
 // thumbCount below the card count and fails this gate.
-function checkCardsThumbnailsPresent(cards, requireCount) {
+//
+// `expectPlaceholder` marks the states whose cards have no preview pipeline at
+// all (the text-shaped convert-in tools): there the placeholder is the correct
+// rendering, so the invariant is skipped and evidence reports it as such
+// instead of a bare `pass:false`.
+function checkCardsThumbnailsPresent(cards, requireCount, expectPlaceholder = false) {
   if (!cards || cards.count === 0) {
     return requireCount
       ? { pass: false, detail: "expected cards, found none", count: 0 }
       : { pass: true, detail: "no cards" };
+  }
+  if (expectPlaceholder) {
+    return {
+      pass: cards.thumbCount === 0,
+      detail: "document placeholder expected (no preview pipeline)",
+      count: cards.count,
+      thumbCount: cards.thumbCount,
+    };
   }
   return {
     pass: cards.thumbCount === cards.count,
@@ -610,6 +623,15 @@ const DATA_TABLE_STATES = new Set(["dimensions-view"]);
 // invariant fails. Every state listed here must show at least one card.
 // imagestopdf-form queues pictures (image previews), the rest queue PDFs.
 const IMAGE_CARD_STATES = new Set(["imagestopdf-form"]);
+// The three text-shaped convert-in tools (.txt / .md / .csv) share the document
+// placeholder card: none has a preview pipeline, so `cards-thumbnails-present`
+// is skipped for all three identically (a real thumbnail would be a regression,
+// which the per-tool getQueueThumb unit test guards instead).
+const PLACEHOLDER_CARD_STATES = new Set([
+  "textpdf-form",
+  "markdown-form",
+  "csvtopdf-form",
+]);
 const CARD_STATES = new Set([
   "merge-files",
   "merge-longnames",
@@ -617,12 +639,8 @@ const CARD_STATES = new Set([
   "merge-zhtw",
   "merge-cancelled",
   ...IMAGE_CARD_STATES,
-  // textpdf/markdown/csv queue non-PDF text files, so their cards show the
-  // document placeholder instead of a thumbnail.
   ...Object.keys(CTA_EXPECTATIONS).filter(
-    (n) =>
-      n.endsWith("-form") &&
-      !["textpdf-form", "markdown-form", "csvtopdf-form"].includes(n)
+    (n) => n.endsWith("-form") && !PLACEHOLDER_CARD_STATES.has(n)
   ),
 ]);
 
@@ -714,7 +732,8 @@ export function evaluateState(name, state) {
     cardsLayout: checkCardLayout(state.cardsInfo),
     cardsThumbnailsPresent: checkCardsThumbnailsPresent(
       state.cardsInfo,
-      CARD_STATES.has(name)
+      CARD_STATES.has(name),
+      PLACEHOLDER_CARD_STATES.has(name)
     ),
     gridCellsAligned: checkGridCellsAligned(state.gridInfo),
     gridCellsEqualSize: checkGridCellsEqualSize(state.gridInfo),
