@@ -21,11 +21,21 @@ read files relative to their own package directory at runtime:
 |---|---|---|
 | `pdfkit` | MIT | `new URL('./data/sRGB_IEC61966_2_1.icc', import.meta.url)` at module load; standard fonts via `require('#standard-fonts/*')` |
 | `jsdom` | MIT | `fs.readFileSync(path.resolve(__dirname, '../../../browser/default-stylesheet.css'))` at module load |
+| `mupdf` | **AGPL-3.0-or-later** | ESM-only with a top-level `await import("node:fs")` plus `await libmupdf_wasm(...)`, which CJS output cannot express; loads `dist/mupdf-wasm.wasm` relative to its own dist dir |
 
-Both are marked `--external` and their transitive dependency trees are staged
-into `engine-deps-<id>/node_modules/` (see `build-release.ps1`, which walks
-`dependencies` + `optionalDependencies` from a root list). `marked` and
+All three are marked `--external` and their transitive dependency trees are
+staged into `engine-deps-<id>/node_modules/` (see `build-release.ps1`, which
+walks `dependencies` + `optionalDependencies` from a root list). `marked` and
 `dompurify` are pure JS with no file loads and do bundle.
+
+`mupdf` is loaded through a dynamic `import("mupdf")` in
+`engine/src/render/mupdfengine.ts`, so esbuild leaves the `require`/import for
+the runtime and the whole package (including the ~10 MB wasm binary) is staged.
+The official MuPDF.js wasm build compiles the XPS module out
+(`platform/wasm/tools/build.sh` passes `xps=no`), so the shipped engine reads
+EPUB/FB2/comic content but not XPS; `xpsToPdf` reports a typed
+unsupported-format error. A future custom wasm build with `xps=yes` would close
+that gap without any code change beyond dropping the typed-error branch.
 
 `qpdf` is not a Node package at all: `build-release.ps1` stages the whole
 `engine/qpdf-bin/` directory (`qpdf.exe` + `qpdf29.dll` + the MSVC runtime DLLs;
@@ -98,18 +108,20 @@ so a bundle-only change would leave the key unchanged.
 esbuild src/engine.ts --bundle --platform=node --target=node22 \
   --outfile=dist/engine.cjs \
   --external:sharp --external:@napi-rs/canvas \
-  --external:pdfkit --external:jsdom \
+  --external:pdfkit --external:jsdom --external:mupdf \
   --define:import.meta.url=__filename
 ```
 
 - `--external:sharp` / `--external:@napi-rs/canvas` keep them as runtime
   `require()` calls (the only two packages with un-bundleable `.node` files).
-- `--external:pdfkit` / `--external:jsdom` keep them on disk because of the
-  runtime data-file loads listed above; inlining either one makes the bundle
-  throw at import (pdfkit: `ERR_INVALID_URL`, jsdom: `ENOENT
-  .../default-stylesheet.css`). `--packages=external` is deliberately **not**
-  used: pdf.js, pdf-lib, jszip and zod bundle fine and keep the exe
-  self-contained apart from these four.
+- `--external:pdfkit` / `--external:jsdom` / `--external:mupdf` keep them on disk
+  because of the runtime data-file loads listed above; inlining pdfkit or jsdom
+  makes the bundle throw at import (pdfkit: `ERR_INVALID_URL`, jsdom: `ENOENT
+  .../default-stylesheet.css`), and inlining mupdf fails the build outright
+  (esbuild: "Top-level await is currently not supported with the cjs output
+  format"). `--packages=external` is deliberately **not** used: pdf.js, pdf-lib,
+  jszip and zod bundle fine and keep the exe self-contained apart from these
+  five.
 - `--define:import.meta.url=__filename` matters: esbuild's CJS output stubs
   `import.meta` to `{}`, so pdf.js's `createRequire(import.meta.url)` would throw
   `ERR_INVALID_ARG_VALUE` and silently degrade (no `@napi-rs/canvas` polyfill, no

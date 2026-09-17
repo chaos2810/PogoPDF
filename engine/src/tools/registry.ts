@@ -9,6 +9,7 @@ import { registerConvertInfoTools } from "./convertout/register-convert-info";
 import { registerConvertMiscTools } from "./convertout/register-convert-misc";
 import { registerConvertInTools } from "./convertin/register-convertin";
 import { registerOfficeTools } from "./office/register-office";
+import { registerRichContentTools } from "./richcontent/register-richcontent";
 import { registerEditTools } from "./edit/register-edit";
 import { registerSecureTools } from "./secure/register-secure";
 import { registerUtilityTools } from "./utility/register-utility";
@@ -34,6 +35,7 @@ export function registerTools(tools: ToolRegistry) {
   registerConvertMiscTools(tools);
   registerConvertInTools(tools);
   registerOfficeTools(tools);
+  registerRichContentTools(tools);
   registerEditTools(tools);
   registerSecureTools(tools);
   registerUtilityTools(tools);

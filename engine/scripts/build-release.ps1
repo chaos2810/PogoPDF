@@ -76,8 +76,10 @@ function resolveDir(spec) {
 // therefore not reachable by walking dependencies. pdfkit and jsdom are
 // external because they read data files relative to their own package dirs
 // (`js/pdfkit.node.mjs` -> ./data/sRGB...icc, jsdom -> default-stylesheet.css),
-// which breaks when esbuild inlines them.
-const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom"];
+// which breaks when esbuild inlines them. mupdf is external because it is
+// ESM-only with a top-level await that CJS output cannot express, and it loads
+// its wasm file relative to its own dist directory.
+const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom", "mupdf"];
 const extras = ["@img/sharp-win32-x64", "@img/colour", "detect-libc",
                 "@napi-rs/canvas-win32-x64-msvc"];
 const seen = new Set();

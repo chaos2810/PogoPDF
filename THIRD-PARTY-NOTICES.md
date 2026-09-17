@@ -44,6 +44,7 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | @img/colour | 1.1.0 | MIT |
 | detect-libc | 2.1.2 | Apache-2.0 |
 | qpdf (qpdf.exe + qpdf29.dll + MSVC runtime DLLs) | 11.10.1 | Apache-2.0 |
+| mupdf (MuPDF.js wasm) | 1.28.1 | **AGPL-3.0-or-later** |
 
 `engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
 copied into `engine-deps-<id>/`; `qpdf.exe` and its runtime DLLs are copied into
@@ -79,9 +80,42 @@ dompurify's MPL path, weak-copyleft. The AGPL engines land in Phase 2 (see the s
 
 ## Planned AGPL engines (Phase 2+)
 
-mupdf (npm), PyMuPDF, and Ghostscript are AGPL-3.0-or-later and will ship in
-the engine from Phase 2 onward. Their notices will be added here as each
-lands.
+PyMuPDF and Ghostscript are AGPL-3.0-or-later and will ship in the engine from
+Phase 2 onward. Their notices will be added here as each lands. mupdf, the
+first AGPL component to land, is recorded in the section below.
+
+## AGPL-3.0-or-later component: MuPDF.js
+
+PogoPDF's engine uses **MuPDF.js** (the `mupdf` npm package), version 1.28.1,
+for rich-content conversion (EPUB, FB2, and the comic/image path). MuPDF.js is a
+WebAssembly build of MuPDF published by Artifex Software, Inc. and is licensed
+under the **GNU Affero General Public License, version 3.0 or later
+(AGPL-3.0-or-later)**:
+
+- Copyright (C) 2004-2026 Artifex Software, Inc.
+- License: AGPL-3.0-or-later, <https://www.gnu.org/licenses/agpl-3.0.html>
+- Source: <https://mupdf.com> and the npm package `mupdf`
+  (<https://www.npmjs.com/package/mupdf>, source repository
+  <https://github.com/ArtifexSoftware/mupdf>)
+
+The package is `--external` to the engine bundle and is staged whole into
+`engine-deps-<id>/node_modules/mupdf/`, including its `dist/mupdf-wasm.wasm`
+binary, which the engine loads at runtime. The complete corresponding source for
+the shipped MuPDF.js build is the `mupdf` 1.28.1 npm package together with the
+MuPDF source at the repository above. Artifex offers alternative commercial
+licensing; see <https://www.artifex.com/contact/mupdf-js>.
+
+Because MuPDF is AGPL-3.0-or-later and PogoPDF links it at runtime as a module
+inside its engine process, the combined work is distributed under the terms of
+the AGPL, consistent with PogoPDF's own AGPL-3.0 license (see
+[LICENSE](LICENSE)). The full AGPL text ships with the package at
+`node_modules/mupdf/LICENSE`.
+
+Note: the official MuPDF.js wasm build compiles the XPS module out
+(`platform/wasm/tools/build.sh` passes `xps=no`), so the shipped engine cannot
+read XPS/OXPS; the `xpsToPdf` tool reports a typed unsupported-format error.
+This is recorded so the capability gap is not mistaken for a license or
+packaging omission.
 
 ## LGPL-3.0-or-later component: libvips (via sharp)
 

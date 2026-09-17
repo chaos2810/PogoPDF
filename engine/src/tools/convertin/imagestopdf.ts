@@ -1,4 +1,5 @@
 import { PDFDocument } from "pdf-lib";
+import type { PDFImage } from "pdf-lib";
 import { ImagesToPdfInputSchema } from "@pogopdf/contracts";
 import type { ImagesToPdfInput } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
@@ -30,6 +31,25 @@ function fitInto(
   return { x: (pageW - width) / 2, y: (pageH - height) / 2, width, height };
 }
 
+/**
+ * Add one page sized to the image's own pixel dimensions, the image drawn 1:1
+ * with an optional margin. Shared with comicToPdf, which reuses the same fit
+ * pipeline page per zip entry.
+ */
+export function addFitImagePage(
+  out: PDFDocument,
+  image: PDFImage,
+  widthPx: number,
+  heightPx: number,
+  margin = 0
+): void {
+  const pageW = widthPx;
+  const pageH = heightPx;
+  const inset = Math.min(margin, (pageW - MIN_BOX_PT) / 2, (pageH - MIN_BOX_PT) / 2);
+  const box = fitInto(widthPx, heightPx, pageW - inset * 2, pageH - inset * 2, pageW, pageH);
+  out.addPage([pageW, pageH]).drawImage(image, box);
+}
+
 export async function runImagesToPdf(
   input: unknown,
   ctx: RpcCtx,
@@ -48,19 +68,7 @@ export async function runImagesToPdf(
     if (pageSize === "fit") {
       // Page = image pixels interpreted 1:1 as points; margin insets the image
       // only (the page never shrinks below the image's own size).
-      const pageW = widthPx;
-      const pageH = heightPx;
-      const inset = Math.min(margin, (pageW - MIN_BOX_PT) / 2, (pageH - MIN_BOX_PT) / 2);
-      const box = fitInto(
-        widthPx,
-        heightPx,
-        pageW - inset * 2,
-        pageH - inset * 2,
-        pageW,
-        pageH
-      );
-      const page = out.addPage([pageW, pageH]);
-      page.drawImage(image, box);
+      addFitImagePage(out, image, widthPx, heightPx, margin);
     } else {
       const [w, h] = SIZES[pageSize];
       const pageW = orientation === "landscape" ? h : w;

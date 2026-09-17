@@ -7,7 +7,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "esbuild src/engine.ts --bundle --platform=node --target=node22 --outfile=dist/engine.cjs --external:sharp --external:@napi-rs/canvas --external:pdfkit --external:jsdom --define:import.meta.url=__filename",
+    "build": "esbuild src/engine.ts --bundle --platform=node --target=node22 --outfile=dist/engine.cjs --external:sharp --external:@napi-rs/canvas --external:pdfkit --external:jsdom --external:mupdf --define:import.meta.url=__filename",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -19,6 +19,7 @@
     "jsdom": "^30.1.0",
     "jszip": "^3.10.2",
     "marked": "^18.0.13",
+    "mupdf": "^1.28.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.3.289",
     "pdfkit": "^0.20.2",
