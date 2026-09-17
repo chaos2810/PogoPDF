@@ -95,6 +95,23 @@ export async function pickImages(multiple: boolean): Promise<string[]> {
   return pickFiles(multiple, "images");
 }
 
+export async function pickOfficeFiles(multiple: boolean): Promise<string[]> {
+  return pickFiles(multiple, "office");
+}
+
+export async function pickEbookFiles(multiple: boolean): Promise<string[]> {
+  return pickFiles(multiple, "ebook");
+}
+
+export async function pickComicFiles(multiple: boolean): Promise<string[]> {
+  return pickFiles(multiple, "comic");
+}
+
+// No extension filter: the add-attachments picker accepts any file type.
+export async function pickAnyFiles(multiple: boolean): Promise<string[]> {
+  return pickFiles(multiple, "any");
+}
+
 export async function saveAsPdf(defaultName: string): Promise<string | null> {
   return invoke("dialog_save", { defaultName });
 }

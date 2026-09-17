@@ -21,17 +21,30 @@ pub async fn rpc_call(
 }
 
 // Named presets keep the common pickers readable; any other value is treated as
-// a comma-separated extension list (e.g. "md" or "txt,md,csv").
-fn dialog_extensions(filter: Option<&str>) -> (String, Vec<String>) {
+// a comma-separated extension list (e.g. "md" or "txt,md,csv"). None means "no
+// extension filter", used by the attachment picker which accepts any file type.
+fn dialog_extensions(filter: Option<&str>) -> Option<(String, Vec<String>)> {
+    let named = |label: &str, exts: &[&str]| {
+        Some((
+            label.to_string(),
+            exts.iter().map(|s| s.to_string()).collect(),
+        ))
+    };
     match filter {
-        None | Some("") | Some("pdf") => ("PDF Files".to_string(), vec!["pdf".to_string()]),
-        Some("images") => (
-            "Image Files".to_string(),
-            ["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "svg"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
+        Some("any") | Some("all") => None,
+        None | Some("") | Some("pdf") => named("PDF Files", &["pdf"]),
+        Some("images") => named(
+            "Image Files",
+            &["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "svg"],
         ),
+        Some("office") => named(
+            "Office Documents",
+            &[
+                "docx", "doc", "odt", "rtf", "xlsx", "xls", "ods", "pptx", "ppt", "odp", "odg",
+            ],
+        ),
+        Some("ebook") => named("Ebook Files", &["epub", "fb2"]),
+        Some("comic") => named("Comic Archives", &["cbz"]),
         Some(spec) => {
             let exts: Vec<String> = spec
                 .split(',')
@@ -39,7 +52,7 @@ fn dialog_extensions(filter: Option<&str>) -> (String, Vec<String>) {
                 .filter(|s| !s.is_empty())
                 .map(str::to_string)
                 .collect();
-            ("Files".to_string(), exts)
+            Some(("Files".to_string(), exts))
         }
     }
 }
@@ -52,14 +65,15 @@ pub async fn dialog_open_pdf(
 ) -> Result<Vec<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let (label, extensions) = dialog_extensions(filter.as_deref());
-    let ext_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
+    let mut builder = app.dialog().file();
+    // None means the filter accepts any file type (the attachment picker); the
+    // builder without add_filter is the OS-native "All files" dialog.
+    if let Some((label, extensions)) = dialog_extensions(filter.as_deref()) {
+        let ext_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
+        builder = builder.add_filter(label, &ext_refs);
+    }
 
-    let picked = app
-        .dialog()
-        .file()
-        .add_filter(label, &ext_refs)
-        .blocking_pick_files();
+    let picked = builder.blocking_pick_files();
 
     let paths: Vec<String> = picked
         .unwrap_or_default()
@@ -123,4 +137,40 @@ pub fn reveal(path: String) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("failed to open explorer: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dialog_extensions;
+
+    fn exts(filter: Option<&str>) -> Vec<String> {
+        dialog_extensions(filter).expect("filter present").1
+    }
+
+    #[test]
+    fn office_preset_covers_the_supported_formats() {
+        let e = exts(Some("office"));
+        for want in [
+            "docx", "doc", "odt", "rtf", "xlsx", "xls", "ods", "pptx", "ppt", "odp", "odg",
+        ] {
+            assert!(e.iter().any(|x| x == want), "missing {want}");
+        }
+    }
+
+    #[test]
+    fn ebook_and_comic_presets_use_their_extensions() {
+        assert_eq!(exts(Some("ebook")), vec!["epub", "fb2"]);
+        assert_eq!(exts(Some("comic")), vec!["cbz"]);
+    }
+
+    #[test]
+    fn any_preset_has_no_extension_filter() {
+        assert!(dialog_extensions(Some("any")).is_none());
+        assert!(dialog_extensions(Some("all")).is_none());
+    }
+
+    #[test]
+    fn unknown_value_is_a_comma_list() {
+        assert_eq!(exts(Some("md,txt")), vec!["md", "txt"]);
+    }
 }
