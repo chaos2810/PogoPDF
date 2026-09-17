@@ -316,6 +316,7 @@ export function collectPageMetrics() {
       cellCenterDelta: +Math.max(0, ...centers.map((c) => Math.abs(c - base))).toFixed(2),
       firstCellX: first.x,
       firstCellWidth: first.width,
+      firstCellText: snippet(kids[0], 40),
       rowHeight: +row.getBoundingClientRect().height.toFixed(2),
     };
   });
@@ -514,12 +515,17 @@ function checkFormNoOverlap(state) {
   };
 }
 
-// Data-view rows (metadata card): the label column must start at the same x
-// with the same width on every row, and each row's cells share a center line.
+// Data-view rows (metadata/compare cards): the label column must start at the
+// same x with the same width on every row, and each row's cells share a center
+// line. Only rows whose first cell is real label text count — the compare card's
+// em-dash placeholder for an empty list is a value column, not a label, so its
+// x/width would otherwise skew the column check (the row centering still holds).
 function checkDataRowsAligned(rows) {
   if (!rows || rows.length === 0) return { pass: true, detail: "no data rows" };
-  const xs = rows.map((r) => r.firstCellX);
-  const ws = rows.map((r) => r.firstCellWidth);
+  const labelRows = rows.filter((r) => r.cellCount > 1 && r.firstCellText && r.firstCellText !== "—");
+  if (labelRows.length === 0) return { pass: true, detail: "no label rows" };
+  const xs = labelRows.map((r) => r.firstCellX);
+  const ws = labelRows.map((r) => r.firstCellWidth);
   const xSpread = +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
   const widthSpread = +(Math.max(...ws) - Math.min(...ws)).toFixed(2);
   const maxCenter = +Math.max(...rows.map((r) => r.cellCenterDelta)).toFixed(2);
@@ -575,22 +581,48 @@ const CTA_EXPECTATIONS = {
   "cbz-form": false,
   "greyscale-form": false,
   "fixpagesize-form": false,
+  "imagestopdf-form": false,
+  "textpdf-form": false,
+  "markdown-form": false,
+  "csvtopdf-form": false,
+  "pagenumbers-form": false,
+  "watermark-text-form": false,
+  "watermark-image-form": false,
+  "crop-form": false,
+  "headerfooter-form": false,
+  "editmetadata-form": false,
+  "protect-form": false,
+  "unlock-form": false,
+  "flatten-form": false,
+  "removemetadata-form": false,
+  "pdfstozip-form": false,
+  "rasterize-form": false,
 };
 
-// States that render a data card (View Metadata) / data table (Page Dimensions).
-const DATA_CARD_STATES = new Set(["metadata-view"]);
+// States that render a data card (View Metadata, Compare PDFs) / data table
+// (Page Dimensions).
+const DATA_CARD_STATES = new Set(["metadata-view", "compare-view"]);
 const DATA_TABLE_STATES = new Set(["dimensions-view"]);
 
-// States whose pick phase queues PDF files as thumbnail cards. If the preview
-// pipeline regresses to placeholders, thumbCount drops below the card count and
-// the invariant fails. Every state listed here must show at least one card.
+// States whose pick phase queues thumbnail cards. If the preview pipeline
+// regresses to placeholders, thumbCount drops below the card count and the
+// invariant fails. Every state listed here must show at least one card.
+// imagestopdf-form queues pictures (image previews), the rest queue PDFs.
+const IMAGE_CARD_STATES = new Set(["imagestopdf-form"]);
 const CARD_STATES = new Set([
   "merge-files",
   "merge-longnames",
   "merge-many",
   "merge-zhtw",
   "merge-cancelled",
-  ...Object.keys(CTA_EXPECTATIONS).filter((n) => n.endsWith("-form")),
+  ...IMAGE_CARD_STATES,
+  // textpdf/markdown/csv queue non-PDF text files, so their cards show the
+  // document placeholder instead of a thumbnail.
+  ...Object.keys(CTA_EXPECTATIONS).filter(
+    (n) =>
+      n.endsWith("-form") &&
+      !["textpdf-form", "markdown-form", "csvtopdf-form"].includes(n)
+  ),
 ]);
 
 function checkCtaDisabledVisible(cta, expectedDisabled) {

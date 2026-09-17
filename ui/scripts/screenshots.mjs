@@ -120,15 +120,15 @@ async function blurActive(page) {
 }
 
 // Tall option forms push the primary CTA below the 800px fold, so a capture would
-// cut off mid-form. Align the CTA's bottom with the viewport bottom; if the form
-// already fits this is a no-op (there is no scroll room).
+// cut off mid-form. Scroll just enough to park the CTA's bottom 20px above the
+// fold; if the form already fits there is nothing to scroll and this is a no-op.
 async function scrollCtaIntoView(page) {
   await page.evaluate(() => {
     const cta = document.querySelector('[data-testid$="-cta"]');
-    // "end" parks the CTA flush against the fold; leave ~20px breathing
-    // room so the capture shows the button comfortably inside the card.
-    if (cta) cta.scrollIntoView({ block: "end" });
-    if (cta) window.scrollBy({ top: -20 });
+    if (!cta) return;
+    const r = cta.getBoundingClientRect();
+    const overflowBelow = r.bottom - (window.innerHeight - 20);
+    if (overflowBelow > 0) window.scrollBy({ top: overflowBelow });
   });
 }
 
@@ -213,6 +213,22 @@ async function clickLabel(page, name, text) {
   await sleep(80);
 }
 
+// Checkboxes are label-wrapped like the radios; click the box itself with a
+// trusted mouse click so its checked state flips and no :focus-visible ring
+// leaks into the capture.
+async function clickCheckbox(page, id) {
+  const box = await page.evaluate((tid) => {
+    const el = document.querySelector(`[data-testid="${tid}"]`);
+    if (!el) return null;
+    el.scrollIntoView({ block: "center" });
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }, id);
+  if (!box) throw new Error(`No checkbox with data-testid "${id}"`);
+  await page.mouse.click(box.x, box.y);
+  await sleep(80);
+}
+
 async function selectByValue(page, id, value) {
   const ok = await page.evaluate(
     ([tid, val]) => {
@@ -263,6 +279,22 @@ const LONG = [
 ];
 
 const MANY = Array.from({ length: 8 }, (_, i) => `C:\\Users\\demo\\batch\\document-${i + 1}.pdf`);
+
+// Images to PDF queues pictures, not PDFs (the picker/drop filters on image
+// extensions), so its cards must show an image preview rather than the file
+// placeholder icon.
+const IMAGES = [
+  "C:\\Users\\demo\\Pictures\\scan-front.png",
+  "C:\\Users\\demo\\Pictures\\diagram.jpg",
+  "C:\\Users\\demo\\Pictures\\photo.webp",
+];
+
+// Text-shaped inputs for the convert-in tools: each has its own extension, so
+// drag-drop acceptance and the queue card differ from the PDF tools.
+const TEXT_FILE = "C:\\Users\\demo\\Documents\\meeting-notes.txt";
+const MARKDOWN_FILE = "C:\\Users\\demo\\Documents\\release-notes.md";
+const CSV_FILE = "C:\\Users\\demo\\Documents\\inventory-q3.csv";
+const IMAGE_FILE = "C:\\Users\\demo\\Pictures\\signature.png";
 
 // Tiny 2-page PDF (page 2 has /Rotate 90) generated with pdf-lib; used by the
 // organize-grid-real state to exercise the real pdf.js pipeline end to end.
@@ -544,6 +576,194 @@ async function main() {
     await clickLabel(page, "fixpagesize-orientation", "Portrait");
     await clickLabel(page, "fixpagesize-fit", "Scale to fit");
     await shot("fixpagesize-form");
+
+    // --- Images to PDF: 3 image cards, fit page size, margin 12 ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Images to PDF");
+    await mock((p) => window.__mockDrop(p), IMAGES);
+    await typeInto(page, "imagestopdf-margin", "12");
+    await shot("imagestopdf-form");
+
+    // --- Text to PDF: one .txt file, font size 14 ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Text to PDF");
+    await mock((p) => window.__mockDrop(p), [TEXT_FILE]);
+    await typeInto(page, "texttopdf-fontsize", "14");
+    await shot("textpdf-form");
+
+    // --- Markdown to PDF: one .md file, font size 12, simple hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Markdown to PDF");
+    await mock((p) => window.__mockDrop(p), [MARKDOWN_FILE]);
+    await typeInto(page, "markdowntopdf-fontsize", "12");
+    await shot("markdown-form");
+
+    // --- CSV to PDF: one .csv file, landscape ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "CSV to PDF");
+    await mock((p) => window.__mockDrop(p), [CSV_FILE]);
+    await clickLabel(page, "csvtopdf-orientation", "Landscape");
+    await shot("csvtopdf-form");
+
+    // --- Page Numbers: bottom-center, n-of-total, skip first ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Page Numbers");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "pagenumbers-position", "Bottom center");
+    await clickLabel(page, "pagenumbers-format", "1 / 5");
+    await clickCheckbox(page, "pagenumbers-skipfirst");
+    await shot("pagenumbers-form");
+
+    // --- Watermark (text mode): text, opacity, rotation, tile ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Watermark");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "watermark-text", "CONFIDENTIAL");
+    await typeInto(page, "watermark-opacity", "0.2");
+    await typeInto(page, "watermark-rotation", "30");
+    await clickLabel(page, "watermark-position", "Tile");
+    await shot("watermark-text-form");
+
+    // --- Watermark (image mode): text-only controls disappear ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Watermark");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "watermark-mode", "Image");
+    await clickTestId(page, "watermark-pick-image");
+    await sleep(120);
+    // The state is meaningless unless image mode really hid the text-only
+    // controls and the picked image's name reached the picker button.
+    const imageMode = await page.evaluate(() => ({
+      picker: document.querySelector('[data-testid="watermark-pick-image"]')?.textContent?.trim() ?? null,
+      textGone: !document.querySelector('[data-testid="watermark-text"]'),
+      fontSizeGone: !document.querySelector('[data-testid="watermark-fontsize"]'),
+      rotationGone: !document.querySelector('[data-testid="watermark-rotation"]'),
+      colorGone: !document.querySelector('[data-testid="watermark-color"]'),
+    }));
+    if (
+      !imageMode.picker ||
+      imageMode.picker.includes("Choose") ||
+      !imageMode.textGone ||
+      !imageMode.fontSizeGone ||
+      !imageMode.rotationGone ||
+      !imageMode.colorGone
+    ) {
+      throw new Error(`watermark-image-form: image mode did not apply (${JSON.stringify(imageMode)})`);
+    }
+    await shot("watermark-image-form");
+
+    // --- Crop: four insets, empty pages field ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Crop PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "crop-top", "10");
+    await typeInto(page, "crop-bottom", "10");
+    await typeInto(page, "crop-left", "20");
+    await typeInto(page, "crop-right", "20");
+    await shot("crop-form");
+
+    // --- Header & Footer: header + footer text, Latin-1 hints ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Header & Footer");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "headerfooter-header", "Quarterly Report");
+    await typeInto(page, "headerfooter-footer", "Page");
+    await shot("headerfooter-form");
+
+    // --- Edit Metadata: two fields filled, one clear-checkbox ticked ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Edit Metadata");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "editmetadata-title", "Quarterly Report");
+    await typeInto(page, "editmetadata-author", "Ada Lovelace");
+    await clickCheckbox(page, "editmetadata-subject-clear");
+    await shot("editmetadata-form");
+
+    // --- Protect: owner password filled, user empty, printing allowed ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Protect PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "protect-owner", "s3cret-owner");
+    // Password inputs must stay masked: type=password never exposes the value.
+    const protectMasked = await page.evaluate(() => {
+      const owner = document.querySelector('[data-testid="protect-owner"]');
+      const user = document.querySelector('[data-testid="protect-user"]');
+      return {
+        ownerType: owner?.getAttribute("type"),
+        ownerValue: owner?.value,
+        userType: user?.getAttribute("type"),
+        userValue: user?.value,
+      };
+    });
+    if (
+      protectMasked.ownerType !== "password" ||
+      protectMasked.ownerValue !== "s3cret-owner" ||
+      protectMasked.userType !== "password" ||
+      protectMasked.userValue !== ""
+    ) {
+      throw new Error(`protect-form: password fields not masked as expected (${JSON.stringify(protectMasked)})`);
+    }
+    await shot("protect-form");
+
+    // --- Unlock: password filled ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Unlock PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "unlock-password", "document-pass");
+    await shot("unlock-form");
+
+    // --- Flatten: bare single-file card + hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Flatten PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await shot("flatten-form");
+
+    // --- Remove Metadata: bare single-file card + hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Remove Metadata");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await shot("removemetadata-form");
+
+    // --- Compare PDFs: 2 files → canned diff data card ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Compare PDFs");
+    await mock((p) => window.__mockDrop(p), [SHORT[0], SHORT[1]]);
+    await mock(() =>
+      window.__mockSetDataResult("comparePdfs", {
+        pageCountA: 12,
+        pageCountB: 12,
+        samePageCounts: true,
+        differingPages: [2],
+        pageSizeMismatchPages: [],
+      })
+    );
+    await clickTestId(page, "comparePdfs-cta");
+    await sleep(300);
+    // The result card is the point of this state: require the canned diff to
+    // have rendered (5 rows incl. "2") before capturing.
+    const compareRows = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="data-row"]')].map(
+        (r) => r.textContent?.replace(/\s+/g, " ").trim() ?? ""
+      )
+    );
+    if (compareRows.length !== 5 || !compareRows.some((r) => r.includes("2"))) {
+      throw new Error(`compare-view: canned diff card missing (${JSON.stringify(compareRows)})`);
+    }
+    await shot("compare-view");
+    await mock(() => window.__mockSetDataResult("comparePdfs", null));
+
+    // --- PDFs to ZIP: 3 PDF cards, no options ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDFs to ZIP");
+    await mock((p) => window.__mockDrop(p), SHORT);
+    await shot("pdfstozip-form");
+
+    // --- Rasterize: DPI 300 + hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Rasterize PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "rasterize-dpi", "300");
+    await shot("rasterize-form");
 
     // --- View Metadata: canned data card ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
