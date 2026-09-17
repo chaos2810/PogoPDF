@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { readFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
@@ -75,7 +75,7 @@ describe("grid page tools", () => {
   });
 
   describe("nup", () => {
-    it('2x2 on 8 uniform pages â†’ 2 pages, each 2*cw+3*margin, named "nup.pdf"', async () => {
+    it('2x2 on 8 uniform pages → 2 pages, each 2*cw+3*margin, named "nup.pdf"', async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runNup(
         { filePath: eight100, layout: "2x2" },
@@ -91,7 +91,7 @@ describe("grid page tools", () => {
       ]);
     });
 
-    it("1x2 on 3 pages â†’ 2 output pages (ceil(3/2))", async () => {
+    it("1x2 on 3 pages → 2 output pages (ceil(3/2))", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runNup(
         { filePath: three100, layout: "1x2" },
@@ -119,7 +119,7 @@ describe("grid page tools", () => {
       expect(dims(doc)).toEqual([[218, 218]]);
     });
 
-    it("margin 0 â†’ exact cell multiples (2 cols â†’ 200 wide)", async () => {
+    it("margin 0 → exact cell multiples (2 cols → 200 wide)", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runNup(
         { filePath: eight100, layout: "2x2", margin: 0 },
@@ -135,7 +135,7 @@ describe("grid page tools", () => {
   });
 
   describe("booklet", () => {
-    it('8 pages â†’ fold order 8,1,2,7,6,3,4,5, named "booklet.pdf"', async () => {
+    it('8 pages → fold order 8,1,2,7,6,3,4,5, named "booklet.pdf"', async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runBooklet({ filePath: eightSeq }, ctx, outDir);
       expect(out).toBe(join(outDir, "booklet.pdf"));
@@ -143,7 +143,7 @@ describe("grid page tools", () => {
       expect(widths(doc)).toEqual([107, 100, 101, 106, 105, 102, 103, 104]);
     });
 
-    it("5 pages â†’ padded to 8 with blanks of the first page size", async () => {
+    it("5 pages → padded to 8 with blanks of the first page size", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runBooklet({ filePath: fiveSeq }, ctx, outDir);
       const doc = await load(out);
@@ -154,7 +154,7 @@ describe("grid page tools", () => {
   });
 
   describe("divide", () => {
-    it('horizontal 200Ã-100 count 2 â†’ 2 pages 100Ã-100, named "divided.pdf"', async () => {
+    it('horizontal 200×100 count 2 → 2 pages 100×100, named "divided.pdf"', async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runDivide(
         { filePath: landscape200, direction: "horizontal", count: 2 },
@@ -169,7 +169,7 @@ describe("grid page tools", () => {
       ]);
     });
 
-    it("vertical 100Ã-200 count 4 â†’ 4 pages 100Ã-50", async () => {
+    it("vertical 100×200 count 4 → 4 pages 100×50", async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runDivide(
         { filePath: portrait100x200, direction: "vertical", count: 4 },
@@ -187,7 +187,7 @@ describe("grid page tools", () => {
   });
 
   describe("organizeGrid", () => {
-    it('reorders pages [2,0,1] â†’ widths [102,100,101], named "organized.pdf"', async () => {
+    it('reorders pages [2,0,1] → widths [102,100,101], named "organized.pdf"', async () => {
       const outDir = mkdtempSync(join(tmpdir(), "pogopdf-test-"));
       const out = await runOrganizeGrid(
         { filePath: threeSeq, pages: [{ srcIndex: 2 }, { srcIndex: 0 }, { srcIndex: 1 }] },

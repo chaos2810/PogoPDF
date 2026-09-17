@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import type { PageDimensionsData } from "@pogopdf/contracts";
 import { useApp } from "../../app/store";
@@ -34,12 +34,12 @@ export function PageDimensionsScreen() {
           {pages.map((p, i) => (
             <tr key={i}>
               <td style={cell}>{i + 1}</td>
-              <td style={cell}>{p.widthPt} Ã- {p.heightPt}</td>
-              <td style={cell}>{p.widthMm} Ã- {p.heightMm}</td>
+              <td style={cell}>{p.widthPt} × {p.heightPt}</td>
+              <td style={cell}>{p.widthMm} × {p.heightMm}</td>
               <td style={cell}>
                 {t(`tool.pageDimensions.${p.orientation}`, lang)}
               </td>
-              <td style={cell}>{p.rotation}Â°</td>
+              <td style={cell}>{p.rotation}°</td>
             </tr>
           ))}
         </tbody>

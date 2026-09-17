@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { callEngine, pickFolder, saveAsPdf, revealInExplorer } from "../app/rpc";
 import { t } from "@pogopdf/i18n";
@@ -6,7 +6,7 @@ import { useApp } from "../app/store";
 import { basename, joinPath } from "../tools/paths";
 
 type Props = {
-  // Single-file mode (merge, organize, â€¦).
+  // Single-file mode (merge, organize, …).
   outputPath?: string;
   // Multi-file mode (split): one "Save All" copies every output to a folder.
   outputPaths?: string[];
@@ -121,7 +121,7 @@ export function SaveAsBar({ outputPath, outputPaths, onReset }: Props) {
                 data-testid="save-all-reveal"
                 style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}
               >
-                â†-
+                ↗
               </button>
             </>
           )}
@@ -198,13 +198,13 @@ export function SaveAsBar({ outputPath, outputPaths, onReset }: Props) {
       </button>
       {savedTo && (
         <>
-          <span style={{ color: "var(--muted)" }}>{t("common.done", lang)} Â· {savedTo}</span>
+          <span style={{ color: "var(--muted)" }}>{t("common.done", lang)} · {savedTo}</span>
           <button
             onClick={() => void revealInExplorer(savedTo)}
             title={savedTo}
             style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}
           >
-            â†-
+            ↗
           </button>
         </>
       )}
