@@ -37,7 +37,7 @@ export function parseHexColor(hex: string): { r: number; g: number; b: number } 
 const CANONICAL = new Set([0, 90, 180, 270]);
 
 /** Helvetica embeds WinAnsi only, so non-Latin-1 glyphs fail to encode. */
-function encodeFailure(err: unknown): Error | undefined {
+export function encodeFailure(err: unknown): Error | undefined {
   if (!(err instanceof Error) || !/WinAnsi cannot encode/i.test(err.message)) {
     return undefined;
   }
@@ -55,7 +55,7 @@ function encodeFailure(err: unknown): Error | undefined {
  * viewport matrix for each /Rotate with the text matrix produced by drawing at
  * `rotate: degrees(rotation)` (see the rotation test in edit.test.ts).
  */
-function toUnrotated(
+export function toUnrotated(
   rotation: number,
   width: number,
   height: number,
