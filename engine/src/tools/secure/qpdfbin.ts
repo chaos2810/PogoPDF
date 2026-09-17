@@ -11,6 +11,7 @@ export function qpdfError(message: string, code: number): Error {
 
 const NOT_FOUND_MESSAGE =
   "qpdf not found — run engine/scripts/fetch-qpdf.ps1";
+const SPAWN_FAILED_MESSAGE = "qpdf failed to start";
 
 /**
  * Directory of this module. esbuild's CJS output rewrites `import.meta.url` to
@@ -104,7 +105,10 @@ const STDERR_TAIL = 200;
 // qpdf reports a wrong/missing password as "invalid password" (stderr) or
 // "Incorrect password supplied" (stdout, from --show-encryption) and exits 2,
 // not 3 — exit 3 means "warnings only" per `qpdf --help=exit-status`.
-const PASSWORD_PATTERN = /password/i;
+// The strings are anchored to qpdf's own wording rather than a bare /password/i:
+// stdout+stderr include the input path, so a corrupt file named e.g.
+// "my-password-reset.pdf" would otherwise be misread as an encrypted one.
+const PASSWORD_PATTERN = /invalid password|incorrect password supplied/i;
 
 function spawnQpdf(
   bin: string,
@@ -143,8 +147,10 @@ export async function runQpdf(args: string[], outDir: string): Promise<QpdfResul
   try {
     ({ code, stdout, stderr } = await spawnQpdf(bin, args, outDir));
   } catch (e) {
+    // The exe exists (resolveQpdf passed) but could not launch, so advice to
+    // fetch it would be wrong.
     throw qpdfError(
-      `${NOT_FOUND_MESSAGE} (${e instanceof Error ? e.message : String(e)})`,
+      `${SPAWN_FAILED_MESSAGE} (${e instanceof Error ? e.message : String(e)})`,
       TOOL_ERROR_CODES.UNSUPPORTED_FORMAT
     );
   }

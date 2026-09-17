@@ -231,6 +231,18 @@ describe.skipIf(!qpdfBin)("runUnlock", () => {
     ).rejects.toMatchObject({ code: -32003 });
   });
 
+  it("maps a corrupt file whose name contains 'password' to CORRUPT_PDF", async () => {
+    // qpdf's stderr echoes the input path, so a bare /password/i matcher read
+    // this name as an encrypted file. Only qpdf's own wording may match.
+    const bad = join(dir, "my-password-reset.pdf");
+    writeFileSync(bad, Buffer.from("not a pdf, no password here"));
+    const err = await runUnlock({ filePath: bad, password: "x" }, ctx, outDir()).catch(
+      (e: Error & { code?: number }) => e
+    );
+    expect(err).toMatchObject({ code: -32003 });
+    expect((err as Error).message).not.toMatch(/encrypted/i);
+  });
+
   it("throws CANCELLED when cancelled before doing any work", async () => {
     const src = await makePdf(join(dir, "cancel.pdf"), 1);
     await expect(
