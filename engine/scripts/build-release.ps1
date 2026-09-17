@@ -71,10 +71,45 @@ function resolveDir(spec) {
     dir = parent;
   }
 }
+// Roots that are marked --external in engine/package.json (so their modules
+// must exist on disk) plus sharp's platform packages, which are optional and
+// therefore not reachable by walking dependencies. pdfkit and jsdom are
+// external because they read data files relative to their own package dirs
+// (`js/pdfkit.node.mjs` -> ./data/sRGB...icc, jsdom -> default-stylesheet.css),
+// which breaks when esbuild inlines them.
+const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom"];
+const extras = ["@img/sharp-win32-x64", "@img/colour", "detect-libc",
+                "@napi-rs/canvas-win32-x64-msvc"];
+const seen = new Set();
+const queue = [...roots];
+while (queue.length > 0) {
+  const spec = queue.shift();
+  if (seen.has(spec)) continue;
+  let dir;
+  try {
+    dir = resolveDir(spec);
+  } catch {
+    // Platform-specific optional packages for other OSes are not installed.
+    continue;
+  }
+  seen.add(spec);
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+  for (const dep of Object.keys({ ...(pkg.dependencies || {}), ...(pkg.optionalDependencies || {}) })) {
+    queue.push(dep);
+  }
+}
+
 const out = {};
-for (const spec of ["sharp", "@img/sharp-win32-x64", "@img/colour", "detect-libc",
-                    "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]) {
-  out[spec] = resolveDir(spec);
+for (const spec of seen) {
+  const dir = resolveDir(spec);
+  out[spec] = dir;
+}
+for (const spec of extras) {
+  try {
+    out[spec] = resolveDir(spec);
+  } catch {
+    /* optional platform package not installed on this platform */
+  }
 }
 process.stdout.write(JSON.stringify(out));
 '@

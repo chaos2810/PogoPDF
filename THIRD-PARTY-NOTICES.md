@@ -30,6 +30,10 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 |---|---|---|
 | pdf-lib | 1.17.1 | MIT |
 | pdfjs-dist | 6.3.289 | Apache-2.0 |
+| pdfkit | 0.20.2 | MIT |
+| marked | 18.0.13 | MIT |
+| dompurify | 3.4.15 | MPL-2.0 OR Apache-2.0 |
+| jsdom | 30.1.0 | MIT |
 | jszip | 3.10.2 | MIT (`MIT OR GPL-3.0-or-later`) |
 | zod | 3.25.76 | MIT |
 | @napi-rs/canvas | 1.0.9 | MIT |
@@ -41,7 +45,11 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 
 `engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
 copied into `engine-deps-<id>/`; the remaining packages are copied under
-`engine-deps-<id>/node_modules/`.
+`engine-deps-<id>/node_modules/`. This includes the transitive dependency trees
+of `pdfkit` (fontkit, linebreak, png-js, @noble/ciphers, @noble/hashes, fflate,
+…; all MIT/BSD/ISC-compatible) and `jsdom` (parse5, css-tree, tough-cookie,
+undici, whatwg-*, …; all MIT/ISC/BSD-compatible), whose license texts ship
+alongside the packages.
 
 ## UI (bundled into the app)
 
