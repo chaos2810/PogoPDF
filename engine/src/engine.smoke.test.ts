@@ -199,6 +199,47 @@ describe("engine stdio smoke", () => {
     }
   }, 30000);
 
+  it("runs a previously-unregistered tool (editMetadata) end-to-end", async () => {
+    // crop/editMetadata/removeMetadata had contracts + UI but no engine module;
+    // job.start failed "Unknown tool". This exercises the full stdio path for one
+    // of them and verifies the data-less {jobId, outputPath} result shape.
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    await makePdf(join(work, "f", "meta.pdf"), 1);
+
+    const child = startEngine();
+    try {
+      const resp = rpcLine(child, 6);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 6,
+          method: "job.start",
+          params: {
+            jobId: "523e4567-e89b-12d3-a456-426614174000",
+            toolId: "editMetadata",
+            input: { filePath: join(work, "f", "meta.pdf"), title: "Smoke Title" },
+          },
+        }) + "\n"
+      );
+      const result = await resp;
+      expect(result.error).toBeUndefined();
+      expect(result.result.jobId).toBe("523e4567-e89b-12d3-a456-426614174000");
+      expect(result.result.data).toBeUndefined();
+      const outPath = result.result.outputPath as string;
+      expect(outPath.endsWith("metadata.pdf")).toBe(true);
+      expect(existsSync(outPath)).toBe(true);
+
+      const doc = await PDFDocument.load(readFileSync(outPath), { updateMetadata: false });
+      expect(doc.getTitle()).toBe("Smoke Title");
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
+
   it("rejects invalid tool input via the central job.start schema check", async () => {
     const child = startEngine();
     try {
