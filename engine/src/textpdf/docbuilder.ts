@@ -7,6 +7,7 @@ import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 export type BuildPdfOptions = {
   fontSize: number;
   margins: number;
+  layout?: "portrait" | "landscape";
 };
 
 /**
@@ -19,6 +20,7 @@ export function buildPdf(
 ): Promise<Buffer> {
   const doc = new PDFDocument({
     size: "A4",
+    layout: opts.layout ?? "portrait",
     margins: {
       top: opts.margins,
       bottom: opts.margins,

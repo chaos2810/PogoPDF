@@ -14,6 +14,7 @@
   "dependencies": {
     "@napi-rs/canvas": "^1.0.9",
     "@pogopdf/contracts": "*",
+    "csv-parse": "^7.0.2",
     "dompurify": "^3.4.15",
     "jsdom": "^30.1.0",
     "jszip": "^3.10.2",

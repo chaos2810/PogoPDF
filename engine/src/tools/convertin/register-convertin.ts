@@ -1,4 +1,5 @@
 import {
+  CsvToPdfInputSchema,
   ImagesToPdfInputSchema,
   MarkdownToPdfInputSchema,
   TextToPdfInputSchema,
@@ -8,6 +9,7 @@ import type { ToolRegistry } from "../registry";
 import { runImagesToPdf } from "./imagestopdf";
 import { runTextToPdf } from "./texttopdf";
 import { runMarkdownToPdf } from "./markdowntopdf";
+import { runCsvToPdf } from "./csvtopdf";
 
 export function registerConvertInTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.imagesToPdf, {
@@ -21,5 +23,9 @@ export function registerConvertInTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.markdownToPdf, {
     schema: MarkdownToPdfInputSchema,
     run: runMarkdownToPdf,
+  });
+  tools.set(TOOL_IDS.csvToPdf, {
+    schema: CsvToPdfInputSchema,
+    run: runCsvToPdf,
   });
 }
