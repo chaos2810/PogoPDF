@@ -2,7 +2,15 @@ import type { ReactNode } from "react";
 import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
 
-export function Field({ labelKey, children }: { labelKey: string; children: ReactNode }) {
+export function Field({
+  labelKey,
+  hintKey,
+  children,
+}: {
+  labelKey: string;
+  hintKey?: string;
+  children: ReactNode;
+}) {
   const { lang } = useApp();
   return (
     <label style={{ display: "block", marginBottom: 12 }}>
@@ -10,6 +18,11 @@ export function Field({ labelKey, children }: { labelKey: string; children: Reac
         {t(labelKey, lang)}
       </span>
       {children}
+      {hintKey && (
+        <span style={{ display: "block", color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
+          {t(hintKey, lang)}
+        </span>
+      )}
     </label>
   );
 }

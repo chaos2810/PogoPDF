@@ -1,7 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { FileToolScreen } from "../FileToolScreen";
-import { Field, Hint, NumberInput, Select } from "./forms";
+import { Field, NumberInput, Select } from "./forms";
 
 const LAYOUTS = ["2x1", "1x2", "2x2", "3x3", "4x4"] as const;
 
@@ -26,7 +26,7 @@ export function NupScreen() {
               options={LAYOUTS.map((l) => ({ value: l, label: l }))}
             />
           </Field>
-          <Field labelKey="tool.nup.margin">
+          <Field labelKey="tool.nup.margin" hintKey="tool.nup.marginHint">
             <NumberInput
               testId="nup-margin"
               value={margin}
@@ -36,7 +36,6 @@ export function NupScreen() {
               invalid={invalid}
             />
           </Field>
-          <Hint keyName="tool.nup.marginHint" />
         </>
       }
     />

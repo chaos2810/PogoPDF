@@ -142,7 +142,21 @@ export function FileToolScreen({
             </button>
           )}
 
-          {options && <div data-testid="options-form" style={{ marginTop: 16 }}>{options}</div>}
+          {options && (
+            <div
+              data-testid="options-form"
+              // Two columns on wide cards so tall option forms stay inside the
+              // viewport with the CTA; single column when narrow.
+              style={{
+                marginTop: 16,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                columnGap: 16,
+              }}
+            >
+              {options}
+            </div>
+          )}
 
           {showError && (
             <div data-testid={`${toolId}-validation`} style={{ color: "var(--danger)", fontSize: 13, marginTop: 12 }}>

@@ -1,7 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { TOOL_IDS } from "@pogopdf/contracts";
 import { FileToolScreen } from "../FileToolScreen";
-import { Field, Hint, RadioGroup, TextInput } from "./forms";
+import { Field, RadioGroup, TextInput } from "./forms";
 import { validateOptionalPageSpec } from "../pagespec";
 
 type Angle = "90" | "180" | "270";
@@ -34,10 +34,9 @@ export function RotateScreen() {
               ]}
             />
           </Field>
-          <Field labelKey="tool.rotate.pages">
+          <Field labelKey="tool.rotate.pages" hintKey="tool.rotate.pagesHint">
             <TextInput testId="rotate-pages" value={pages} onChange={setPages} placeholder="1-3,5" />
           </Field>
-          <Hint keyName="tool.rotate.pagesHint" />
         </>
       }
     />
