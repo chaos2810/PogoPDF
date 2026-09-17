@@ -364,7 +364,7 @@ export const PageNumbersInputSchema = z
       "top-left",
     ]),
     format: z.enum(["n", "n-of-total", "page-n"]),
-    startNumber: z.number().int().default(1),
+    startNumber: z.number().int().min(1).default(1),
     fontSize: z.number().int().min(6).max(72).default(10),
     margin: z.number().min(0).max(144).default(28),
     pages: z.string().optional(),

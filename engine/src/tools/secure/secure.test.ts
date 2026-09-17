@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fixtureDir, makePdf } from "../../testing/fixtures";
 import { getPdfRenderer } from "../../render/renderpdf";
 import { extractPageText } from "../../render/textextract";
 import { registerTools } from "../registry";
 import { findQpdf, runQpdf } from "./qpdfbin";
-import { runProtect } from "./protect";
-import { runUnlock } from "./unlock";
+import { buildEncryptArgs, buildEncryptJob, runProtect } from "./protect";
+import { buildDecryptArgs, runUnlock } from "./unlock";
 import { runFlatten } from "./flatten";
 
 const ctx = { cancelled: () => false, notifyProgress: () => {} };
@@ -188,6 +188,52 @@ describe.skipIf(!qpdfBin)("runProtect", () => {
       runProtect({ filePath: enc, ownerPassword: "newowner" }, ctx, outDir())
     ).rejects.toMatchObject({ code: -32002 });
   });
+
+  it("round-trips a password containing spaces, quotes and symbols", async () => {
+    const src = await makePdf(join(dir, "special.pdf"), 1);
+    const special = 'p@ss w"ord\\$;x';
+    const out = await runProtect(
+      { filePath: src, userPassword: special, ownerPassword: "owner#2'quote" },
+      ctx,
+      outDir()
+    );
+    const pwFile = join(outDir(), "special-pw.txt");
+    writeFileSync(pwFile, special);
+    const { stdout } = await runQpdf(
+      [`--password-file=${pwFile}`, "--show-encryption", "--", out],
+      outDir()
+    );
+    expect(stdout).toContain("Supplied password is user password");
+  });
+
+  it("keeps both passwords out of the qpdf command line", async () => {
+    // The argv is a single --job-json-file reference; the secrets live in that
+    // file. Assert on the pure builders so this cannot silently regress.
+    const job = buildEncryptJob(
+      { filePath: "in.pdf", userPassword: "argp", ownerPassword: "argp-owner", allowPrinting: true, allowCopying: false },
+      "out.pdf"
+    ) as { encrypt: { userPassword: string; ownerPassword: string } };
+    expect(job.encrypt.userPassword).toBe("argp");
+    expect(job.encrypt.ownerPassword).toBe("argp-owner");
+
+    const args = buildEncryptArgs("job.json");
+    expect(args).toEqual(["--job-json-file=job.json"]);
+    for (const arg of args) {
+      expect(arg).not.toContain("argp");
+      expect(arg).not.toContain("argp-owner");
+    }
+  });
+
+  it("deletes the job JSON (with the passwords) after a successful run", async () => {
+    const src = await makePdf(join(dir, "cleanup.pdf"), 1);
+    const out = await runProtect(
+      { filePath: src, userPassword: "u", ownerPassword: "o" },
+      ctx,
+      outDir()
+    );
+    expect(existsSync(out)).toBe(true);
+    expect(existsSync(join(dirname(out), "protect-job.json"))).toBe(false);
+  });
 });
 
 describe.skipIf(!qpdfBin)("runUnlock", () => {
@@ -248,6 +294,31 @@ describe.skipIf(!qpdfBin)("runUnlock", () => {
     await expect(
       runUnlock({ filePath: src, password: "x" }, { ...ctx, cancelled: () => true }, outDir())
     ).rejects.toMatchObject({ code: -32005 });
+  });
+
+  it("keeps the password out of the qpdf command line", () => {
+    const args = buildDecryptArgs("pw.txt", "in.pdf", "out.pdf");
+    expect(args).toEqual(["--password-file=pw.txt", "--decrypt", "--", "in.pdf", "out.pdf"]);
+    for (const arg of args) expect(arg).not.toContain("secret");
+  });
+
+  it("deletes the password file after a successful run", async () => {
+    const src = await makePdf(join(dir, "cleanup.pdf"), 2);
+    const enc = await locked(src, { userPassword: "pw", ownerPassword: "o" });
+    const out = await runUnlock({ filePath: enc, password: "pw" }, ctx, outDir());
+    expect(existsSync(out)).toBe(true);
+    expect(existsSync(join(dirname(out), "unlock-password.txt"))).toBe(false);
+  });
+
+  it("deletes the password file even when the password is rejected", async () => {
+    const src = await makePdf(join(dir, "cleanup-fail.pdf"), 1);
+    const enc = await locked(src, { userPassword: "right", ownerPassword: "o" });
+    const jobDir = outDir();
+    await expect(
+      runUnlock({ filePath: enc, password: "wrong" }, ctx, jobDir)
+    ).rejects.toMatchObject({ code: -32002 });
+    const leftovers = readdirSync(jobDir).filter((f) => f.includes("password"));
+    expect(leftovers).toEqual([]);
   });
 });
 

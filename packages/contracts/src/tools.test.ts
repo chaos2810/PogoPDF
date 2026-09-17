@@ -507,8 +507,15 @@ describe("PageNumbersInputSchema", () => {
   it("accepts an explicit startNumber, pages and skipFirst", () => {
     expect(PageNumbersInputSchema.safeParse({
       filePath: PDF, position: "top-left", format: "n-of-total",
-      startNumber: 0, fontSize: 6, margin: 0, pages: "2-4", skipFirst: true,
+      startNumber: 1, fontSize: 6, margin: 0, pages: "2-4", skipFirst: true,
     }).success).toBe(true);
+  });
+  it("rejects startNumber below 1", () => {
+    for (const startNumber of [0, -3]) {
+      expect(PageNumbersInputSchema.safeParse({
+        filePath: PDF, position: "bottom-center", format: "n", startNumber,
+      }).success).toBe(false);
+    }
   });
   it("rejects an unknown position", () => {
     expect(PageNumbersInputSchema.safeParse({
