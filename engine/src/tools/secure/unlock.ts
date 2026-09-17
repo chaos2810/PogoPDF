@@ -41,7 +41,7 @@ export async function runUnlock(
     // ENCRYPTED_PDF, so only normalize the message into a clean user-facing one.
     if ((e as { code?: number }).code === TOOL_ERROR_CODES.ENCRYPTED_PDF) {
       throw qpdfError(
-        "Incorrect password - this PDF could not be unlocked",
+        "Incorrect password. This PDF could not be unlocked.",
         TOOL_ERROR_CODES.ENCRYPTED_PDF
       );
     }

@@ -7,7 +7,7 @@ mod generated {
 use generated::ENGINE_BLOB_ZSTD;
 
 const BLOB_MISSING_RELEASE: &str =
-    "engine blob missing - run engine/scripts/build-release.ps1 before release builds";
+    "engine blob missing. Run engine/scripts/build-release.ps1 before release builds";
 
 /// Where the extracted engine and its dependencies live, keyed by the content
 /// hash of the staged artifacts so a new engine build lands in fresh paths.

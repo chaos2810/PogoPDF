@@ -10,7 +10,7 @@ export function qpdfError(message: string, code: number): Error {
 }
 
 const NOT_FOUND_MESSAGE =
-  "qpdf not found - run engine/scripts/fetch-qpdf.ps1";
+  "qpdf not found. Run engine/scripts/fetch-qpdf.ps1";
 const SPAWN_FAILED_MESSAGE = "qpdf failed to start";
 
 /**
