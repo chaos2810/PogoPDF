@@ -78,6 +78,9 @@ export async function runComparePdfs(
 
     for (let i = 0; i < common; i++) {
       assertNotCancelled(ctx);
+      // Deviation from the engine's one-bitmap rule: the diff needs both pages
+      // resident at once. Safe because DPI is 72 (~2MB/page) and pages are
+      // released by GC before the next iteration.
       const canvasA = await a.renderPage(i, DPI);
       const canvasB = await b.renderPage(i, DPI);
 

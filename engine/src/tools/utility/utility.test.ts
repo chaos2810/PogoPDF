@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import JSZip from "jszip";
-import { PDFDocument, rgb } from "pdf-lib";
+import { PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream, PDFStream, rgb } from "pdf-lib";
 import type { ComparePdfsData } from "@pogopdf/contracts";
 import { encryptedPdfBytes, fixtureDir, makePdf } from "../../testing/fixtures";
 import { getPdfRenderer } from "../../render/renderpdf";
@@ -50,6 +50,23 @@ async function makeBlankPdf(
   for (const size of sizes) doc.addPage(size);
   writeFileSync(path, await doc.save());
   return path;
+}
+
+/** Pixel width of the first embedded image XObject on a saved PDF's page 0. */
+async function embeddedImageWidth(path: string): Promise<number> {
+  const doc = await PDFDocument.load(await readFile(path));
+  const resources = doc.getPage(0).node.Resources();
+  const xobjects = resources?.lookupMaybe(PDFName.XObject, PDFDict);
+  if (!xobjects) throw new Error("page has no XObjects");
+  for (const key of xobjects.keys()) {
+    const stream = xobjects.lookupMaybe(key, PDFStream);
+    if (!(stream instanceof PDFRawStream)) continue;
+    if (stream.dict.get(PDFName.of("Subtype"))?.toString() !== "/Image") continue;
+    const width = stream.dict.get(PDFName.of("Width"));
+    if (!(width instanceof PDFNumber)) throw new Error("image XObject has no Width");
+    return width.asNumber();
+  }
+  throw new Error("page has no image XObject");
 }
 
 /** Total non-white-ish pixels of a page rendered at `dpi`. */
@@ -212,6 +229,27 @@ describe("runPdfsToZip", () => {
     expect(Object.keys(zip.files).sort()).toEqual(["dup-2.pdf", "dup.pdf"]);
   });
 
+  it("keeps a generated suffix from overwriting a real file of that name", async () => {
+    const subA = join(dir, "zip-collide-a");
+    const subB = join(dir, "zip-collide-b");
+    const subC = join(dir, "zip-collide-c");
+    for (const sub of [subA, subB, subC]) mkdirSync(sub, { recursive: true });
+    // Second input is literally named "x-2.pdf"; the later "x.pdf" must not
+    // reuse that name, or JSZip would replace (drop) an input silently.
+    const x2 = await makePdf(join(subA, "x-2.pdf"), 1);
+    const x1 = await makePdf(join(subB, "x.pdf"), 1);
+    const x3 = await makePdf(join(subC, "x.pdf"), 1);
+
+    const out = await runPdfsToZip({ filePaths: [x2, x1, x3] }, ctx, outDir());
+    const zip = await JSZip.loadAsync(readFileSync(out));
+    const names = Object.keys(zip.files);
+    expect(names).toHaveLength(3);
+    expect(new Set(names).size).toBe(3);
+    expect(names.sort()).toEqual(["x-2.pdf", "x-3.pdf", "x.pdf"]);
+    expect(await zip.file("x.pdf")!.async("nodebuffer")).toEqual(readFileSync(x1));
+    expect(await zip.file("x-2.pdf")!.async("nodebuffer")).toEqual(readFileSync(x2));
+  });
+
   it("reports progress per file, ending at 100", async () => {
     const files: string[] = [];
     for (let i = 0; i < 5; i++) {
@@ -284,6 +322,16 @@ describe("runRasterize", () => {
   it("keeps the rendered content visible (not blank)", async () => {
     const out = await runRasterize({ filePath: two, dpi: 72 }, ctx, outDir());
     expect(await countInk(out, 0, 72)).toBeGreaterThan(0);
+  });
+
+  it("scales the embedded raster with dpi", async () => {
+    const low = await runRasterize({ filePath: two, dpi: 72 }, ctx, outDir());
+    const high = await runRasterize({ filePath: two, dpi: 150 }, ctx, outDir());
+
+    const lowWidth = await embeddedImageWidth(low);
+    const highWidth = await embeddedImageWidth(high);
+    expect(lowWidth).toBe(595);
+    expect(highWidth / lowWidth).toBeCloseTo(150 / 72, 1);
   });
 
   it("uses the swapped displayed dimensions for a /Rotate 90 page", async () => {

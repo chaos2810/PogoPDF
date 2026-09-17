@@ -28,7 +28,7 @@ export async function runPdfsToZip(
   assertNotCancelled(ctx);
 
   const zip = new JSZip();
-  const used = new Map<string, number>();
+  const used = new Set<string>();
 
   for (let i = 0; i < filePaths.length; i++) {
     const path = filePaths[i];
@@ -40,9 +40,14 @@ export async function runPdfsToZip(
     }
 
     const name = basename(path);
-    const seen = used.get(name) ?? 0;
-    used.set(name, seen + 1);
-    const entry = seen === 0 ? name : withSuffix(name, seen + 1);
+    // Probe against every entry already written, not just the basename, so a
+    // crafted suffix (a real "x-2.pdf") cannot be silently overwritten by the
+    // suffix generated for a later "x.pdf".
+    let entry = name;
+    for (let n = 2; used.has(entry); n++) {
+      entry = withSuffix(name, n);
+    }
+    used.add(entry);
 
     zip.file(entry, await readFile(path));
 
