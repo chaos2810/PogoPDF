@@ -9,7 +9,7 @@ import { clusterLines, readPageItems, type TextItem } from "./textitems";
 
 export type TablePage = { page: number; rows: string[][] };
 
-function csvCell(value: string): string {
+export function csvCell(value: string): string {
   return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
@@ -17,13 +17,18 @@ function toCsv(rows: string[][]): string {
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
+/** GFM pipe tables need a literal pipe in a cell escaped as `\|`. */
+function markdownCell(value: string): string {
+  return value.replace(/\|/g, "\\|");
+}
+
 function toMarkdown(pages: TablePage[]): string {
   return pages
     .map(({ rows }) => {
       const [header, ...body] = rows;
       const align = `| ${header.map(() => "---").join(" | ")} |`;
-      const lines = body.map((row) => `| ${row.join(" | ")} |`);
-      return [`| ${header.join(" | ")} |`, align, ...lines].join("\n");
+      const lines = body.map((row) => `| ${row.map(markdownCell).join(" | ")} |`);
+      return [`| ${header.map(markdownCell).join(" | ")} |`, align, ...lines].join("\n");
     })
     .join("\n\n");
 }

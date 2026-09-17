@@ -32,12 +32,17 @@ function bodySize(items: TextItem[]): number {
 }
 
 function lineText(line: TextItem[], fonts: Map<TextItem, string | undefined>): string {
-  const parts = line.map((item) => {
-    const text = item.str.trim();
-    if (!text) return "";
-    return isBoldFont(fonts.get(item)) ? `**${text}**` : text;
-  });
-  return parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const parts: Array<{ text: string; bold: boolean }> = line
+    .map((item) => ({ text: item.str.trim(), bold: isBoldFont(fonts.get(item)) }))
+    .filter((part) => part.text.length > 0);
+  const run = parts
+    .map((part) => (part.bold ? `**${part.text}**` : part.text))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Join adjacent bold runs (`**a** **b**` -> `**a b**`) so a bold phrase split
+  // across text items renders as a single emphasis.
+  return run.replace(/\*\* \*\*/g, " ");
 }
 
 function plainText(line: TextItem[]): string {
@@ -49,10 +54,22 @@ function plainText(line: TextItem[]): string {
     .trim();
 }
 
+/** Drop the leading bullet marker so the content can be formatted as a run. */
+function withoutBullet(line: TextItem[]): TextItem[] {
+  const idx = line.findIndex((item) => item.str.trim().length > 0);
+  if (idx < 0) return line;
+  const trimmed = line[idx].str.trim();
+  if (/^[-•*]$/.test(trimmed)) return [...line.slice(0, idx), ...line.slice(idx + 1)];
+  return line
+    .map((item, i) =>
+      i === idx ? { ...item, str: item.str.replace(/^\s*[-•*]\s+/, "") } : item
+    )
+    .filter((item) => item.str.trim().length > 0);
+}
+
 function bulletText(line: TextItem[], fonts: Map<TextItem, string | undefined>): string | undefined {
-  const raw = lineText(line, fonts);
-  const match = /^([-•*])\s+(.*)$/.exec(raw);
-  return match ? match[2] : undefined;
+  const match = /^([-•*])\s+(.*)$/.exec(plainText(line));
+  return match ? lineText(withoutBullet(line), fonts) : undefined;
 }
 
 async function pageToMarkdown(page: PDFPageProxy): Promise<string> {

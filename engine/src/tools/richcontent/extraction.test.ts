@@ -7,7 +7,7 @@ import { parse } from "csv-parse/sync";
 import { TOOL_ERROR_CODES, type ProgressParams } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { encryptedPdfBytes } from "../../testing/fixtures";
-import { runExtractTables } from "./extracttables";
+import { csvCell, runExtractTables } from "./extracttables";
 import { runPdfToMarkdown } from "./pdftomarkdown";
 import { runPrepareForAi } from "./prepareforai";
 
@@ -26,16 +26,19 @@ afterAll(() => {
 const okCtx: RpcCtx = { cancelled: () => false, notifyProgress: () => {} };
 
 /** 3 rows x 3 columns of positioned text; "Smith, John" carries a comma. */
-async function makeGridPdf(path: string, pages = 1): Promise<string> {
+async function makeGridPdf(
+  path: string,
+  pages = 1,
+  grid: string[][] = [
+    ["Name", "Age", "City"],
+    ["Alice", "30", "Paris"],
+    ["Smith, John", "25", "Lyon"],
+  ]
+): Promise<string> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const cols = [50, 250, 450];
   const rowsY = [750, 710, 670];
-  const grid = [
-    ["Name", "Age", "City"],
-    ["Alice", "30", "Paris"],
-    ["Smith, John", "25", "Lyon"],
-  ];
   for (let p = 0; p < pages; p++) {
     const page = doc.addPage([595.28, 841.89]);
     for (let r = 0; r < grid.length; r++) {
@@ -55,6 +58,57 @@ async function makeParagraphPdf(path: string): Promise<string> {
   const page = doc.addPage([595.28, 841.89]);
   page.drawText("First line of a plain paragraph.", { x: 50, y: 750, size: 12, font });
   page.drawText("Second line with more words here.", { x: 50, y: 730, size: 12, font });
+  writeFileSync(path, await doc.save());
+  return path;
+}
+
+/** Size-18 line (1.5x a size-12 body) plus four size-12 body lines. */
+async function makeH2Pdf(path: string): Promise<string> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595.28, 841.89]);
+  page.drawText("Body one of heading test.", { x: 50, y: 760, size: 12, font });
+  page.drawText("Section Heading Line", { x: 50, y: 730, size: 18, font });
+  page.drawText("Body two of heading test.", { x: 50, y: 700, size: 12, font });
+  page.drawText("Body three of heading test.", { x: 50, y: 680, size: 12, font });
+  page.drawText("Body four of heading test.", { x: 50, y: 660, size: 12, font });
+  writeFileSync(path, await doc.save());
+  return path;
+}
+
+/** Bullet marker and content as two positioned items; body size is still 12. */
+async function makeBulletPdf(path: string): Promise<string> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595.28, 841.89]);
+  page.drawText("Body line before bullet.", { x: 50, y: 760, size: 12, font });
+  page.drawText("-", { x: 50, y: 730, size: 12, font });
+  page.drawText("Bullet content here", { x: 65, y: 730, size: 12, font });
+  writeFileSync(path, await doc.save());
+  return path;
+}
+
+/** Two body lines separated by 20pt (>= 1.5x the 12pt body height). */
+async function makeParagraphGapPdf(path: string): Promise<string> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([595.28, 841.89]);
+  page.drawText("First paragraph line.", { x: 50, y: 760, size: 12, font });
+  page.drawText("Second paragraph line.", { x: 50, y: 746, size: 12, font });
+  page.drawText("Gap paragraph line.", { x: 50, y: 700, size: 12, font });
+  writeFileSync(path, await doc.save());
+  return path;
+}
+
+/** One body line and one bold line split into two bold runs. */
+async function makeBoldRunPdf(path: string): Promise<string> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage([595.28, 841.89]);
+  page.drawText("Plain body line.", { x: 50, y: 760, size: 12, font });
+  page.drawText("Bold", { x: 50, y: 730, size: 12, font: bold });
+  page.drawText("run", { x: 78, y: 730, size: 12, font: bold });
   writeFileSync(path, await doc.save());
   return path;
 }
@@ -114,6 +168,28 @@ describe("runExtractTables", () => {
     expect(md).toContain("| Alice | 30 | Paris |");
     expect(md).toContain("| Smith, John | 25 | Lyon |");
     expect(/^\| -+ \|/m.test(md)).toBe(true);
+  });
+
+  it("escapes pipe characters in markdown cells", async () => {
+    const dir = outDir();
+    const src = await makeGridPdf(join(dir, "pipes.pdf"), 1, [
+      ["Name", "Age", "City"],
+      ["Smith | John", "25", "Lyon"],
+      ["Alice", "30", "Paris"],
+    ]);
+    const out = (await runExtractTables({ filePath: src, format: "markdown" }, okCtx, dir)) as string;
+    const md = readFileSync(out, "utf8");
+    expect(md).toContain("| Smith \\| John | 25 | Lyon |");
+    expect(md).not.toContain("| Smith | John | 25 | Lyon |");
+  });
+
+  it("quotes embedded double quotes and newlines for CSV roundtrip", () => {
+    const rows = [["he said \"hi\"", "line\nbreak", "plain"]];
+    const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
+    expect(csv).toContain('"he said ""hi"""');
+    expect(csv).toContain('"line\nbreak"');
+    const parsed = parse(csv, { trim: false }) as string[][];
+    expect(parsed).toEqual(rows);
   });
 
   it("honours a page selection", async () => {
@@ -196,6 +272,41 @@ describe("runPdfToMarkdown", () => {
     expect(md).toContain("Page Two Text");
   });
 
+  it("maps a 1.5x size line to h2", async () => {
+    const dir = outDir();
+    const src = await makeH2Pdf(join(dir, "h2.pdf"));
+    const out = await runPdfToMarkdown({ filePath: src }, okCtx, dir);
+    const md = readFileSync(out, "utf8");
+    expect(md).toContain("## Section Heading Line");
+    expect(md).not.toMatch(/^# Section Heading Line/m);
+  });
+
+  it("keeps a bullet line as a markdown list item", async () => {
+    const dir = outDir();
+    const src = await makeBulletPdf(join(dir, "bullet.pdf"));
+    const out = await runPdfToMarkdown({ filePath: src }, okCtx, dir);
+    const md = readFileSync(out, "utf8");
+    expect(md).toMatch(/^- Bullet content here/m);
+  });
+
+  it("splits a large line gap into separate paragraphs", async () => {
+    const dir = outDir();
+    const src = await makeParagraphGapPdf(join(dir, "gap.pdf"));
+    const out = await runPdfToMarkdown({ filePath: src }, okCtx, dir);
+    const md = readFileSync(out, "utf8");
+    expect(md).toContain("First paragraph line. Second paragraph line.");
+    expect(md).toContain("Second paragraph line.\n\nGap paragraph line.");
+  });
+
+  it("joins adjacent bold runs into one emphasis", async () => {
+    const dir = outDir();
+    const src = await makeBoldRunPdf(join(dir, "bold.pdf"));
+    const out = await runPdfToMarkdown({ filePath: src }, okCtx, dir);
+    const md = readFileSync(out, "utf8");
+    expect(md).toContain("**Bold run**");
+    expect(md).not.toContain("**Bold** **run**");
+  });
+
   it("honours a page selection", async () => {
     const dir = outDir();
     const src = await makeMarkdownPdf(join(dir, "doc.pdf"));
@@ -260,6 +371,30 @@ describe("runPrepareForAi", () => {
     expect(data.pages).toHaveLength(1);
     expect(data.pages[0].page).toBe(2);
     expect(data.pages[0].text).toContain("Page Two Text");
+  });
+
+  it("maps an encrypted PDF to ENCRYPTED_PDF", async () => {
+    const dir = outDir();
+    const enc = join(dir, "encrypted.pdf");
+    writeFileSync(enc, encryptedPdfBytes());
+    await expect(runPrepareForAi({ filePath: enc }, okCtx, dir)).rejects.toMatchObject({
+      code: TOOL_ERROR_CODES.ENCRYPTED_PDF,
+    });
+  });
+
+  it("throws CANCELLED between pages", async () => {
+    const dir = outDir();
+    const src = await makeMarkdownPdf(join(dir, "cancel.pdf"));
+    let checks = 0;
+    const events: ProgressParams[] = [];
+    const ctx: RpcCtx = {
+      cancelled: () => ++checks > 2,
+      notifyProgress: (p) => events.push(p),
+    };
+    await expect(runPrepareForAi({ filePath: src }, ctx, dir)).rejects.toMatchObject({
+      code: TOOL_ERROR_CODES.CANCELLED,
+    });
+    expect(events).toHaveLength(1);
   });
 
   it("reports progress to 100", async () => {
