@@ -294,7 +294,6 @@ const IMAGES = [
 const TEXT_FILE = "C:\\Users\\demo\\Documents\\meeting-notes.txt";
 const MARKDOWN_FILE = "C:\\Users\\demo\\Documents\\release-notes.md";
 const CSV_FILE = "C:\\Users\\demo\\Documents\\inventory-q3.csv";
-const IMAGE_FILE = "C:\\Users\\demo\\Pictures\\signature.png";
 
 // Tiny 2-page PDF (page 2 has /Rotate 90) generated with pdf-lib; used by the
 // organize-grid-real state to exercise the real pdf.js pipeline end to end.
@@ -710,6 +709,14 @@ async function main() {
     await openTool(page, "Unlock PDF");
     await mock((p) => window.__mockDrop(p), [SHORT[0]]);
     await typeInto(page, "unlock-password", "document-pass");
+    // Password inputs must stay masked: type=password never exposes the value.
+    const unlockMasked = await page.evaluate(() => {
+      const field = document.querySelector('[data-testid="unlock-password"]');
+      return { type: field?.getAttribute("type"), value: field?.value };
+    });
+    if (unlockMasked.type !== "password" || unlockMasked.value !== "document-pass") {
+      throw new Error(`unlock-form: password field not masked as expected (${JSON.stringify(unlockMasked)})`);
+    }
     await shot("unlock-form");
 
     // --- Flatten: bare single-file card + hint ---
@@ -740,13 +747,17 @@ async function main() {
     await clickTestId(page, "comparePdfs-cta");
     await sleep(300);
     // The result card is the point of this state: require the canned diff to
-    // have rendered (5 rows incl. "2") before capturing.
+    // have rendered (5 rows) and the "Differing pages" row to carry page 2.
     const compareRows = await page.evaluate(() =>
       [...document.querySelectorAll('[data-testid="data-row"]')].map(
         (r) => r.textContent?.replace(/\s+/g, " ").trim() ?? ""
       )
     );
-    if (compareRows.length !== 5 || !compareRows.some((r) => r.includes("2"))) {
+    const differing = compareRows
+      .find((r) => r.startsWith("Differing pages"))
+      ?.replace("Differing pages", "")
+      .trim();
+    if (compareRows.length !== 5 || differing !== "2") {
       throw new Error(`compare-view: canned diff card missing (${JSON.stringify(compareRows)})`);
     }
     await shot("compare-view");

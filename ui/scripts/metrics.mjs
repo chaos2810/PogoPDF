@@ -316,7 +316,6 @@ export function collectPageMetrics() {
       cellCenterDelta: +Math.max(0, ...centers.map((c) => Math.abs(c - base))).toFixed(2),
       firstCellX: first.x,
       firstCellWidth: first.width,
-      firstCellText: snippet(kids[0], 40),
       rowHeight: +row.getBoundingClientRect().height.toFixed(2),
     };
   });
@@ -517,18 +516,20 @@ function checkFormNoOverlap(state) {
 
 // Data-view rows (metadata/compare cards): the label column must start at the
 // same x with the same width on every row, and each row's cells share a center
-// line. Only rows whose first cell is real label text count — the compare card's
-// em-dash placeholder for an empty list is a value column, not a label, so its
-// x/width would otherwise skew the column check (the row centering still holds).
+// line. The column check needs a first cell that is a label; `cellCount > 1` is
+// a latent guard so a future single-cell row cannot skew the x/width spread.
 function checkDataRowsAligned(rows) {
   if (!rows || rows.length === 0) return { pass: true, detail: "no data rows" };
-  const labelRows = rows.filter((r) => r.cellCount > 1 && r.firstCellText && r.firstCellText !== "—");
-  if (labelRows.length === 0) return { pass: true, detail: "no label rows" };
+  const labelRows = rows.filter((r) => r.cellCount > 1);
+  const maxCenter = +Math.max(...rows.map((r) => r.cellCenterDelta)).toFixed(2);
+  if (labelRows.length === 0) {
+    // No label column to compare, but row centering still applies to every row.
+    return { pass: maxCenter <= 1, maxCenterDelta: maxCenter, labelRowCount: 0 };
+  }
   const xs = labelRows.map((r) => r.firstCellX);
   const ws = labelRows.map((r) => r.firstCellWidth);
   const xSpread = +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
   const widthSpread = +(Math.max(...ws) - Math.min(...ws)).toFixed(2);
-  const maxCenter = +Math.max(...rows.map((r) => r.cellCenterDelta)).toFixed(2);
   return {
     pass: xSpread <= 1 && widthSpread <= 1 && maxCenter <= 1,
     xSpread,
