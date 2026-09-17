@@ -8,6 +8,7 @@ import { registerConvertRasterTools } from "./convertout/register-convert-raster
 import { registerConvertInfoTools } from "./convertout/register-convert-info";
 import { registerConvertMiscTools } from "./convertout/register-convert-misc";
 import { registerConvertInTools } from "./convertin/register-convertin";
+import { registerEditTools } from "./edit/register-edit";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -29,4 +30,5 @@ export function registerTools(tools: ToolRegistry) {
   registerConvertInfoTools(tools);
   registerConvertMiscTools(tools);
   registerConvertInTools(tools);
+  registerEditTools(tools);
 }
