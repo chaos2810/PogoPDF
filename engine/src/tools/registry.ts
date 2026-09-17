@@ -9,6 +9,7 @@ import { registerConvertInfoTools } from "./convertout/register-convert-info";
 import { registerConvertMiscTools } from "./convertout/register-convert-misc";
 import { registerConvertInTools } from "./convertin/register-convertin";
 import { registerEditTools } from "./edit/register-edit";
+import { registerSecureTools } from "./secure/register-secure";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -31,4 +32,5 @@ export function registerTools(tools: ToolRegistry) {
   registerConvertMiscTools(tools);
   registerConvertInTools(tools);
   registerEditTools(tools);
+  registerSecureTools(tools);
 }
