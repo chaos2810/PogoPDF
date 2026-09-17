@@ -74,6 +74,16 @@ export function toUnrotated(
   }
 }
 
+/** The page's size as displayed by a viewer under its (canonical) /Rotate. */
+export function displayedPageSize(
+  rotationDeg: number,
+  wPt: number,
+  hPt: number
+): { width: number; height: number } {
+  const swaps = rotationDeg === 90 || rotationDeg === 270;
+  return { width: swaps ? hPt : wPt, height: swaps ? wPt : hPt };
+}
+
 /**
  * Draw `text` on one page so it appears upright in the viewer at `position`,
  * measured from the displayed (rotation-aware) page edges. Existing page
@@ -92,9 +102,7 @@ export function drawPageText(
   const rotation = CANONICAL.has(raw) ? raw : 0;
 
   const { width: mediaW, height: mediaH } = page.getSize();
-  const swaps = rotation === 90 || rotation === 270;
-  const dispW = swaps ? mediaH : mediaW;
-  const dispH = swaps ? mediaW : mediaH;
+  const { width: dispW, height: dispH } = displayedPageSize(rotation, mediaW, mediaH);
 
   const [vertical, horizontal] = opts.position.split("-");
   let textWidth: number;

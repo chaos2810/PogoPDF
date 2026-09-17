@@ -383,10 +383,9 @@ export const WatermarkInputSchema = z
     // A watermark is a display element, not body copy: allow it to span a page.
     fontSize: z.number().int().min(6).max(200).default(48),
     rotation: z.number().min(-360).max(360).default(45),
-    color: z
-      .string()
-      .regex(/^#[0-9a-fA-F]{6}$/, "color must be a #RRGGBB hex string")
-      .default("#808080"),
+    // Defaulted after validation (not via .default) so the superRefine below can
+    // tell an explicit color from the absent one; color is text-only.
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "color must be a #RRGGBB hex string").optional(),
     pages: z.string().optional(),
     position: z.enum(["center", "tile"]).default("center"),
   })
@@ -400,8 +399,27 @@ export const WatermarkInputSchema = z
         path: ["text"],
         message: "provide exactly one of text or imagePath",
       });
+      return;
     }
-  });
+    // Image mode v1 always centers a single stamp and has no color.
+    if (hasImage) {
+      if (v.position !== "center") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["position"],
+          message: "position tile is only supported for text watermarks",
+        });
+      }
+      if (v.color !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["color"],
+          message: "color is only supported for text watermarks",
+        });
+      }
+    }
+  })
+  .transform((v) => ({ ...v, color: v.color ?? "#808080" }));
 export type WatermarkInput = z.infer<typeof WatermarkInputSchema>;
 
 /**

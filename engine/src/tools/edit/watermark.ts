@@ -10,7 +10,7 @@ import {
 } from "../organize/organize";
 import { loadPdf, savePdf } from "../pdfdoc";
 import { loadImageEmbeddable } from "../../render/decode";
-import { embedStandardFont, encodeFailure, parseHexColor, toUnrotated } from "./pagedraw";
+import { embedStandardFont, encodeFailure, displayedPageSize, parseHexColor, toUnrotated } from "./pagedraw";
 
 const CANONICAL = new Set([0, 90, 180, 270]);
 
@@ -28,13 +28,13 @@ function displayedPage(doc: PDFDocument, pageIndex: number): DisplayedPage {
   const raw = normalizeAngle(page.getRotation().angle);
   const pageRotation = CANONICAL.has(raw) ? raw : 0;
   const { width: mediaW, height: mediaH } = page.getSize();
-  const swaps = pageRotation === 90 || pageRotation === 270;
+  const { width: dispW, height: dispH } = displayedPageSize(pageRotation, mediaW, mediaH);
   return {
     pageRotation,
     mediaW,
     mediaH,
-    dispW: swaps ? mediaH : mediaW,
-    dispH: swaps ? mediaW : mediaH,
+    dispW,
+    dispH,
   };
 }
 

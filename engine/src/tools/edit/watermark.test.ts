@@ -185,14 +185,21 @@ describe("runWatermark text mode", () => {
     expect(await countInk(out, 2)).toBe(0);
   });
 
-  it("renders at the raised 200pt font-size bound", async () => {
+  it("renders at the raised 200pt font-size bound with ~4x the ink of 48pt", async () => {
     const src = await blankPdf(join(dir, "large.pdf"), 1);
-    const out = await runWatermark(
+    const small = await runWatermark(
+      { filePath: src, text: "D", fontSize: 48, rotation: 0 },
+      ctx,
+      outDir()
+    );
+    const large = await runWatermark(
       { filePath: src, text: "D", fontSize: 200, rotation: 0 },
       ctx,
       outDir()
     );
-    expect(await countInk(out, 0)).toBeGreaterThan(100);
+    const smallInk = await countInk(small, 0);
+    const largeInk = await countInk(large, 0);
+    expect(largeInk).toBeGreaterThan(smallInk * 2);
   });
 
   it("rejects empty text as INVALID_INPUT, not an internal error", async () => {

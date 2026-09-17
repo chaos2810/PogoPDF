@@ -542,7 +542,22 @@ describe("WatermarkInputSchema", () => {
   it("accepts imagePath alone with explicit options", () => {
     expect(WatermarkInputSchema.safeParse({
       filePath: PDF, imagePath: "logo.png", opacity: 1, fontSize: 6,
-      rotation: -360, color: "#ff00AA", pages: "1-3", position: "tile",
+      rotation: -360, pages: "1-3",
+    }).success).toBe(true);
+  });
+  it("rejects a tile position with an image source", () => {
+    expect(WatermarkInputSchema.safeParse({
+      filePath: PDF, imagePath: "logo.png", position: "tile",
+    }).success).toBe(false);
+  });
+  it("rejects an explicit color with an image source", () => {
+    expect(WatermarkInputSchema.safeParse({
+      filePath: PDF, imagePath: "logo.png", color: "#808080",
+    }).success).toBe(false);
+  });
+  it("accepts a tile position for text", () => {
+    expect(WatermarkInputSchema.safeParse({
+      filePath: PDF, text: "DRAFT", position: "tile",
     }).success).toBe(true);
   });
   it("rejects both text and imagePath", () => {
