@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
 
@@ -80,21 +80,62 @@ export function TextInput({
   onChange,
   placeholder,
   testId,
+  type = "text",
+  style,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   testId?: string;
+  type?: string;
+  style?: CSSProperties;
 }) {
   return (
     <input
-      type="text"
+      type={type}
       data-testid={testId}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{ ...inputStyle, width: "100%" }}
+      style={{ ...inputStyle, width: "100%", ...style }}
     />
+  );
+}
+
+export function PasswordInput({
+  value,
+  onChange,
+  testId,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  testId?: string;
+}) {
+  return <TextInput type="password" testId={testId} value={value} onChange={onChange} />;
+}
+
+export function Checkbox({
+  checked,
+  onChange,
+  labelKey,
+  testId,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  labelKey: string;
+  testId?: string;
+}) {
+  const { lang } = useApp();
+  return (
+    <label className="pogopdf-radio-choice" style={{ marginBottom: 12 }}>
+      <input
+        type="checkbox"
+        data-testid={testId}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      {t(labelKey, lang)}
+    </label>
   );
 }
 

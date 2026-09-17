@@ -29,8 +29,24 @@ import { ExtractImagesScreen } from "../tools/convertout/ExtractImagesScreen";
 import { ViewMetadataScreen } from "../tools/convertout/ViewMetadataScreen";
 import { PageDimensionsScreen } from "../tools/convertout/PageDimensionsScreen";
 import { FixPageSizeScreen } from "../tools/convertout/FixPageSizeScreen";
+import { ImagesToPdfScreen } from "../tools/convertin/ImagesToPdfScreen";
+import { TextToPdfScreen } from "../tools/convertin/TextToPdfScreen";
+import { MarkdownToPdfScreen } from "../tools/convertin/MarkdownToPdfScreen";
+import { CsvToPdfScreen } from "../tools/convertin/CsvToPdfScreen";
+import { PageNumbersScreen } from "../tools/edit/PageNumbersScreen";
+import { WatermarkScreen } from "../tools/edit/WatermarkScreen";
+import { CropScreen } from "../tools/edit/CropScreen";
+import { HeaderFooterScreen } from "../tools/edit/HeaderFooterScreen";
+import { EditMetadataScreen } from "../tools/edit/EditMetadataScreen";
+import { ProtectScreen } from "../tools/secure/ProtectScreen";
+import { UnlockScreen } from "../tools/secure/UnlockScreen";
+import { FlattenScreen } from "../tools/secure/FlattenScreen";
+import { RemoveMetadataScreen } from "../tools/secure/RemoveMetadataScreen";
+import { CompareScreen } from "../tools/utility/CompareScreen";
+import { PdfsToZipScreen } from "../tools/utility/PdfsToZipScreen";
+import { RasterizeScreen } from "../tools/utility/RasterizeScreen";
 
-const TOOL_SCREENS: Record<string, ComponentType> = {
+export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
   [TOOL_IDS.split]: SplitScreen,
   [TOOL_IDS.extractPages]: ExtractPagesScreen,
@@ -55,6 +71,22 @@ const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.viewMetadata]: ViewMetadataScreen,
   [TOOL_IDS.pageDimensions]: PageDimensionsScreen,
   [TOOL_IDS.fixPageSize]: FixPageSizeScreen,
+  [TOOL_IDS.imagesToPdf]: ImagesToPdfScreen,
+  [TOOL_IDS.textToPdf]: TextToPdfScreen,
+  [TOOL_IDS.markdownToPdf]: MarkdownToPdfScreen,
+  [TOOL_IDS.csvToPdf]: CsvToPdfScreen,
+  [TOOL_IDS.pageNumbers]: PageNumbersScreen,
+  [TOOL_IDS.watermark]: WatermarkScreen,
+  [TOOL_IDS.crop]: CropScreen,
+  [TOOL_IDS.headerFooter]: HeaderFooterScreen,
+  [TOOL_IDS.editMetadata]: EditMetadataScreen,
+  [TOOL_IDS.protect]: ProtectScreen,
+  [TOOL_IDS.unlock]: UnlockScreen,
+  [TOOL_IDS.flatten]: FlattenScreen,
+  [TOOL_IDS.removeMetadata]: RemoveMetadataScreen,
+  [TOOL_IDS.comparePdfs]: CompareScreen,
+  [TOOL_IDS.pdfsToZip]: PdfsToZipScreen,
+  [TOOL_IDS.rasterize]: RasterizeScreen,
 };
 
 export function Router() {

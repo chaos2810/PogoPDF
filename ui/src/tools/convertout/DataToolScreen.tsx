@@ -10,12 +10,25 @@ export type DataToolScreenProps = {
   toolId: string;
   ctaKey: string;
   renderData: (data: unknown) => ReactNode;
+  // File count the tool needs; defaults to 1 (single-file data tools).
+  minFiles?: number;
+  // Optional muted note under the drop zone (compare's similarity caveat).
+  footnoteKey?: string;
+  // Optional extra validation shown between the form and the CTA.
+  validationError?: (files: string[]) => string | null;
 };
 
-// Data tools (viewMetadata, pageDimensions) have no output file to save: the
-// result IS the display. Runs once against the picked file, then renders
-// renderData(result.data) in a card.
-export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenProps) {
+// Data tools (viewMetadata, pageDimensions, comparePdfs) have no output file to
+// save: the result IS the display. Runs once against the picked file(s), then
+// renders renderData(result.data) in a card.
+export function DataToolScreen({
+  toolId,
+  ctaKey,
+  renderData,
+  minFiles = 1,
+  footnoteKey,
+  validationError,
+}: DataToolScreenProps) {
   const { lang, navigate } = useApp();
   const {
     files,
@@ -31,10 +44,15 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
     reset,
     cancel,
     run,
-  } = usePdfJob(toolId, (fs) => ({ filePath: fs[0] }), { multiple: false });
+  } = usePdfJob(
+    toolId,
+    minFiles > 1 ? (fs) => ({ filePaths: fs }) : (fs) => ({ filePath: fs[0] }),
+    { multiple: minFiles > 1 }
+  );
 
-  const file = files[0] ?? null;
-  const runnable = file !== null;
+  const runnable = files.length >= minFiles;
+  const errorsKey = validationError ? validationError(files) : null;
+  const showError = files.length > 0 ? errorsKey : null;
 
   const start = () =>
     void run((result) => {
@@ -46,10 +64,14 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
     });
 
   const pick = async () => {
-    const picked = await pickPdfs(false);
+    const picked = await pickPdfs(minFiles > 1);
     if (picked.length === 0) return;
-    setFiles([picked[0]]);
+    setFiles((prev) =>
+      minFiles > 1 ? [...new Set([...prev, ...picked])] : [picked[0]]
+    );
   };
+
+  const singleFiles = files.length > 0 ? [files[0]] : [];
 
   const cardStyle = {
     background: "var(--card)", borderRadius: "var(--radius-card)",
@@ -79,22 +101,65 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
               fontSize: 14, fontWeight: isDragActive ? 700 : 400, cursor: "pointer",
             }}
           >
-            {t(isDragActive ? "tool.common.dropActive" : "tool.common.dropSingle", lang)}
+            {t(
+              isDragActive
+                ? "tool.common.dropActive"
+                : minFiles > 1
+                  ? "tool.common.drop"
+                  : "tool.common.dropSingle",
+              lang
+            )}
           </button>
 
+          {footnoteKey && (
+            <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 8 }}>
+              {t(footnoteKey, lang)}
+            </div>
+          )}
+
           <div style={{ marginTop: 12 }}>
-            <FileQueueCards toolId={toolId} files={file ? [file] : []} onRemove={() => setFiles([])} />
+            <FileQueueCards
+              toolId={toolId}
+              files={minFiles > 1 ? files : singleFiles}
+              onRemove={(path) =>
+                setFiles((prev) =>
+                  minFiles > 1 ? prev.filter((x) => x !== path) : []
+                )
+              }
+            />
           </div>
+
+          {minFiles > 1 && files.length > 0 && (
+            <button
+              onClick={() => void pick()}
+              style={{
+                marginTop: 12, marginRight: 10, padding: "10px 18px", borderRadius: "var(--radius-pill)",
+                fontWeight: 600, background: "transparent", border: "1px solid var(--border)",
+                color: "var(--text)", cursor: "pointer",
+              }}
+            >
+              {t("tool.common.addMore", lang)}
+            </button>
+          )}
+
+          {showError && (
+            <div
+              data-testid={`${toolId}-validation`}
+              style={{ color: "var(--danger)", fontSize: 13, marginTop: 12 }}
+            >
+              {t(showError, lang)}
+            </div>
+          )}
 
           <button
             data-testid={`${toolId}-cta`}
-            disabled={!runnable}
+            disabled={!runnable || Boolean(errorsKey)}
             onClick={start}
             style={{
               marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
               fontWeight: 700, border: "none", cursor: runnable ? "pointer" : "not-allowed",
-              background: runnable ? "var(--accent)" : "var(--border)",
-              color: runnable ? "var(--accent-contrast)" : "var(--muted)",
+              background: runnable && !errorsKey ? "var(--accent)" : "var(--border)",
+              color: runnable && !errorsKey ? "var(--accent-contrast)" : "var(--muted)",
             }}
           >
             {t(ctaKey, lang)}

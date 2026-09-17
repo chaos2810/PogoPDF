@@ -628,19 +628,28 @@ async function main() {
     });
     await sleep(150);
     await shot("palette-utility");
-    // Assert the palette panel itself shows the filtered utility rows (the
-    // home grid underneath still lists every tool, so scope to the panel).
+    // Assert the palette panel itself shows the filtered rows WITH a category
+    // label (the home grid underneath still lists every tool, so scope to the
+    // panel). "metadata" now matches tools across categories (View Metadata is
+    // utility, Edit/Remove Metadata are not), so require at least one row per
+    // category label rather than "all utility".
     const filtered = await page.evaluate(() => {
       const panel = document
         .querySelector('[data-testid="palette-input"]')
         ?.closest("div");
       const rows = panel ? [...panel.querySelectorAll("button")] : [];
-      return (
-        rows.length > 0 &&
-        rows.every((b) => b.textContent?.includes("Utility"))
+      const hasUtility = rows.some((b) => b.textContent?.includes("Utility"));
+      const hasOther = rows.some(
+        (b) =>
+          b.textContent?.includes("Edit") || b.textContent?.includes("Secure")
       );
+      return rows.length > 0 && hasUtility && hasOther;
     });
-    if (!filtered) throw new Error("palette-utility: filter did not apply or Utility label missing");
+    if (!filtered) {
+      throw new Error(
+        "palette-utility: filter did not apply, or category labels missing"
+      );
+    }
 
     // --- settings ---
     await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });

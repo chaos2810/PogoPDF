@@ -15,8 +15,16 @@ const callbacks = new Map<number, (payload: unknown) => void>();
 const listeners = new Map<string, Map<number, EventHandler>>();
 let nextId = 1;
 
+// Canned image paths for the image picker (imagesToPdf, watermark image mode).
+const CANNED_IMAGES = [
+  "C:\\Users\\demo\\Pictures\\scan-front.png",
+  "C:\\Users\\demo\\Pictures\\diagram.jpg",
+  "C:\\Users\\demo\\Pictures\\photo.webp",
+];
+
 const state = {
   files: [] as string[],
+  imageFiles: CANNED_IMAGES.slice(),
   jobMode: "auto" as JobMode,
   jobError: "The PDF appears to be corrupt",
   // Settles the held job.start promise (reject on cancel, resolve otherwise).
@@ -59,6 +67,28 @@ function pathLabel(path: string): number {
   return (hash % 99) + 1;
 }
 
+// Real image files do not exist in screenshot runs; convertFileSrc answers
+// image paths with a drawn placeholder so image queue cards show a preview
+// instead of a broken <img>.
+const IMAGE_THUMB_RE = /\.(png|jpe?g|webp|gif|bmp|tiff?|svg)$/i;
+function imageThumbDataUrl(path: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 160;
+  canvas.height = 210;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#e2e8f0";
+  ctx.fillRect(0, 0, 160, 210);
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, 158, 208);
+  ctx.fillStyle = "#475569";
+  ctx.font = "bold 44px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(pathLabel(path)), 80, 105);
+  return canvas.toDataURL("image/png");
+}
+
 // Canned data results so the data-view screens render without a real engine.
 const DEFAULT_DATA_RESULTS: Record<string, unknown> = {
   viewMetadata: {
@@ -81,6 +111,13 @@ const DEFAULT_DATA_RESULTS: Record<string, unknown> = {
       { widthPt: 612, heightPt: 792, widthMm: 215.9, heightMm: 279.4, orientation: "portrait", rotation: 0 },
       { widthPt: 419.53, heightPt: 595.28, widthMm: 148, heightMm: 210, orientation: "portrait", rotation: 0 },
     ],
+  },
+  comparePdfs: {
+    pageCountA: 12,
+    pageCountB: 12,
+    samePageCounts: true,
+    differingPages: [3, 7, 11],
+    pageSizeMismatchPages: [7],
   },
 };
 
@@ -153,7 +190,13 @@ function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): 
 
 async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   if (cmd === "rpc_call") return rpc(String(args.method), (args.params ?? {}) as { jobId?: string });
-  if (cmd === "dialog_open_pdf") return state.files.slice();
+  if (cmd === "dialog_open_pdf") {
+    // The images preset returns canned image paths so imagesToPdf / watermark
+    // image-mode states render without real files.
+    return String(args.filter ?? "") === "images"
+      ? state.imageFiles.slice()
+      : state.files.slice();
+  }
   if (cmd === "dialog_save") return "C:\\Users\\demo\\Downloads\\merged.pdf";
   if (cmd === "dialog_pick_folder") return state.folder;
   if (cmd === "reveal") return null;
@@ -182,7 +225,11 @@ w.__TAURI_INTERNALS__ = {
     callbacks.delete(id);
   },
   invoke: mockInvoke,
-  convertFileSrc: (p: string) => state.blobFiles[p] ?? p,
+  convertFileSrc: (p: string) => {
+    if (state.blobFiles[p]) return state.blobFiles[p];
+    if (IMAGE_THUMB_RE.test(p)) return imageThumbDataUrl(p);
+    return p;
+  },
   plugins: { path: { sep: "\\", delimiter: ";" } },
 };
 w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: removeListener };
