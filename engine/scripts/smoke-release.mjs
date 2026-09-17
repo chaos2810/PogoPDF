@@ -45,6 +45,18 @@ let err = "";
 child.stdout.on("data", (d) => (out += d));
 child.stderr.on("data", (d) => (err += d));
 
+// A dead engine (bad spawn, crash on startup, immediate exit) must fail in
+// milliseconds rather than waiting for the full 120s timeout: reject every
+// pending request the moment the process exits or errors.
+function failPending(reason) {
+  for (const { reject } of pending.values()) reject(reason);
+  pending.clear();
+}
+child.on("exit", (code, signal) => {
+  failPending(new Error(`engine exited before responding (code ${code}, signal ${signal})`));
+});
+child.on("error", (e) => failPending(e));
+
 const timer = setTimeout(() => {
   console.error("TIMEOUT\n" + out + "\n" + err);
   child.kill();
@@ -69,10 +81,10 @@ child.stdout.on("data", (chunk) => {
     } catch {
       continue;
     }
-    const resolve = pending.get(msg.id);
-    if (resolve) {
+    const entry = pending.get(msg.id);
+    if (entry) {
       pending.delete(msg.id);
-      resolve(msg);
+      entry.resolve(msg);
     }
   }
 });
@@ -80,9 +92,12 @@ child.stdout.on("data", (chunk) => {
 const request = (method, params) =>
   new Promise((resolve, reject) => {
     const id = nextId++;
-    pending.set(id, (msg) => {
-      if (msg.error) reject(new Error(`${method}: ${JSON.stringify(msg.error)}`));
-      else resolve(msg.result);
+    pending.set(id, {
+      resolve: (msg) => {
+        if (msg.error) reject(new Error(`${method}: ${JSON.stringify(msg.error)}`));
+        else resolve(msg.result);
+      },
+      reject,
     });
     child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
   });

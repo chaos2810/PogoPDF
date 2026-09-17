@@ -31,6 +31,7 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | pdf-lib | 1.17.1 | MIT |
 | pdfjs-dist | 6.3.289 | Apache-2.0 |
 | pdfkit | 0.20.2 | MIT |
+| csv-parse | 7.0.2 | MIT |
 | marked | 18.0.13 | MIT |
 | dompurify | 3.4.15 | MPL-2.0 OR Apache-2.0 |
 | jsdom | 30.1.0 | MIT |
