@@ -616,3 +616,16 @@ export type PageDimensionsData = {
     displayed: { width: number; height: number };
   }>;
 };
+
+/**
+ * Result data for comparePdfs (the engine's ComparePdfsData). It is a visual
+ * similarity check, not a pixel-perfect one: only the pages both documents
+ * share are compared, and page numbers are 1-based.
+ */
+export type ComparePdfsData = {
+  pageCountA: number;
+  pageCountB: number;
+  samePageCounts: boolean;
+  differingPages: number[];
+  pageSizeMismatchPages: number[];
+};
