@@ -16,7 +16,7 @@ function outDir(): string {
   return mkdtempSync(join(tmpdir(), "pogopdf-textpdf-"));
 }
 
-type TextItem = { str: string; x: number; y: number; height: number };
+type TextItem = { str: string; x: number; y: number; height: number; width: number };
 
 /** Per-page extracted text via the real pdf.js renderer. */
 async function pageTexts(path: string): Promise<string[]> {
@@ -46,6 +46,7 @@ async function firstPageItems(path: string): Promise<TextItem[]> {
           x: item.transform[4],
           y: item.transform[5],
           height: item.height,
+          width: item.width,
         });
       }
     }
@@ -128,6 +129,12 @@ describe("runTextToPdf", () => {
     ).rejects.toMatchObject({ code: -32003 });
   });
 
+  it("maps a directory path to CORRUPT_PDF instead of an untyped error", async () => {
+    await expect(
+      runTextToPdf({ filePath: dir }, ctx, outDir())
+    ).rejects.toMatchObject({ code: -32003 });
+  });
+
   it("throws CANCELLED when cancelled before starting", async () => {
     const src = join(dir, "cancel.txt");
     writeFileSync(src, "cancel me");
@@ -156,6 +163,36 @@ describe("runMarkdownToPdf", () => {
     expect(page).toContain("b");
     expect(page).toContain("const x = 1;");
     expect(page).toContain("quote");
+  });
+
+  it("renders nested list items indented instead of dropping them", async () => {
+    const src = join(dir, "nested.md");
+    writeFileSync(src, "- top\n  - nested a\n  - nested b\n- top2\n");
+    const out = await runMarkdownToPdf({ filePath: src }, ctx, outDir());
+    const [page] = await pageTexts(out);
+    expect(page).toContain("top");
+    expect(page).toContain("nested a");
+    expect(page).toContain("nested b");
+    expect(page).toContain("top2");
+
+    const items = await firstPageItems(out);
+    const x = (label: string) => items.find((i) => i.str.includes(label))?.x;
+    expect(x("nested a")!).toBeGreaterThan(x("top2")!);
+  });
+
+  it("wraps a long code line inside the right margin instead of overflowing", async () => {
+    const src = join(dir, "widecode.md");
+    const long = Array.from({ length: 60 }, (_, i) => `tok${i}`).join(" ");
+    writeFileSync(src, "```\n" + long + "\n```\n");
+    const out = await runMarkdownToPdf({ filePath: src }, ctx, outDir());
+    const items = await firstPageItems(out);
+    const right = 595.28 - 72;
+    for (const item of items) {
+      if (!item.str.startsWith("tok")) continue;
+      expect(item.x + item.width).toBeLessThanOrEqual(right);
+    }
+    const joined = items.map((i) => i.str).join(" ");
+    expect(joined).toContain("tok59");
   });
 
   it("sizes h1 at 1.7x, h2 at 1.4x and h3 at 1.2x the base font", async () => {

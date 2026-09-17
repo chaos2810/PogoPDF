@@ -60,17 +60,20 @@ export async function runMarkdownToPdf(
 
     const codeBlock = (text: string) => {
       const size = fontSize * CODE_SIZE_FACTOR;
+      const codeWidth = contentWidth - 4;
       doc.font("Courier").fontSize(size);
       const lineHeight = doc.currentLineHeight();
       for (const line of text.replace(/\n$/, "").split("\n")) {
         // Manual y placement bypasses pdfkit's flow, so break pages here.
-        if (doc.y + lineHeight > doc.page.height - doc.page.margins.bottom) {
+        const height = doc.heightOfString(line || " ", { width: codeWidth });
+        if (doc.y + height > doc.page.height - doc.page.margins.bottom) {
           doc.addPage();
         }
         const y = doc.y;
-        doc.rect(left, y - 1, contentWidth, lineHeight + 2).fill("#f2f2f2");
-        doc.fillColor("#444444").text(line || " ", left + 4, y, { lineBreak: false });
-        doc.y = y + lineHeight;
+        doc.rect(left, y - 1, contentWidth, height + 2).fill("#f2f2f2");
+        // pdfkit's default wrapping keeps long lines inside the right margin.
+        doc.fillColor("#444444").text(line || " ", left + 4, y, { width: codeWidth });
+        doc.y = y + height;
       }
       doc.moveDown();
     };
@@ -85,14 +88,18 @@ export async function runMarkdownToPdf(
       doc.moveDown(0.3);
     };
 
-    const list = (el: Element, ordered: boolean) => {
+    const list = (el: Element, ordered: boolean, depth = 0) => {
+      const indent = LIST_INDENT * (depth + 1);
       let n = 1;
       for (const li of Array.from(el.children)) {
         if (li.tagName.toLowerCase() !== "li") continue;
         const marker = ordered ? `${n++}. ` : "• ";
-        paragraph(marker + inlineText(li, new Set(["ul", "ol"])).trim(), {
-          indent: LIST_INDENT,
-        });
+        paragraph(marker + inlineText(li, new Set(["ul", "ol"])).trim(), { indent });
+        for (const child of Array.from(li.children)) {
+          const tag = child.tagName.toLowerCase();
+          if (tag === "ul") list(child, false, depth + 1);
+          else if (tag === "ol") list(child, true, depth + 1);
+        }
       }
     };
 

@@ -48,7 +48,8 @@ export function buildPdf(
 /**
  * Read a plain-text source as UTF-8: strips a leading BOM, normalises CRLF/CR
  * to LF and expands tabs to four spaces. Invalid byte sequences are replaced
- * (Node's utf8 decoder), never thrown. Missing files are CORRUPT_PDF.
+ * (Node's utf8 decoder), never thrown. Missing files and unreadable paths
+ * (e.g. a directory, EISDIR) are CORRUPT_PDF.
  */
 export async function readTextFile(path: string): Promise<string> {
   if (!existsSync(path)) {
@@ -56,6 +57,14 @@ export async function readTextFile(path: string): Promise<string> {
       code: TOOL_ERROR_CODES.CORRUPT_PDF,
     });
   }
-  const raw = await readFile(path, "utf8");
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch (e) {
+    const reason = (e as NodeJS.ErrnoException).code ?? "unreadable";
+    throw Object.assign(new Error(`Cannot read text file: ${path} (${reason})`), {
+      code: TOOL_ERROR_CODES.CORRUPT_PDF,
+    });
+  }
   return raw.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").replace(/\t/g, "    ");
 }

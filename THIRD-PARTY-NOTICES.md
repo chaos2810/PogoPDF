@@ -47,9 +47,12 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 copied into `engine-deps-<id>/`; the remaining packages are copied under
 `engine-deps-<id>/node_modules/`. This includes the transitive dependency trees
 of `pdfkit` (fontkit, linebreak, png-js, @noble/ciphers, @noble/hashes, fflate,
-…; all MIT/BSD/ISC-compatible) and `jsdom` (parse5, css-tree, tough-cookie,
-undici, whatwg-*, …; all MIT/ISC/BSD-compatible), whose license texts ship
-alongside the packages.
+…; MIT) and `jsdom` (parse5, css-tree, tough-cookie, undici, whatwg-*, …), whose
+license texts ship alongside the packages. Across those two closures the
+licenses are MIT, ISC, BSD (2- and 3-clause), Apache-2.0 (@swc/helpers,
+xml-name-validator), MIT-0, 0BSD, CC0-1.0 (mdn-data) and `MIT AND Zlib` (pako);
+`dompurify` is dual-licensed `MPL-2.0 OR Apache-2.0`. All are permissive or, in
+dompurify's MPL path, weak-copyleft; no AGPL component is present.
 
 ## UI (bundled into the app)
 
