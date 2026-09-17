@@ -169,7 +169,7 @@ mod tests {
 
     // Writes a tiny Node mock engine that answers every request immediately
     // except `slow`, which delays. Returns the temp script path (spawn's command
-    // string is whitespace-split, so the path must not contain spaces — the
+    // string is whitespace-split, so the path must not contain spaces - the
     // system temp dir satisfies that on this machine).
     fn write_mock_script(name: &str) -> std::path::PathBuf {
         let script = r#"

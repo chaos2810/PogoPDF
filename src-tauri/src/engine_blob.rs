@@ -7,7 +7,7 @@ mod generated {
 use generated::ENGINE_BLOB_ZSTD;
 
 const BLOB_MISSING_RELEASE: &str =
-    "engine blob missing — run engine/scripts/build-release.ps1 before release builds";
+    "engine blob missing - run engine/scripts/build-release.ps1 before release builds";
 
 /// Where the extracted engine and its dependencies live, keyed by the content
 /// hash of the staged artifacts so a new engine build lands in fresh paths.
@@ -288,7 +288,7 @@ mod tests {
     }
 
     /// Hand-build a ustar archive whose single entry is named `name`, because
-    /// `tar::Builder` refuses to construct `..` paths at all — the unpack-side
+    /// `tar::Builder` refuses to construct `..` paths at all - the unpack-side
     /// guard is what this test needs to exercise.
     fn raw_tar_entry(name: &str, data: &[u8]) -> Vec<u8> {
         let mut header = [0u8; 512];

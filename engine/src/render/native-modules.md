@@ -66,11 +66,11 @@ This is why the release engine is a two-part payload rather than one blob.
 `engine/scripts/build-release.ps1` builds two artifacts, and
 `src-tauri/build.rs` embeds both:
 
-1. **`engine.exe`** — a Node SEA whose `main` is `engine/sea-bootstrap.cjs`. The
+1. **`engine.exe`** - a Node SEA whose `main` is `engine/sea-bootstrap.cjs`. The
    bootstrap locates the extracted deps directory and does
    `createRequire(<deps>/engine.cjs)(<deps>/engine.cjs)`, loading the real bundle
    from disk.
-2. **`engine-deps.tar`** — the runtime tree the bundle needs:
+2. **`engine-deps.tar`** - the runtime tree the bundle needs:
    - `engine.cjs` (the esbuild bundle; pdf.js, pdf-lib, jszip, zod, contracts are
      all inlined)
    - `pdf.worker.mjs` (pdf.js's fake-worker module, loaded by a dynamic `import`)
@@ -89,7 +89,7 @@ Both artifacts share one **build id** (sha256 over both files) in their names:
 `engine-<id>.exe` and `engine-deps-<id>/`. The bootstrap derives its deps
 directory from its own `engine-<id>.exe` filename, so an upgraded install never
 loads a stale `engine-deps-<old-id>/` sitting in the same cache directory. Keying
-on the exe's own hash alone would be wrong — the exe contains only the bootstrap,
+on the exe's own hash alone would be wrong - the exe contains only the bootstrap,
 so a bundle-only change would leave the key unchanged.
 
 ### esbuild flags (single definition, in `engine/package.json`)

@@ -24,7 +24,7 @@ function nonWhitePixels(canvas: Canvas): number {
   return count;
 }
 
-// Bare pdf.js load with no standardFontDataUrl — the fallback path.
+// Bare pdf.js load with no standardFontDataUrl - the fallback path.
 async function renderWithoutStandardFonts(path: string, dpi: number): Promise<Canvas> {
   const task = getDocument({
     data: new Uint8Array(readFileSync(path)),

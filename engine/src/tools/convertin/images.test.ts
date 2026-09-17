@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+﻿import { describe, it, expect, beforeAll } from "vitest";
 import sharp from "sharp";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -117,7 +117,7 @@ function pageImageOps(doc: PDFDocument, pageIndex: number): DrawOp[] {
   ];
 
   const ops: DrawOp[] = [];
-  // Row-vector convention: a `cm` M updates the CTM as M × CTM, so points are
+  // Row-vector convention: a `cm` M updates the CTM as M Ã- CTM, so points are
   // transformed scale-first then translated.
   let ctm: Matrix = identity;
   const stack: Matrix[] = [];

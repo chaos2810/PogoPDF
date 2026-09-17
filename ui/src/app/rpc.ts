@@ -35,7 +35,7 @@ function parseEngineError(raw: unknown): Error {
         return Object.assign(new Error(parsed.message), { code: parsed.code });
       }
     } catch {
-      /* not JSON — fall through */
+      /* not JSON - fall through */
     }
     return new Error(raw);
   }

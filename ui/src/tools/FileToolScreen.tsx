@@ -67,7 +67,7 @@ export function FileToolScreen({
   const [outputPaths, setOutputPaths] = useState<string[] | null>(null);
 
   const errorsKey = validationError ? validationError(files) : null;
-  // Don't flag options before the user has added a file — an untouched form
+  // Don't flag options before the user has added a file - an untouched form
   // should not already show a validation error.
   const showError = files.length > 0 ? errorsKey : null;
   const runnable =

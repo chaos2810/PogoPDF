@@ -36,7 +36,7 @@ export function infoDict(doc: PDFDocument): PDFDict {
  * (the same encoding pdf-lib's own setters use), so non-ASCII round-trips.
  * pdf-lib's save() does not touch metadata (updateInfoDict only runs on load
  * with updateMetadata:true), so loading with updateMetadata:false and saving
- * leaves untouched fields — and the dates — exactly as they were.
+ * leaves untouched fields - and the dates - exactly as they were.
  */
 export function applyInfoFields(
   doc: PDFDocument,

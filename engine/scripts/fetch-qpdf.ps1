@@ -63,7 +63,7 @@ try {
         }
     }
     else {
-        Write-Output "WARNING: no upstream hash available ($note) — compare the downloaded hash above with $shaUrl manually"
+        Write-Output "WARNING: no upstream hash available ($note) - compare the downloaded hash above with $shaUrl manually"
     }
 
     $extract = Join-Path $tmp "extract"

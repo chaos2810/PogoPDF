@@ -198,7 +198,7 @@ async function transcodeBmp(path: string): Promise<EmbeddableImage> {
 
 /**
  * HEIC/HEIF: probe sharp at runtime. Metadata usually parses (libheif reads the
- * container) while the pixel decode fails when the build lacks the codec — that
+ * container) while the pixel decode fails when the build lacks the codec - that
  * is a missing-codec condition, not a corrupt file, so it maps to
  * UNSUPPORTED_FORMAT. AV1-in-HEIF (the AVIF container family) does decode.
  */

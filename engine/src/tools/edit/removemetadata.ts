@@ -9,7 +9,7 @@ import { applyInfoFields, INFO_FIELDS } from "./editmetadata";
  * Strips both metadata surfaces: the trailer /Info dict (all eight fields,
  * including CreationDate/ModDate) and the catalog's XMP /Metadata stream that
  * external producers write. pdf-lib does not author XMP, but files from other
- * applications do — the key is removed unconditionally, which is a no-op when
+ * applications do - the key is removed unconditionally, which is a no-op when
  * absent.
  */
 export async function runRemoveMetadata(

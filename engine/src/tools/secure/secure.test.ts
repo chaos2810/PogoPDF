@@ -22,7 +22,7 @@ function outDir(): string {
 const qpdfBin = findQpdf();
 if (!qpdfBin) {
   console.warn(
-    "[secure.test] qpdf not found — skipping qpdf-backed tests. " +
+    "[secure.test] qpdf not found - skipping qpdf-backed tests. " +
       "Run engine/scripts/fetch-qpdf.ps1 to enable them."
   );
 }
@@ -181,7 +181,7 @@ describe.skipIf(!qpdfBin)("runProtect", () => {
   it("maps protecting an encrypted source that needs its password to ENCRYPTED_PDF", async () => {
     // qpdf must decrypt the input before re-encrypting it. Without the source
     // password it reports "invalid password" (exit 2), which is an encrypted
-    // input, not a corrupt one — documented behavior, not an oversight.
+    // input, not a corrupt one - documented behavior, not an oversight.
     const src = await makePdf(join(dir, "enc-src.pdf"), 1);
     const enc = await locked(src, { userPassword: "srcpw", ownerPassword: "o" });
     await expect(

@@ -10,7 +10,7 @@ export function qpdfError(message: string, code: number): Error {
 }
 
 const NOT_FOUND_MESSAGE =
-  "qpdf not found — run engine/scripts/fetch-qpdf.ps1";
+  "qpdf not found - run engine/scripts/fetch-qpdf.ps1";
 const SPAWN_FAILED_MESSAGE = "qpdf failed to start";
 
 /**
@@ -30,7 +30,7 @@ function moduleDir(): string {
 /**
  * Candidate locations for qpdf.exe, most specific first:
  *
- * 1. `POGOPDF_QPDF_BIN` — explicit override (CI, custom installs).
+ * 1. `POGOPDF_QPDF_BIN` - explicit override (CI, custom installs).
  * 2. Dev checkout: `<engine package>/qpdf-bin/qpdf.exe`, resolved from this
  *    module's own directory. In the release bundle this points at the deps dir
  *    and simply misses, which is why candidate 3 exists.
@@ -104,7 +104,7 @@ export type QpdfResult = { stdout: string; stderr: string };
 const STDERR_TAIL = 200;
 // qpdf reports a wrong/missing password as "invalid password" (stderr) or
 // "Incorrect password supplied" (stdout, from --show-encryption) and exits 2,
-// not 3 — exit 3 means "warnings only" per `qpdf --help=exit-status`.
+// not 3 - exit 3 means "warnings only" per `qpdf --help=exit-status`.
 // The strings are anchored to qpdf's own wording rather than a bare /password/i:
 // stdout+stderr include the input path, so a corrupt file named e.g.
 // "my-password-reset.pdf" would otherwise be misread as an encrypted one.

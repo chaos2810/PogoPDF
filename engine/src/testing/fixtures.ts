@@ -5,7 +5,7 @@ import sharp from "sharp";
 
 // A genuine AES-128 encrypted PDF (2 blank pages, user+owner password "secret").
 // pdf-lib cannot create encrypted PDFs, so this is a checked-in literal. Generated
-// once with pypdf 6.16.2 (Python 3.11) — qpdf/mutool were not available:
+// once with pypdf 6.16.2 (Python 3.11) - qpdf/mutool were not available:
 //   w = pypdf.PdfWriter(); w.add_blank_page(width=200, height=100)
 //   w.add_blank_page(width=201, height=100)
 //   w.encrypt(user_password="secret", owner_password="secret", algorithm="AES-128")
@@ -93,7 +93,7 @@ export async function makePdfWithEmbeddedPng(
 /**
  * Two solid halves along x on a `width`x`height` page: blue on the left half,
  * red on the right half in UNROTATED page space. With /Rotate 90 the viewer
- * turns the page clockwise, so blue must display above red — which makes this
+ * turns the page clockwise, so blue must display above red - which makes this
  * fixture the orientation probe for tools that re-embed a source page.
  */
 export async function makePdfWithSplitColors(

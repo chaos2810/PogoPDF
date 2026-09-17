@@ -11,8 +11,8 @@ SHA-256s. If the files are absent, `build.rs` embeds empty placeholder blobs so
 `cargo check`/`cargo test`/`tauri dev` still work.
 
 At runtime the release app extracts both to
-`%LOCALAPPDATA%\PogoPDF\bin\` — as `engine-<id>.exe` and `engine-deps-<id>/`,
-sharing one build id derived from both files — verifies them, and reuses the
+`%LOCALAPPDATA%\PogoPDF\bin\` - as `engine-<id>.exe` and `engine-deps-<id>/`,
+sharing one build id derived from both files - verifies them, and reuses the
 cache on later launches. The engine is spawned with the extracted deps directory
 as its working directory. See `engine/src/render/native-modules.md` for why the
 payload is two parts rather than one blob.

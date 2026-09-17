@@ -13,7 +13,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * Node: its only SVG-related export is `DOMSVGFactory` (used by the
  * annotation/editor layers) and the historical `SVGGraphics` renderer is
  * absent from the bundle entirely. Rather than pretend otherwise, the dpi
- * raster is wrapped in a page-sized SVG — viewBox/width/height are the page's
+ * raster is wrapped in a page-sized SVG - viewBox/width/height are the page's
  * true point dimensions, so it still lays out at the correct page size. The UI
  * surfaces `tool.pdftosvg.rasterHint` so the user knows the output is not
  * vector.

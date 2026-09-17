@@ -18,14 +18,14 @@ export function ViewMetadataScreen() {
   const build = (data: unknown): ReactNode => {
     const m = data as MetadataData;
     const cells: [string, string][] = [
-      ["tool.viewMetadata.labelTitle", m.title ?? "—"],
-      ["tool.viewMetadata.labelAuthor", m.author ?? "—"],
-      ["tool.viewMetadata.labelSubject", m.subject ?? "—"],
-      ["tool.viewMetadata.labelKeywords", m.keywords ?? "—"],
-      ["tool.viewMetadata.labelCreator", m.creator ?? "—"],
-      ["tool.viewMetadata.labelProducer", m.producer ?? "—"],
-      ["tool.viewMetadata.labelCreated", m.creationDate ?? "—"],
-      ["tool.viewMetadata.labelModified", m.modificationDate ?? "—"],
+      ["tool.viewMetadata.labelTitle", m.title ?? "-"],
+      ["tool.viewMetadata.labelAuthor", m.author ?? "-"],
+      ["tool.viewMetadata.labelSubject", m.subject ?? "-"],
+      ["tool.viewMetadata.labelKeywords", m.keywords ?? "-"],
+      ["tool.viewMetadata.labelCreator", m.creator ?? "-"],
+      ["tool.viewMetadata.labelProducer", m.producer ?? "-"],
+      ["tool.viewMetadata.labelCreated", m.creationDate ?? "-"],
+      ["tool.viewMetadata.labelModified", m.modificationDate ?? "-"],
       ["tool.viewMetadata.labelPageCount", String(m.pageCount)],
       ["tool.viewMetadata.labelFileSize", formatBytes(m.fileSizeBytes)],
     ];

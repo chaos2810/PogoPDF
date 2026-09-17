@@ -46,7 +46,7 @@ const req = createRequire(path.join(process.argv[2], "package.json"));
 // Export maps differ (sharp exports "./package", most export "./package.json"),
 // and a package entry point may sit in a subdirectory (sharp -> dist/index.cjs).
 // Resolve an entry, then walk up to the nearest directory whose package.json
-// declares the spec's name — that directory is the package root to copy.
+// declares the spec's name - that directory is the package root to copy.
 function resolveDir(spec) {
   const anchors = ["/package.json", "/package", ""];
   let resolved;

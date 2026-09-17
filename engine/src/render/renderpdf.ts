@@ -17,7 +17,7 @@ export type PdfRenderer = {
    * Rasterize a single page at `dpi` and return its canvas.
    *
    * Callers MUST render one page at a time and release each canvas before
-   * requesting the next — the engine never holds more than one page bitmap.
+   * requesting the next - the engine never holds more than one page bitmap.
    */
   renderPage(index: number, dpi: number): Promise<Canvas>;
   close(): Promise<void>;

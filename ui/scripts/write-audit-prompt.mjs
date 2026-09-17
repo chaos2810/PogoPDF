@@ -80,7 +80,7 @@ const CHECKLIST = [
   "Text overlap or clipping: no glyphs overlapping other glyphs; file names clamp to two lines with an ellipsis, not cut mid-glyph.",
   "Elements touching or escaping card edges (padding looks collapsed on any side).",
   "Misaligned buttons/controls: pill heights, vertical alignment within a row, inconsistent gaps.",
-  "Bounding boxes changing size between comparable states — compare merge-files vs merge-longnames: every card must keep the same width and height.",
+  "Bounding boxes changing size between comparable states - compare merge-files vs merge-longnames: every card must keep the same width and height.",
   "Queue cards (merge-files/merge-longnames/merge-many/*-form): each card shows a preview above the name; the delete ✕ sits in the same top-right corner of every card and never drifts when a name wraps.",
   "Placeholder cards: when a preview cannot be generated the card shows a centered document icon, not a broken image.",
   "Drag-over highlight clearly visible: border and/or background must obviously differ from merge-empty.",
@@ -91,7 +91,7 @@ const CHECKLIST = [
   "Settings buttons clearly highlight the current selection (theme and language).",
   "Organize grid cells: all page tiles the same size, equal gutters, labels and the rotate/duplicate/delete buttons aligned inside each cell.",
   "Organize grid after rotate/delete (organize-grid-rotated): remaining cells keep their size and never collapse or jump columns.",
-  "Organize drag state: the dragged cell must be visibly distinct from the cell under the pointer — the source carries a dashed accent border and the target a solid one; no stray text or unclipped ghost.",
+  "Organize drag state: the dragged cell must be visibly distinct from the cell under the pointer - the source carries a dashed accent border and the target a solid one; no stray text or unclipped ghost.",
   "Tall edit/edit-metadata forms (pagenumbers-form, watermark-text-form, headerfooter-form, editmetadata-form): the page title and the Back action stay in frame (the capture may scroll the form, but never past its own header). Header & Footer's Latin-1 note spans both columns as one line, so the field rows on the left and right stay on one rhythm.",
   "Option forms (split/extract/rotate/nup): radio rows, selects and inputs left-aligned with consistent vertical rhythm; the inline validation error (split-invalid) reads as an error and sits between the form and the CTA.",
   "Invalid vs valid CTA: split-invalid's button must look disabled (neutral/faded), clearly different from split-form's filled accent button.",
@@ -111,7 +111,7 @@ const CHECKLIST = [
 
 function stateLine(s, i) {
   const n = String(i + 1).padStart(2, " ");
-  return `${n}. \`screenshots/${s.name}.png\` — ${s.intent}`;
+  return `${n}. \`screenshots/${s.name}.png\` - ${s.intent}`;
 }
 
 export function renderBrief({ report } = {}) {

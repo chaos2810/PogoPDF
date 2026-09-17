@@ -19,11 +19,11 @@ export function CompareScreen() {
       ],
       [
         "tool.comparePdfs.labelDiffering",
-        d.differingPages.length > 0 ? d.differingPages.join(", ") : "—",
+        d.differingPages.length > 0 ? d.differingPages.join(", ") : "-",
       ],
       [
         "tool.comparePdfs.labelSizeMismatch",
-        d.pageSizeMismatchPages.length > 0 ? d.pageSizeMismatchPages.join(", ") : "—",
+        d.pageSizeMismatchPages.length > 0 ? d.pageSizeMismatchPages.join(", ") : "-",
       ],
     ];
     return (

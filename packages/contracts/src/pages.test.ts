@@ -10,7 +10,7 @@ describe("parsePageSelection", () => {
   it("allows whitespace and collapses duplicates, keeps ascending", () => {
     expect(parsePageSelection(" 5, 1-3 , 5 ", 10)).toEqual([0, 1, 2, 4]);
   });
-  it("full range via 'all' is not included — spec strings only", () => {
+  it("full range via 'all' is not included - spec strings only", () => {
     expect(() => parsePageSelection("all", 10)).toThrow(PageSelectionError);
   });
   it("rejects zero, reversed, and out-of-range", () => {

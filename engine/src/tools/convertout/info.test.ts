@@ -301,7 +301,7 @@ describe("runFixPageSize", () => {
     // (100x200). Its unrotated left half is blue and right half red; the
     // clockwise rotation must show blue above red in the output. pdf-lib's
     // embedPage drops /Rotate, so without the fix the output would be
-    // landscape with the bars side by side — this asserts they are stacked.
+    // landscape with the bars side by side - this asserts they are stacked.
     const src = await makePdfWithSplitColors(join(dir, "rot90-split.pdf"), {
       width: 200,
       height: 100,
