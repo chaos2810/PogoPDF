@@ -36,6 +36,19 @@ export function parseHexColor(hex: string): { r: number; g: number; b: number } 
 
 const CANONICAL = new Set([0, 90, 180, 270]);
 
+/** Helvetica embeds WinAnsi only, so non-Latin-1 glyphs fail to encode. */
+function encodeFailure(err: unknown): Error | undefined {
+  if (!(err instanceof Error) || !/WinAnsi cannot encode/i.test(err.message)) {
+    return undefined;
+  }
+  const ch = /WinAnsi cannot encode "([^"]*)"/i.exec(err.message)?.[1];
+  return invalidInput(
+    ch
+      ? `Only Latin-1 characters can be drawn on pages (character "${ch}" not supported)`
+      : "Only Latin-1 characters can be drawn on pages (text contains unsupported non-Latin characters)"
+  );
+}
+
 /**
  * Convert a baseline anchor in DISPLAYED space (x from the left, y from the
  * top) back to the page's unrotated user space. Derived by composing pdf.js's
@@ -84,8 +97,14 @@ export function drawPageText(
   const dispH = swaps ? mediaW : mediaH;
 
   const [vertical, horizontal] = opts.position.split("-");
-  const textWidth = font.widthOfTextAtSize(text, opts.fontSize);
-  const textHeight = font.heightAtSize(opts.fontSize);
+  let textWidth: number;
+  let textHeight: number;
+  try {
+    textWidth = font.widthOfTextAtSize(text, opts.fontSize);
+    textHeight = font.heightAtSize(opts.fontSize);
+  } catch (err) {
+    throw encodeFailure(err) ?? err;
+  }
 
   const rx =
     horizontal === "left"
@@ -99,13 +118,17 @@ export function drawPageText(
 
   const { x, y } = toUnrotated(rotation, mediaW, mediaH, rx, ry);
   const color = opts.color ? parseHexColor(opts.color) : undefined;
-  page.drawText(text, {
-    x,
-    y,
-    size: opts.fontSize,
-    font,
-    color: color ? rgb(color.r, color.g, color.b) : undefined,
-    // Counter the viewer's clockwise /Rotate so the glyphs read upright.
-    rotate: degrees(rotation),
-  });
+  try {
+    page.drawText(text, {
+      x,
+      y,
+      size: opts.fontSize,
+      font,
+      color: color ? rgb(color.r, color.g, color.b) : undefined,
+      // Counter the viewer's clockwise /Rotate so the glyphs read upright.
+      rotate: degrees(rotation),
+    });
+  } catch (err) {
+    throw encodeFailure(err) ?? err;
+  }
 }

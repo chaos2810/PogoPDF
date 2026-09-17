@@ -235,6 +235,28 @@ describe("runPageNumbers", () => {
     expect(item.y).toBeCloseTo(200 - 28, 0);
   });
 
+  it("draws upright at the displayed bottom-center of a /Rotate 180 page", async () => {
+    // 200x100 unrotated; /Rotate 180 keeps those dimensions but flips both
+    // axes, so the bottom-center anchor must be mapped through `toUnrotated`.
+    const src = await blankPdf(join(dir, "rot180.pdf"), 1, {
+      size: [200, 100],
+      rotations: [180],
+    });
+    const out = await runPageNumbers(
+      { filePath: src, position: "bottom-center", format: "n" },
+      ctx,
+      outDir()
+    );
+
+    const [item] = await renderedItems(out, 0);
+    expect(item.str).toBe("1");
+    expect(item.b).toBeCloseTo(0, 5);
+    expect(item.a).toBeGreaterThan(0);
+    expect(item.d).toBeLessThan(0);
+    expect(item.x + item.width / 2).toBeCloseTo(100, 1);
+    expect(item.y).toBeCloseTo(100 - 28, 0);
+  });
+
   it("reports progress per page, ending at 100", async () => {
     const src = await blankPdf(join(dir, "progress.pdf"), 3);
     const events: number[] = [];
@@ -322,6 +344,13 @@ describe("runHeaderFooter", () => {
       outDir()
     );
     expect(await pageTexts(out)).toEqual(["H F", "H F", ""]);
+  });
+
+  it("rejects non-Latin header text as INVALID_INPUT, not an internal error", async () => {
+    const src = await blankPdf(join(dir, "cjk.pdf"), 1);
+    await expect(
+      runHeaderFooter({ filePath: src, header: "第 1 頁" }, ctx, outDir())
+    ).rejects.toMatchObject({ code: -32001 });
   });
 
   it("reports progress per page, ending at 100", async () => {
