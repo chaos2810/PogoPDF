@@ -145,6 +145,21 @@ process.stdout.write(JSON.stringify(out));
     Copy-Item -Recurse (Join-Path $pdfjs "standard_fonts") (Join-Path $nm "pdfjs-dist")
     Copy-Item (Join-Path $pdfjs "legacy\build\pdf.worker.mjs") $deps
 
+    # qpdf (Apache-2.0) backs the secure tools (protect/unlock/flatten). The
+    # WHOLE bin dir is required: qpdf.exe is a thin launcher that loads qpdf29.dll
+    # and the MSVC runtime DLLs from its own directory, so a lone exe dies with
+    # STATUS_DLL_NOT_FOUND (0xC0000135). Staged at qpdf/ because resolveQpdf
+    # (qpdfbin.ts) resolves <deps>/qpdf/qpdf.exe from the release spawn cwd.
+    $qpdfSrc = Join-Path (Resolve-Path .).Path "qpdf-bin"
+    $qpdfDest = Join-Path $deps "qpdf"
+    if (Test-Path (Join-Path $qpdfSrc "qpdf.exe")) {
+        New-Item -ItemType Directory -Force -Path $qpdfDest | Out-Null
+        Copy-Item (Join-Path $qpdfSrc "*") $qpdfDest -Recurse
+    }
+    else {
+        Write-Warning "qpdf-bin/qpdf.exe not found: the release will omit qpdf and protect/unlock/flatten will fail at runtime with 'qpdf not found'. Run engine/scripts/fetch-qpdf.ps1 and rebuild."
+    }
+
     # Archive the tree (bsdtar ships with Windows 10+). Extracted at runtime by
     # the Rust app into %LOCALAPPDATA%\PogoPDF\bin\engine-<hash>\.
     $depsTar = Join-Path (Resolve-Path .).Path "dist\engine-deps.tar"
@@ -180,6 +195,14 @@ process.stdout.write(JSON.stringify(out));
     Write-Output "Built dist/engine-deps.tar -> src-tauri/binaries/engine-deps.tar"
     Write-Output "size: $((Get-Item $destDeps).Length) bytes"
     Write-Output "sha256: $depsSha"
+    if (Test-Path (Join-Path $qpdfDest "qpdf.exe")) {
+        $dllCount = (Get-ChildItem -Path $qpdfDest -Filter *.dll).Count
+        Write-Output "qpdf: staged $dllCount DLL(s) + qpdf.exe at qpdf/ in the deps tar"
+        Write-Output "qpdf.exe sha256: $((Get-FileHash -Algorithm SHA256 (Join-Path $qpdfDest 'qpdf.exe')).Hash.ToLower())"
+    }
+    else {
+        Write-Output "qpdf: NOT staged (secure tools unavailable in this release)"
+    }
 }
 finally {
     Pop-Location

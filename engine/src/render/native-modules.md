@@ -27,6 +27,15 @@ into `engine-deps-<id>/node_modules/` (see `build-release.ps1`, which walks
 `dependencies` + `optionalDependencies` from a root list). `marked` and
 `dompurify` are pure JS with no file loads and do bundle.
 
+`qpdf` is not a Node package at all: `build-release.ps1` stages the whole
+`engine/qpdf-bin/` directory (`qpdf.exe` + `qpdf29.dll` + the MSVC runtime DLLs;
+a lone exe fails with `STATUS_DLL_NOT_FOUND`, 0xC0000135) into
+`engine-deps-<id>/qpdf/`. That is exactly the location `resolveQpdf()`
+(`engine/src/tools/secure/qpdfbin.ts`) resolves from the release spawn cwd, so
+protect/unlock/flatten find the binary in both dev and release layouts. If
+`qpdf-bin/` is absent the build warns loudly and still produces a release without
+the secure tools (their runtime error is the typed "qpdf not found").
+
 On Windows there is **no separate `@img/sharp-libvips` runtime package**:
 `@img/sharp-win32-x64` itself contains `lib/libvips-42.dll` and
 `lib/libvips-cpp-*.dll`. `@img/sharp-libvips-*` exists only as a build-time/dev
@@ -73,6 +82,8 @@ This is why the release engine is a two-part payload rather than one blob.
     - the transitive dependency trees of `pdfkit` and `jsdom` (both `--external`;
       ~48 MB, including `fontkit`, `linebreak`, `png-js`, `@noble/*` and
       `parse5`, `css-tree`, `undici`, `tough-cookie`, `whatwg-*`)
+    - `qpdf/qpdf.exe` + `qpdf/qpdf29.dll` + the MSVC runtime DLLs, staged from
+      `engine/qpdf-bin/` so `resolveQpdf()` finds them under the release cwd
 
 Both artifacts share one **build id** (sha256 over both files) in their names:
 `engine-<id>.exe` and `engine-deps-<id>/`. The bootstrap derives its deps
@@ -141,3 +152,9 @@ Nothing here affects development: `npm run app` runs the engine through
 - After `npx tauri build`, a first launch with an empty cache extracts both
   artifacts (hashes match the staged files), spawns the engine child, closes
   cleanly, and leaves no zombies; a second launch reuses the cache untouched.
+- `smoke-release.mjs` (Task 13) also drives a `protect` → `unlock` roundtrip on
+  the staged engine: `protect` writes a `%PDF` that pdf-lib refuses to open
+  without a password, `unlock` restores a loadable document with the same page
+  count. Run against both the staged pair and the engine extracted under
+  `%LOCALAPPDATA%\PogoPDF\bin\`, it proves `resolveQpdf()` finds the staged
+  `qpdf/qpdf.exe` (and its DLLs) in the real release layout.
