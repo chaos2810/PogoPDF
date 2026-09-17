@@ -43,12 +43,16 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | @img/sharp-win32-x64 | 0.35.4 | **Apache-2.0 AND LGPL-3.0-or-later** |
 | @img/colour | 1.1.0 | MIT |
 | detect-libc | 2.1.2 | Apache-2.0 |
+| tesseract.js | 7.0.0 | Apache-2.0 |
+| tesseract.js-core | 7.0.0 | Apache-2.0 |
+| tesseract language data (eng, chi_tra, chi_sim, jpn, kor, deu, fra, spa) | tessdata_fast, main | Apache-2.0 |
 | qpdf (qpdf.exe + qpdf29.dll + MSVC runtime DLLs) | 11.10.1 | Apache-2.0 |
 | mupdf (MuPDF.js wasm) | 1.28.1 | **AGPL-3.0-or-later** |
 
 `engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
 copied into `engine-deps-<id>/`; `qpdf.exe` and its runtime DLLs are copied into
-`engine-deps-<id>/qpdf/`; the remaining packages are copied under
+`engine-deps-<id>/qpdf/`; the OCR language data is copied into
+`engine-deps-<id>/ocr-data/`; the remaining packages are copied under
 `engine-deps-<id>/node_modules/`. This includes the transitive dependency trees
 of `pdfkit` (fontkit, linebreak, png-js, @noble/ciphers, @noble/hashes, fflate,
 …; MIT) and `jsdom` (parse5, css-tree, tough-cookie, undici, whatwg-*, …), whose

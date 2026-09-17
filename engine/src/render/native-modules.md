@@ -22,8 +22,9 @@ read files relative to their own package directory at runtime:
 | `pdfkit` | MIT | `new URL('./data/sRGB_IEC61966_2_1.icc', import.meta.url)` at module load; standard fonts via `require('#standard-fonts/*')` |
 | `jsdom` | MIT | `fs.readFileSync(path.resolve(__dirname, '../../../browser/default-stylesheet.css'))` at module load |
 | `mupdf` | **AGPL-3.0-or-later** | ESM-only with a top-level `await import("node:fs")` plus `await libmupdf_wasm(...)`, which CJS output cannot express; loads `dist/mupdf-wasm.wasm` relative to its own dist dir |
+| `tesseract.js` | Apache-2.0 | spawns a `worker_threads` worker from `src/worker-script/node/index.js` resolved relative to its own package dir; esbuild inlines the main module's `__dirname` into `dist/`, so the worker path resolves to a non-existent `worker-script/` beside `engine.cjs` (verified: `Cannot find module '...\worker-script\node\index.js'`). It then lazily `require()`s the matching `tesseract.js-core` wasm variant from its own package dir |
 
-All three are marked `--external` and their transitive dependency trees are
+All of these are marked `--external` and their transitive dependency trees are
 staged into `engine-deps-<id>/node_modules/` (see `build-release.ps1`, which
 walks `dependencies` + `optionalDependencies` from a root list). `marked` and
 `dompurify` are pure JS with no file loads and do bundle.
@@ -108,20 +109,22 @@ so a bundle-only change would leave the key unchanged.
 esbuild src/engine.ts --bundle --platform=node --target=node22 \
   --outfile=dist/engine.cjs \
   --external:sharp --external:@napi-rs/canvas \
-  --external:pdfkit --external:jsdom --external:mupdf \
+  --external:pdfkit --external:jsdom --external:mupdf --external:tesseract.js \
   --define:import.meta.url=__filename
 ```
 
 - `--external:sharp` / `--external:@napi-rs/canvas` keep them as runtime
   `require()` calls (the only two packages with un-bundleable `.node` files).
-- `--external:pdfkit` / `--external:jsdom` / `--external:mupdf` keep them on disk
-  because of the runtime data-file loads listed above; inlining pdfkit or jsdom
-  makes the bundle throw at import (pdfkit: `ERR_INVALID_URL`, jsdom: `ENOENT
-  .../default-stylesheet.css`), and inlining mupdf fails the build outright
-  (esbuild: "Top-level await is currently not supported with the cjs output
-  format"). `--packages=external` is deliberately **not** used: pdf.js, pdf-lib,
-  jszip and zod bundle fine and keep the exe self-contained apart from these
-  five.
+- `--external:pdfkit` / `--external:jsdom` / `--external:mupdf` /
+  `--external:tesseract.js` keep them on disk because of the runtime file loads
+  listed above; inlining pdfkit or jsdom makes the bundle throw at import
+  (pdfkit: `ERR_INVALID_URL`, jsdom: `ENOENT .../default-stylesheet.css`),
+  inlining mupdf fails the build outright (esbuild: "Top-level await is
+  currently not supported with the cjs output format"), and inlining
+  tesseract.js produces a bundle whose OCR worker path points at a
+  non-existent `worker-script/` directory. `--packages=external` is deliberately
+  **not** used: pdf.js, pdf-lib, jszip and zod bundle fine and keep the exe
+  self-contained apart from these six.
 - `--define:import.meta.url=__filename` matters: esbuild's CJS output stubs
   `import.meta` to `{}`, so pdf.js's `createRequire(import.meta.url)` would throw
   `ERR_INVALID_ARG_VALUE` and silently degrade (no `@napi-rs/canvas` polyfill, no

@@ -10,3 +10,4 @@ ui/screenshots/
 engine/src/testing/.fixtures/
 engine/qpdf-bin/
 engine/lo-bin/
+engine/ocr-data/

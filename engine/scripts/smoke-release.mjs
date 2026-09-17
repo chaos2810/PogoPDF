@@ -121,6 +121,24 @@ async function main() {
   }
   if (!raster.outputPaths?.length) throw new Error("no raster output paths");
 
+  // OCR: proves the staged tesseract.js (external, with its worker script and
+  // tesseract.js-core wasm under node_modules) and the staged ocr-data/ both
+  // resolve from the release spawn cwd. A missing either surfaces as a typed
+  // error instead of producing output.
+  const ocr = await request("job.start", {
+    jobId: uuid(4),
+    toolId: "ocr",
+    input: { filePath: fixture, dpi: 72, searchableOutput: false },
+  });
+  if (!ocr.outputPaths?.length) throw new Error("no OCR output paths");
+  for (const p of ocr.outputPaths) {
+    if (!p.endsWith(".txt")) throw new Error("OCR output is not a .txt: " + p);
+    // A blank fixture OCRs to a valid empty .txt, so existence is the check.
+    if (!statSync(p, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error("missing OCR output: " + p);
+    }
+  }
+
   // qpdf-backed roundtrip: protect with a user password, then unlock it. This
   // proves the staged qpdf (exe + DLLs under deps/qpdf/) resolves from the
   // release spawn cwd; a lone exe would crash before writing the output.
@@ -167,7 +185,8 @@ async function main() {
 
   if (err.trim()) throw new Error("stderr not clean: " + err.trim());
   console.log(
-    `PASS: ping + pdfToImages (${raster.outputPaths.length} page(s)) + protect/unlock ` +
+    `PASS: ping + pdfToImages (${raster.outputPaths.length} page(s)) + ocr ` +
+      `(${ocr.outputPaths.length} txt) + protect/unlock ` +
       `roundtrip (${unlocked.getPageCount()} page(s)) via ${depsName}`
   );
 }

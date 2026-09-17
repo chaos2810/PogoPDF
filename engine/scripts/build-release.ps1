@@ -78,8 +78,11 @@ function resolveDir(spec) {
 // (`js/pdfkit.node.mjs` -> ./data/sRGB...icc, jsdom -> default-stylesheet.css),
 // which breaks when esbuild inlines them. mupdf is external because it is
 // ESM-only with a top-level await that CJS output cannot express, and it loads
-// its wasm file relative to its own dist directory.
-const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom", "mupdf"];
+// its wasm file relative to its own dist directory. tesseract.js is external
+// because it spawns a worker thread from `src/worker-script/node/index.js`
+// beside its own package dir, a path that does not exist once esbuild inlines
+// the main module into engine.cjs.
+const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom", "mupdf", "tesseract.js"];
 const extras = ["@img/sharp-win32-x64", "@img/colour", "detect-libc",
                 "@napi-rs/canvas-win32-x64-msvc"];
 const seen = new Set();
@@ -160,6 +163,22 @@ process.stdout.write(JSON.stringify(out));
     }
     else {
         Write-Warning "qpdf-bin/qpdf.exe not found: the release will omit qpdf and protect/unlock/flatten will fail at runtime with 'qpdf not found'. Run engine/scripts/fetch-qpdf.ps1 and rebuild."
+    }
+
+    # OCR language data (Apache-2.0 tesseract traineddata). Staged at ocr-data/
+    # in the deps tar; resolveOcrDataDir (render/ocr.ts) resolves <deps>/ocr-data
+    # from the release spawn cwd. Without it the ocr tool fails typed with
+    # UNSUPPORTED_FORMAT and never reaches tesseract's online CDN fallback.
+    $ocrSrc = Join-Path (Resolve-Path .).Path "ocr-data"
+    $ocrDest = Join-Path $deps "ocr-data"
+    if (Test-Path $ocrSrc) {
+        New-Item -ItemType Directory -Force -Path $ocrDest | Out-Null
+        Copy-Item (Join-Path $ocrSrc "*.traineddata") $ocrDest
+        $ocrCount = (Get-ChildItem -Path $ocrDest -Filter *.traineddata).Count
+        Write-Output "ocr-data: staged $ocrCount traineddata file(s) at ocr-data/ in the deps tar"
+    }
+    else {
+        Write-Warning "ocr-data not found: the release will omit OCR language data and the ocr tool will fail at runtime with 'language data not found'. Run engine/scripts/fetch-ocr-data.ps1 and rebuild."
     }
 
     # Archive the tree (bsdtar ships with Windows 10+). Extracted at runtime by
