@@ -119,6 +119,16 @@ async function blurActive(page) {
   });
 }
 
+// Tall option forms push the primary CTA below the 800px fold, so a capture would
+// cut off mid-form. Align the CTA's bottom with the viewport bottom; if the form
+// already fits this is a no-op (there is no scroll room).
+async function scrollCtaIntoView(page) {
+  await page.evaluate(() => {
+    const cta = document.querySelector('[data-testid$="-cta"]');
+    if (cta) cta.scrollIntoView({ block: "end" });
+  });
+}
+
 async function clickAria(page, label) {
   const ok = await page.evaluate((l) => {
     const btn = document.querySelector(`button[aria-label="${l}"]`);
@@ -298,6 +308,8 @@ async function main() {
   // the page, so it must stay self-contained (see scripts/metrics.mjs).
   const captures = new Map();
   const shot = async (name) => {
+    // Every option form state must show its CTA, even when the form overflows.
+    if (name.endsWith("-form")) await scrollCtaIntoView(page);
     await blurActive(page);
     await page.screenshot({ path: join(shotsDir, `${name}.png`) });
     const raw = await page.evaluate(collectPageMetrics);

@@ -9,6 +9,8 @@ import { basename } from "./paths";
 // tall (single-line names leave the second line blank) so cards keep one height.
 const CARD_WIDTH = 110;
 const NAME_HEIGHT = 32;
+// Dark scrim so the ✕ reads over light thumbnails; white glyph in both themes.
+const REMOVE_CHIP_BG = "rgba(28, 28, 26, 0.55)";
 
 function QueueCard({
   toolId,
@@ -68,22 +70,20 @@ function QueueCard({
           aria-label={`${t("tool.common.remove", lang)}: ${basename(path)}`}
           title={t("tool.common.remove", lang)}
           style={{
-            position: "absolute", top: 4, right: 4, width: 22, height: 22,
+            position: "absolute", top: 4, right: 4, width: 26, height: 26,
             display: "flex", alignItems: "center", justifyContent: "center",
             padding: 0, borderRadius: 999, border: "none",
-            background: "color-mix(in srgb, var(--card) 80%, transparent)",
-            color: "var(--danger)", cursor: "pointer",
+            background: REMOVE_CHIP_BG,
+            color: "#FFFFFF", cursor: "pointer",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--danger)";
-            e.currentTarget.style.color = "var(--accent-contrast)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "color-mix(in srgb, var(--card) 80%, transparent)";
-            e.currentTarget.style.color = "var(--danger)";
+            e.currentTarget.style.background = REMOVE_CHIP_BG;
           }}
         >
-          <X size={13} />
+          <X size={14} />
         </button>
       </div>
       <span

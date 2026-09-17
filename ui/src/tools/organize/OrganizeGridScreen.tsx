@@ -249,7 +249,7 @@ export function OrganizeGridScreen() {
             onClick={() => void pick()}
             style={{
               width: "100%", padding: "28px 12px", borderRadius: "var(--radius-tile)",
-              border: isDragActive ? "2px solid var(--accent)" : "2px dashed var(--border)",
+              border: isDragActive ? "2px solid var(--accent)" : "1.5px dashed var(--muted)",
               background: isDragActive ? "color-mix(in srgb, var(--accent) 12%, var(--bg))" : "var(--bg)",
               color: isDragActive ? "var(--accent)" : "var(--muted)",
               fontSize: 14, fontWeight: isDragActive ? 700 : 400, cursor: "pointer",
