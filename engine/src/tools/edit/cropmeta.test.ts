@@ -140,11 +140,14 @@ describe("runCrop", () => {
     ).rejects.toMatchObject({ code: -32001 });
   });
 
-  it("rejects an inset exactly at the 10pt limit", async () => {
-    // 100 tall, top 45 + bottom 45 leaves 10 -> allowed; 45 + 46 leaves 9 -> not.
+  it("accepts a 10pt result and rejects one just under it", async () => {
+    // 100 tall: top 45 + bottom 45 leaves exactly 10 -> allowed; 45 + 46 -> not.
     const src = await blankPdf(join(dir, "limit.pdf"), [[200, 100]]);
+    const ok = await runCrop({ filePath: src, top: 45, bottom: 45 }, ctx, outDir());
+    expect((await mediaBox(ok)).height).toBeCloseTo(10, 3);
+
     await expect(
-      runCrop({ filePath: src, top: 45.5, bottom: 45.5 }, ctx, outDir())
+      runCrop({ filePath: src, top: 45, bottom: 46 }, ctx, outDir())
     ).rejects.toMatchObject({ code: -32001 });
   });
 
