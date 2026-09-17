@@ -16,9 +16,12 @@ type SettleTarget = "done" | "data";
 export function usePdfJob(
   toolId: string,
   buildInput: (files: string[]) => unknown,
-  opts: { multiple?: boolean } = {}
+  opts: { multiple?: boolean; extensions?: string[] } = {}
 ) {
   const multiple = opts.multiple ?? false;
+  // Dropped files are filtered to the tool's input type; imagesToPdf accepts
+  // image extensions instead of the PDF default.
+  const extensions = opts.extensions ?? ["pdf"];
   const [files, setFiles] = useState<string[]>([]);
   const [phase, setPhase] = useState<PdfJobPhase>("pick");
   const [percent, setPercent] = useState(0);
@@ -33,16 +36,17 @@ export function usePdfJob(
 
   useEffect(() => {
     const win = getCurrentWindow();
-    const isPdf = (p: string) => p.toLowerCase().endsWith(".pdf");
+    const isAccepted = (p: string) =>
+      extensions.some((ext) => p.toLowerCase().endsWith(`.${ext}`));
     const addFiles = (paths: string[]) => {
-      const pdfs = paths.filter(isPdf);
-      if (pdfs.length === 0) return;
+      const accepted = paths.filter(isAccepted);
+      if (accepted.length === 0) return;
       setFiles((prev) =>
-        multiple ? [...new Set([...prev, ...pdfs])] : [pdfs[0]]
+        multiple ? [...new Set([...prev, ...accepted])] : [accepted[0]]
       );
     };
     const unEnter = win.listen<{ paths: string[] }>("tauri://drag-enter", (e) => {
-      if (e.payload.paths.some(isPdf)) setIsDragActive(true);
+      if (e.payload.paths.some(isAccepted)) setIsDragActive(true);
     });
     const unOver = win.listen("tauri://drag-over", () => setIsDragActive(true));
     const unLeave = win.listen("tauri://drag-leave", () => setIsDragActive(false));

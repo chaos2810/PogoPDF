@@ -20,14 +20,45 @@ pub async fn rpc_call(
     engine.call(&method, params).await
 }
 
+// Named presets keep the common pickers readable; any other value is treated as
+// a comma-separated extension list (e.g. "md" or "txt,md,csv").
+fn dialog_extensions(filter: Option<&str>) -> (String, Vec<String>) {
+    match filter {
+        None | Some("") | Some("pdf") => ("PDF Files".to_string(), vec!["pdf".to_string()]),
+        Some("images") => (
+            "Image Files".to_string(),
+            ["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "svg"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        ),
+        Some(spec) => {
+            let exts: Vec<String> = spec
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect();
+            ("Files".to_string(), exts)
+        }
+    }
+}
+
 #[tauri::command]
-pub async fn dialog_open_pdf(app: tauri::AppHandle, multiple: bool) -> Result<Vec<String>, String> {
+pub async fn dialog_open_pdf(
+    app: tauri::AppHandle,
+    multiple: bool,
+    filter: Option<String>,
+) -> Result<Vec<String>, String> {
     use tauri_plugin_dialog::DialogExt;
+
+    let (label, extensions) = dialog_extensions(filter.as_deref());
+    let ext_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
 
     let picked = app
         .dialog()
         .file()
-        .add_filter("PDF Files", &["pdf"])
+        .add_filter(label, &ext_refs)
         .blocking_pick_files();
 
     let paths: Vec<String> = picked

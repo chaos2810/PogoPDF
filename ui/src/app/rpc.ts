@@ -78,8 +78,21 @@ export function onProgress(cb: (p: ProgressPayload) => void): () => void {
   };
 }
 
+/**
+ * Generalized picker: `filter` is a dialog preset ("pdf" default, "images") or a
+ * comma-separated extension list. `filter` is always sent (as a real value or
+ * null) so the Rust command's Option<String> arg is never a missing key.
+ */
+export async function pickFiles(multiple: boolean, filter?: string): Promise<string[]> {
+  return invoke("dialog_open_pdf", { multiple, filter: filter ?? null });
+}
+
 export async function pickPdfs(multiple: boolean): Promise<string[]> {
-  return invoke("dialog_open_pdf", { multiple });
+  return pickFiles(multiple, "pdf");
+}
+
+export async function pickImages(multiple: boolean): Promise<string[]> {
+  return pickFiles(multiple, "images");
 }
 
 export async function saveAsPdf(defaultName: string): Promise<string | null> {

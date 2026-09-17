@@ -18,6 +18,14 @@ export type FileToolScreenProps = {
   options?: ReactNode;
   // Defaults to "at least 2 files" (multiple) / "at least 1 file" (single).
   canRun?: (files: string[]) => boolean;
+  // Extensions accepted by drag-drop; defaults to PDF-only.
+  extensions?: string[];
+  // Overrides the default PDF file dialog (imagesToPdf picks image files).
+  pick?: () => Promise<string[]>;
+  // Muted note under the drop zone, e.g. "Markdown renders simply".
+  footnoteKey?: string;
+  // Drop-zone wording override; defaults to the PDF phrasing.
+  dropKeys?: { multiple: string; single: string };
 };
 
 export function FileToolScreen({
@@ -28,6 +36,10 @@ export function FileToolScreen({
   validationError,
   options,
   canRun,
+  extensions,
+  pick: pickOverride,
+  footnoteKey,
+  dropKeys,
 }: FileToolScreenProps) {
   const { lang, navigate } = useApp();
   const {
@@ -42,7 +54,7 @@ export function FileToolScreen({
     reset,
     cancel,
     run,
-  } = usePdfJob(toolId, buildInput, { multiple: acceptMultiple });
+  } = usePdfJob(toolId, buildInput, { multiple: acceptMultiple, extensions });
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [outputPaths, setOutputPaths] = useState<string[] | null>(null);
 
@@ -78,7 +90,9 @@ export function FileToolScreen({
   };
 
   const pick = async () => {
-    const picked = await pickPdfs(acceptMultiple);
+    const picked = pickOverride
+      ? await pickOverride()
+      : await pickPdfs(acceptMultiple);
     if (picked.length === 0) return;
     setFiles((prev) =>
       acceptMultiple ? [...new Set([...prev, ...picked])] : [picked[0]]
@@ -115,11 +129,17 @@ export function FileToolScreen({
               isDragActive
                 ? "tool.common.dropActive"
                 : acceptMultiple
-                  ? "tool.common.drop"
-                  : "tool.common.dropSingle",
+                  ? (dropKeys?.multiple ?? "tool.common.drop")
+                  : (dropKeys?.single ?? "tool.common.dropSingle"),
               lang
             )}
           </button>
+
+          {footnoteKey && (
+            <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 8 }}>
+              {t(footnoteKey, lang)}
+            </div>
+          )}
 
           <div style={{ marginTop: 12 }}>
             <FileQueueCards
