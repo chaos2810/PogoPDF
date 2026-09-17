@@ -529,7 +529,7 @@ describe("runImagesToPdf", () => {
     });
   });
 
-  it("handles 50 images without holding more than one bitmap at a time", async () => {
+  it("handles a 50-image run producing 50 pages", async () => {
     const batchDir = fixtureDir("convertin/batch");
     const bytes = readFileSync(jpg100);
     const paths: string[] = [];
