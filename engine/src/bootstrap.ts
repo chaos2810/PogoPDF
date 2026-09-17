@@ -23,10 +23,16 @@ import type { RpcCtx } from "./rpc/dispatcher";
 import { JobQueue } from "./queue";
 import { TempWorkspace } from "./temp";
 import type { ToolRegistry } from "./tools/registry";
+import { loadPdf } from "./tools/pdfdoc";
+import { listEmbeddedFiles } from "./tools/richcontent/embeddedfiles";
 
 export const FileCopyParamsSchema = z.object({
   src: z.string().min(1),
   dest: z.string().min(1),
+});
+
+export const AttachmentsListParamsSchema = z.object({
+  filePath: z.string().min(1),
 });
 
 /**
@@ -60,6 +66,25 @@ export function registerFileCopy(
     copyFileSync(p.src, p.dest);
     return { copied: true };
   }, FileCopyParamsSchema);
+}
+
+/**
+ * The attachments editor lists embedded files before running the edit tool.
+ * This is an RPC method (like file.copy), not a tool: it returns its data
+ * directly rather than through the job queue.
+ */
+export function registerAttachmentsList(
+  dispatcher: ReturnType<typeof createDispatcher>
+): void {
+  dispatcher.register(
+    "attachments.list",
+    async (params) => {
+      const p = AttachmentsListParamsSchema.parse(params);
+      const doc = await loadPdf(p.filePath, { updateMetadata: false });
+      return { attachments: listEmbeddedFiles(doc) };
+    },
+    AttachmentsListParamsSchema
+  );
 }
 
 // pdfjs-dist 6 uses Promise.withResolvers (Node 22+); fail loudly before that.
@@ -163,6 +188,7 @@ export function startEngine(options: {
   dispatcher.register("engine.ping", async () => ({ pong: true }));
 
   registerFileCopy(dispatcher);
+  registerAttachmentsList(dispatcher);
 
   const rl = createInterface({ input: process.stdin });
   rl.on("line", (line) => dispatcher.handle(line));

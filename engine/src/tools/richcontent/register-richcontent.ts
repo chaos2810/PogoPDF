@@ -1,6 +1,9 @@
 import {
+  AddAttachmentsInputSchema,
   ComicToPdfInputSchema,
   EbookToPdfInputSchema,
+  EditAttachmentsInputSchema,
+  ExtractAttachmentsInputSchema,
   ExtractTablesInputSchema,
   OcrInputSchema,
   PdfToMarkdownInputSchema,
@@ -16,6 +19,11 @@ import { runOcr } from "./ocr";
 import { runExtractTables } from "./extracttables";
 import { runPdfToMarkdown } from "./pdftomarkdown";
 import { runPrepareForAi } from "./prepareforai";
+import {
+  runAddAttachments,
+  runEditAttachments,
+  runExtractAttachments,
+} from "./attachments";
 
 export function registerRichContentTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.ebookToPdf, {
@@ -45,5 +53,17 @@ export function registerRichContentTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.prepareForAi, {
     schema: PrepareForAiInputSchema,
     run: runPrepareForAi,
+  });
+  tools.set(TOOL_IDS.addAttachments, {
+    schema: AddAttachmentsInputSchema,
+    run: runAddAttachments,
+  });
+  tools.set(TOOL_IDS.extractAttachments, {
+    schema: ExtractAttachmentsInputSchema,
+    run: runExtractAttachments,
+  });
+  tools.set(TOOL_IDS.editAttachments, {
+    schema: EditAttachmentsInputSchema,
+    run: runEditAttachments,
   });
 }
