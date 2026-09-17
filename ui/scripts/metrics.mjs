@@ -146,6 +146,9 @@ export function collectPageMetrics() {
     if (tag === "html" || tag === "body" || el.id === "root") continue;
     const cs = getComputedStyle(el);
     if (/(auto|scroll)/.test(cs.overflowX) || /(auto|scroll)/.test(cs.overflowY)) continue;
+    // Two-line clamped file names overflow their box by design (overflow:hidden
+    // plus -webkit-line-clamp); that is not unintended clipping.
+    if (cs.webkitLineClamp && cs.webkitLineClamp !== "none") continue;
     const dw = el.scrollWidth - el.clientWidth;
     const dh = el.scrollHeight - el.clientHeight;
     if (dw > 1 || dh > 1) {
@@ -163,25 +166,58 @@ export function collectPageMetrics() {
     }
   }
 
-  // --- 4. file rows (generic across every FileToolScreen tool) ---
+  // --- 4. file cards (generic across every FileToolScreen tool) ---
+  // Each queued file is a fixed-width thumbnail card: preview on top, name below
+  // with a two-line clamp, delete ✕ overlaid in the card's top-right corner.
   // Selectors are suffix-generic so merge, extract, split, … all get the same
-  // row invariants; the testids are `${toolId}-file-row` / `-file-name` / `-file-remove`.
+  // card invariants; the testids are `${toolId}-file-row` / `-file-name` / `-file-remove`.
   const rows = [...document.querySelectorAll('[data-testid$="-file-row"]')].map((li) => {
     const name = li.querySelector('[data-testid$="-file-name"]');
     const btn = li.querySelector('[data-testid$="-file-remove"]');
+    const thumb = li.querySelector('[data-testid$="-file-thumb"]');
     const lr = li.getBoundingClientRect();
     const nr = name.getBoundingClientRect();
     const br = btn.getBoundingClientRect();
-    const nameCenter = nr.y + nr.height / 2;
-    const btnCenter = br.y + br.height / 2;
+    const tr = thumb ? thumb.getBoundingClientRect() : null;
     return {
       nameText: (name.textContent || "").trim().slice(0, 80),
-      rowHeight: +lr.height.toFixed(2),
-      nameHeight: +nr.height.toFixed(2),
+      cardX: +lr.x.toFixed(2),
+      cardY: +lr.y.toFixed(2),
+      cardWidth: +lr.width.toFixed(2),
+      cardHeight: +lr.height.toFixed(2),
+      nameX: +nr.x.toFixed(2),
       nameWidth: +nr.width.toFixed(2),
-      centerDelta: +(btnCenter - nameCenter).toFixed(2),
+      nameHeight: +nr.height.toFixed(2),
+      // ✕ must sit a constant offset inside the card's top-right corner.
+      removeInsetRight: +(lr.x + lr.width - (br.x + br.width)).toFixed(2),
+      removeInsetTop: +(br.y - lr.y).toFixed(2),
+      // Name must stay within the card's horizontal band.
+      nameInsideCard:
+        nr.x >= lr.x - 1 && nr.x + nr.width <= lr.x + lr.width + 1,
+      // Thumbnail must sit above the name (stacked card), not beside it.
+      thumbAboveName: tr ? tr.y + tr.height <= nr.y + 1 : true,
+      hasThumb: Boolean(thumb?.querySelector("img")),
     };
   });
+
+  // Group cards into visual rows so per-row geometry compares like with like.
+  const cardRows = [];
+  for (const card of rows) {
+    const row = cardRows.find((r) => Math.abs(r[0].cardY - card.cardY) <= 1);
+    if (row) row.push(card);
+    else cardRows.push([card]);
+  }
+  const cardsInfo = {
+    count: rows.length,
+    rowCount: cardRows.length,
+    widths: rows.map((r) => r.cardWidth),
+    heights: rows.map((r) => r.cardHeight),
+    removeInsetRights: rows.map((r) => r.removeInsetRight),
+    removeInsetTops: rows.map((r) => r.removeInsetTop),
+    nameInsideCard: rows.every((r) => r.nameInsideCard),
+    thumbAboveName: rows.every((r) => r.thumbAboveName),
+    thumbCount: rows.filter((r) => r.hasThumb).length,
+  };
 
   // --- 4b. organize grid cells (generic: any [data-testid="grid-cell"]) ---
   // rotate(0deg) still computes as matrix(1, 0, 0, 1, 0, 0), so an identity
@@ -352,6 +388,7 @@ export function collectPageMetrics() {
     formEscapes,
     clipped,
     rows,
+    cardsInfo,
     dataRows,
     dataRowCount,
     dataTables,
@@ -367,26 +404,47 @@ export function collectPageMetrics() {
 
 // --- invariant evaluation (node side) ---
 
-function checkRowsCentered(rows) {
-  if (!rows || rows.length === 0) return { pass: true, detail: "no rows" };
-  const deltas = rows.map((r) => r.centerDelta);
-  const maxAbs = Math.max(...deltas.map((d) => Math.abs(d)));
-  return { pass: maxAbs <= 1, maxAbsDelta: maxAbs, deltas };
+// Queue cards: the delete ✕ must sit at a constant inset in every card's
+// top-right corner (the old "centered against the name" check no longer applies
+// now that names wrap below the thumbnail).
+function checkCardRemovePositioned(cards) {
+  if (!cards || cards.count === 0) return { pass: true, detail: "no cards" };
+  const rightSpread =
+    Math.max(...cards.removeInsetRights) - Math.min(...cards.removeInsetRights);
+  const topSpread =
+    Math.max(...cards.removeInsetTops) - Math.min(...cards.removeInsetTops);
+  return {
+    pass: rightSpread <= 1 && topSpread <= 1,
+    rightSpread: +rightSpread.toFixed(2),
+    topSpread: +topSpread.toFixed(2),
+    removeInsetRights: cards.removeInsetRights,
+    removeInsetTops: cards.removeInsetTops,
+  };
 }
 
-function checkRowsConsistentHeight(rows) {
-  if (!rows || rows.length < 2) return { pass: true, detail: "fewer than 2 rows" };
-  const minNameHeight = Math.min(...rows.map((r) => r.nameHeight));
-  const singleLine = rows.filter((r) => r.nameHeight <= minNameHeight + 2);
-  const wrapped = rows.filter((r) => r.nameHeight > minNameHeight + 2);
-  const heights = singleLine.map((r) => r.rowHeight);
-  const spread = heights.length > 0 ? Math.max(...heights) - Math.min(...heights) : 0;
+// Queue cards are fixed-size tiles: one width and one height for every card, so
+// a wrapping name never resizes its tile (names clamp to two lines).
+function checkCardsConsistentSize(cards) {
+  if (!cards || cards.count < 2) return { pass: true, detail: "fewer than 2 cards" };
+  const widthSpread = Math.max(...cards.widths) - Math.min(...cards.widths);
+  const heightSpread = Math.max(...cards.heights) - Math.min(...cards.heights);
   return {
-    pass: spread <= 1,
-    singleLineNameHeight: minNameHeight,
-    singleLineRowHeights: heights,
-    wrappedRowHeights: wrapped.map((r) => r.rowHeight),
-    spread: +spread.toFixed(2),
+    pass: widthSpread <= 1 && heightSpread <= 1,
+    widthSpread: +widthSpread.toFixed(2),
+    heightSpread: +heightSpread.toFixed(2),
+    widths: cards.widths,
+    heights: cards.heights,
+  };
+}
+
+// Queue card internals: the name stays inside the card's band and the preview
+// sits above it (thumbnail-card layout, not a side-by-side row).
+function checkCardLayout(cards) {
+  if (!cards || cards.count === 0) return { pass: true, detail: "no cards" };
+  return {
+    pass: cards.nameInsideCard && cards.thumbAboveName,
+    nameInsideCard: cards.nameInsideCard,
+    thumbAboveName: cards.thumbAboveName,
   };
 }
 
@@ -533,8 +591,9 @@ export function evaluateState(name, state) {
     "no-overlap": state.overlaps.length === 0,
     "form-no-overlap": checkFormNoOverlap(state).pass,
     "no-unintended-clipping": state.clipped.length === 0,
-    "rows-centered": checkRowsCentered(state.rows).pass,
-    "rows-consistent-height": checkRowsConsistentHeight(state.rows).pass,
+    "cards-remove-positioned": checkCardRemovePositioned(state.cardsInfo).pass,
+    "cards-consistent-size": checkCardsConsistentSize(state.cardsInfo).pass,
+    "cards-layout": checkCardLayout(state.cardsInfo).pass,
     "grid-cells-aligned": checkGridCellsAligned(state.gridInfo).pass,
     "grid-cells-equal-size": checkGridCellsEqualSize(state.gridInfo).pass,
     "saveall-rows-centered": checkSaveAllRowsCentered(state.saveAllRows).pass,
@@ -581,8 +640,10 @@ export function evaluateState(name, state) {
     clipped: state.clipped,
     rowCount: state.rows.length,
     rows: state.rows,
-    rowsCentered: checkRowsCentered(state.rows),
-    rowsConsistentHeight: checkRowsConsistentHeight(state.rows),
+    cardsInfo: state.cardsInfo,
+    cardsRemovePositioned: checkCardRemovePositioned(state.cardsInfo),
+    cardsConsistentSize: checkCardsConsistentSize(state.cardsInfo),
+    cardsLayout: checkCardLayout(state.cardsInfo),
     gridCellsAligned: checkGridCellsAligned(state.gridInfo),
     gridCellsEqualSize: checkGridCellsEqualSize(state.gridInfo),
     gridInfo: state.gridInfo,

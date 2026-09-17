@@ -10,16 +10,19 @@ export type PdfThumb = {
   rotate: number;
 };
 
-type MockThumbsHook = (path?: string) => PdfThumb[] | null | Promise<PdfThumb[]>;
+type MockThumbsHook = (
+  path?: string,
+  maxPages?: number
+) => PdfThumb[] | null | Promise<PdfThumb[]>;
 
 // Dev-only seam: mock-tauri.ts installs __mockPdfThumbs, so the organize screen
 // renders fake canvases without pdf.js or real files in screenshot runs. The
 // hook gets the source path and returns null for blob:/data: URLs so the real
 // pdf.js pipeline still runs for the "real PDF" screenshot state.
-function mockThumbs(path: string): PdfThumb[] | undefined {
+function mockThumbs(path: string, maxPages?: number): PdfThumb[] | undefined {
   if (typeof window === "undefined") return undefined;
   const hook = (window as unknown as { __mockPdfThumbs?: MockThumbsHook }).__mockPdfThumbs;
-  const result = hook?.(path);
+  const result = hook?.(path, maxPages);
   return Array.isArray(result) ? result : undefined;
 }
 
@@ -37,7 +40,7 @@ export async function renderPdfThumbs(
   path: string,
   maxPages?: number
 ): Promise<PdfThumb[]> {
-  const mocked = mockThumbs(path);
+  const mocked = mockThumbs(path, maxPages);
   if (mocked) return mocked;
 
   const [{ getDocument, GlobalWorkerOptions }, worker] = await Promise.all([

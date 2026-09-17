@@ -5,7 +5,7 @@ import { t } from "@pogopdf/i18n";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import { pickPdfs } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
-import { basename } from "./paths";
+import { FileQueueCards } from "./FileQueueCards";
 import { usePdfJob } from "./usePdfJob";
 
 export type FileToolScreenProps = {
@@ -122,42 +122,11 @@ export function FileToolScreen({
           </button>
 
           <div style={{ marginTop: 12 }}>
-            {files.length > 0 && (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {files.map((f, i) => (
-                  <li
-                    key={f}
-                    data-testid={`${toolId}-file-row`}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "10px 8px",
-                      borderBottom: i < files.length - 1 ? "1px solid var(--border)" : "none",
-                    }}
-                  >
-                    <span
-                      data-testid={`${toolId}-file-name`}
-                      title={f}
-                      style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere", wordBreak: "break-word" }}
-                    >
-                      {basename(f)}
-                    </span>
-                    <button
-                      data-testid={`${toolId}-file-remove`}
-                      onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
-                      aria-label={t("tool.common.remove", lang)}
-                      title={t("tool.common.remove", lang)}
-                      style={{
-                        flexShrink: 0, border: "none", background: "none",
-                        color: "var(--danger)", cursor: "pointer", fontSize: 14,
-                        padding: "4px 6px", lineHeight: 1,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <FileQueueCards
+              toolId={toolId}
+              files={files}
+              onRemove={(path) => setFiles((prev) => prev.filter((x) => x !== path))}
+            />
           </div>
 
           {acceptMultiple && files.length > 0 && (

@@ -25,9 +25,9 @@ export const STATES = [
   { name: "home-dark", intent: "Home screen in dark theme; dark tokens applied" },
   { name: "merge-empty", intent: "Merge tool opened with no files: idle drop zone, CTA disabled" },
   { name: "merge-dragover", intent: "Files hovering over the drop zone, before release (drag feedback)" },
-  { name: "merge-files", intent: "Merge tool with 3 short-named PDFs listed, CTA enabled" },
-  { name: "merge-longnames", intent: "Merge tool with 3 long (incl. CJK) file names that wrap to 2+ lines" },
-  { name: "merge-many", intent: "Merge tool with 8 files: list length, separators, scroll behaviour" },
+  { name: "merge-files", intent: "Merge tool with 3 short-named PDFs shown as thumbnail cards (preview above, name below), CTA enabled" },
+  { name: "merge-longnames", intent: "Merge tool with 3 long (incl. CJK) file names: each name clamps to two lines with an ellipsis; card size unchanged" },
+  { name: "merge-many", intent: "Merge tool with 8 thumbnail cards: cards wrap evenly, no tile is resized by its name" },
   { name: "merge-running", intent: "Merge in progress at 62%: progress text + bar" },
   { name: "merge-cancelled", intent: "Merge cancelled by the user: returns to the pick phase with the file list intact (no error card)" },
   { name: "merge-done", intent: "Merge finished: Done label + Save As bar" },
@@ -60,11 +60,12 @@ export const STATES = [
 ];
 
 const CHECKLIST = [
-  "Text overlap or clipping: no glyphs overlapping other glyphs; watch the file-name span vs. the delete ✕ in merge rows.",
+  "Text overlap or clipping: no glyphs overlapping other glyphs; file names clamp to two lines with an ellipsis, not cut mid-glyph.",
   "Elements touching or escaping card edges (padding looks collapsed on any side).",
   "Misaligned buttons/controls: pill heights, vertical alignment within a row, inconsistent gaps.",
-  "Bounding boxes changing size between comparable states — compare merge-files vs merge-longnames: the card width must not change.",
-  "Delete ✕ vertical centering when a file name wraps to two lines (✕ should sit on the row's vertical center, not the first line's).",
+  "Bounding boxes changing size between comparable states — compare merge-files vs merge-longnames: every card must keep the same width and height.",
+  "Queue cards (merge-files/merge-longnames/merge-many/*-form): each card shows a preview above the name; the delete ✕ sits in the same top-right corner of every card and never drifts when a name wraps.",
+  "Placeholder cards: when a preview cannot be generated the card shows a centered document icon, not a broken image.",
   "Drag-over highlight clearly visible: border and/or background must obviously differ from merge-empty.",
   "Dark mode legibility (contrast feel) in home-dark: body vs card vs muted text must all read.",
   "CJK text rendering/wrapping: no tofu boxes, no orphaned punctuation, acceptable line breaks.",

@@ -33,7 +33,7 @@ const state = {
 };
 
 // Canvas-drawn fake page images so organize states render without a real PDF.
-function makeFakeThumb(i: number, w = 160, h = 210) {
+function makeFakeThumb(i: number, w = 160, h = 210, label = i + 1) {
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -47,8 +47,16 @@ function makeFakeThumb(i: number, w = 160, h = 210) {
   ctx.font = "bold 56px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(String(i + 1), w / 2, h / 2);
+  ctx.fillText(String(label), w / 2, h / 2);
   return { index: i, dataUrl: canvas.toDataURL("image/png"), width: w, height: h, rotate: 0 };
+}
+
+// Stable per-path page number so queue cards show distinct-looking previews
+// (a plain index would paint every card as "1").
+function pathLabel(path: string): number {
+  let hash = 0;
+  for (let i = 0; i < path.length; i++) hash = (hash * 31 + path.charCodeAt(i)) >>> 0;
+  return (hash % 99) + 1;
 }
 
 // Canned data results so the data-view screens render without a real engine.
@@ -242,8 +250,10 @@ w.__mockCopyFail = (name: string, fail = true) => {
 // real PDF. A blob:/data: path is passed through (returns null) so the real
 // pdf.js pipeline still runs for the blob-backed "real PDF" state.
 // Called with a number it arms how many fake pages the next load returns (the
-// harness uses this); called with a path it returns the armed pages.
-w.__mockPdfThumbs = (arg?: number | string) => {
+// harness uses this); called with a path it returns the armed pages. maxPages
+// (as renderPdfThumbs receives it) caps the count; queue cards call it with 1 so
+// each queued file gets a single, path-derived preview page.
+w.__mockPdfThumbs = (arg?: number | string, maxPages?: number) => {
   if (typeof arg === "number") {
     state.thumbCount = arg;
     return;
@@ -251,5 +261,7 @@ w.__mockPdfThumbs = (arg?: number | string) => {
   if (typeof arg === "string" && /^(blob:|data:)/i.test(arg)) return null;
   // A name registered by __mockBlobPath must run the real pdf.js pipeline too.
   if (typeof arg === "string" && arg in state.blobFiles) return null;
-  return Array.from({ length: state.thumbCount }, (_, i) => makeFakeThumb(i));
+  const count = Math.min(state.thumbCount, maxPages ?? state.thumbCount);
+  const label = typeof arg === "string" ? pathLabel(arg) : undefined;
+  return Array.from({ length: count }, (_, i) => makeFakeThumb(i, 160, 210, label ?? i + 1));
 };

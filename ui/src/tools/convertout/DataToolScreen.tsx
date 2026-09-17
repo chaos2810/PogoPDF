@@ -3,7 +3,7 @@ import { useApp } from "../../app/store";
 import { t } from "@pogopdf/i18n";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import { pickPdfs } from "../../app/rpc";
-import { basename } from "../paths";
+import { FileQueueCards } from "../FileQueueCards";
 import { usePdfJob } from "../usePdfJob";
 
 export type DataToolScreenProps = {
@@ -83,33 +83,9 @@ export function DataToolScreen({ toolId, ctaKey, renderData }: DataToolScreenPro
           </button>
 
           {file && (
-            <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }}>
-              <li
-                data-testid={`${toolId}-file-row`}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 8px" }}
-              >
-                <span
-                  data-testid={`${toolId}-file-name`}
-                  title={file}
-                  style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere", wordBreak: "break-word" }}
-                >
-                  {basename(file)}
-                </span>
-                <button
-                  data-testid={`${toolId}-file-remove`}
-                  onClick={() => setFiles([])}
-                  aria-label={t("tool.common.remove", lang)}
-                  title={t("tool.common.remove", lang)}
-                  style={{
-                    flexShrink: 0, border: "none", background: "none",
-                    color: "var(--danger)", cursor: "pointer", fontSize: 14,
-                    padding: "4px 6px", lineHeight: 1,
-                  }}
-                >
-                  ✕
-                </button>
-              </li>
-            </ul>
+            <div style={{ marginTop: 12 }}>
+              <FileQueueCards toolId={toolId} files={[file]} onRemove={() => setFiles([])} />
+            </div>
           )}
 
           <button
