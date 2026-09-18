@@ -76,27 +76,17 @@ fn main() {
             engine: tokio::sync::RwLock::new(None),
         })
         .setup(|app| {
-            // MS Office style loading popup: a small borderless centered
-            // window that shows while the engine boots. The main window is
-            // created hidden by config and revealed by `startup_complete`
-            // once the UI mounted and the engine answered engine.ping.
-            let splash = tauri::WebviewWindowBuilder::new(
-                app,
-                "splash",
-                tauri::WebviewUrl::App("splash.html".into()),
-            )
-            .title("PogoPDF")
-            .inner_size(320.0, 220.0)
-            .resizable(false)
-            .decorations(false)
-            .transparent(true)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .center();
-
-            splash
-                .build()
-                .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+            // The splash window is declared in tauri.conf.json so the
+            // framework creates it with the same URL resolution as the main
+            // window. (Building it at runtime left the release webview at
+            // about:blank; config-declared windows navigate correctly.)
+            if let Some(splash) = app.get_webview_window("splash") {
+                // Dark base color kills the default white first frame before
+                // the page paints (dark mode token #1C1C1A).
+                let _ = splash.set_background_color(Some(tauri::window::Color(
+                    28, 28, 26, 255,
+                )));
+            }
 
             let (cmd, cwd) =
                 engine_launch_spec().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
