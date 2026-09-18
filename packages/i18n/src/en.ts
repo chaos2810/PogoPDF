@@ -413,6 +413,7 @@ export const en = {
   "tool.comparePdfs.labelDiffering": "Differing pages",
   "tool.comparePdfs.labelSizeMismatch": "Page-size differences",
   "tool.comparePdfs.yes": "Yes",
+  "tool.comparePdfs.none": "None",
   "tool.comparePdfs.no": "No",
   "tool.comparePdfs.similarityHint":
     "Flags large visual changes; small text edits may not be detected.",

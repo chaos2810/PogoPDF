@@ -413,6 +413,7 @@ export const zhTW: Record<Key, string> = {
   "tool.comparePdfs.labelDiffering": "不同的頁面",
   "tool.comparePdfs.labelSizeMismatch": "頁面尺寸差異",
   "tool.comparePdfs.yes": "是",
+  "tool.comparePdfs.none": "無",
   "tool.comparePdfs.no": "否",
   "tool.comparePdfs.similarityHint": "會標示大幅視覺差異；細微的文字修改可能無法偵測。",
 
