@@ -1,13 +1,10 @@
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
-
-/** Typed error with an RPC error code. */
-export function officeError(message: string, code: number): Error {
-  return Object.assign(new Error(message), { code });
-}
+import { typedError } from "../errors";
 
 const NOT_FOUND_MESSAGE =
   "LibreOffice not found. Run engine/scripts/fetch-libreoffice.ps1";
@@ -108,32 +105,9 @@ export function findSoffice(): string | null {
 export function resolveSoffice(): string {
   const found = findSoffice();
   if (!found) {
-    throw officeError(NOT_FOUND_MESSAGE, TOOL_ERROR_CODES.UNSUPPORTED_FORMAT);
+    throw typedError(NOT_FOUND_MESSAGE, TOOL_ERROR_CODES.UNSUPPORTED_FORMAT);
   }
   return found;
-}
-
-function spawnSoffice(
-  bin: string,
-  args: string[],
-  cwd: string
-): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, {
-      cwd,
-      windowsHide: true,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => (stdout += chunk));
-    child.stderr.on("data", (chunk: string) => (stderr += chunk));
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code, stdout, stderr }));
-  });
 }
 
 /**
@@ -155,6 +129,69 @@ async function waitForFile(path: string, timeoutMs: number): Promise<boolean> {
 const OUTPUT_POLL_MS = 30_000;
 
 /**
+ * Live soffice children. soffice.exe is a grandchild of the Rust shell, so the
+ * shell's kill of the engine process leaves it orphaned mid-conversion. Track
+ * every conversion child here and kill them on this process's exit so an app
+ * force-close cannot strand a soffice process holding the profile dir.
+ *
+ * On Windows a hard TerminateProcess does not run exit hooks; the graceful path
+ * is the engine's stdin-close watchdog (`process.stdin.on("end")` ->
+ * `process.exit(0)`), which does. The Rust kill drops stdin, so the graceful
+ * path normally wins. If it does not, the exit hook cannot help (see the report).
+ */
+const activeConversions = new Set<ChildProcess>();
+
+/** Kill every in-flight soffice child. Synchronous, for process exit. */
+export function killActiveConversions(): void {
+  for (const child of activeConversions) {
+    try {
+      child.kill();
+    } catch {
+      /* best effort on the way out */
+    }
+  }
+  activeConversions.clear();
+}
+
+/** Test seam: number of live conversion children currently tracked. */
+export function activeConversionCount(): number {
+  return activeConversions.size;
+}
+
+process.on("exit", killActiveConversions);
+
+/** Spawn a child and track it (exported for the tracking/kill test). */
+export function spawnSoffice(
+  bin: string,
+  args: string[],
+  cwd: string
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, {
+      cwd,
+      windowsHide: true,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    activeConversions.add(child);
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => (stdout += chunk));
+    child.stderr.on("data", (chunk: string) => (stderr += chunk));
+    child.on("error", (e) => {
+      activeConversions.delete(child);
+      reject(e);
+    });
+    child.on("close", (code) => {
+      activeConversions.delete(child);
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+/**
  * Convert one office/ODF document to PDF with headless LibreOffice. The output
  * is LibreOffice's default name, `<basename>.pdf`, inside `outDir`; its path is
  * returned. `jobId` scopes the per-job profile dir so two concurrent runs never
@@ -168,7 +205,7 @@ export async function runOfficeConvert(
   const ext = extname(inputPath).slice(1).toLowerCase();
   const filter = EXPORT_FILTERS[ext];
   if (!filter) {
-    throw officeError(
+    throw typedError(
       `Unsupported office format: .${ext || "(none)"}`,
       TOOL_ERROR_CODES.UNSUPPORTED_FORMAT
     );
@@ -202,7 +239,7 @@ export async function runOfficeConvert(
     // The binary resolved but the process could not start: a corrupt install or
     // a bad path, not an unsupported format. The missing-binary case is handled
     // earlier by resolveSoffice, which stays UNSUPPORTED_FORMAT.
-    throw officeError(
+    throw typedError(
       `${SPAWN_FAILED_MESSAGE} (${e instanceof Error ? e.message : String(e)})`,
       TOOL_ERROR_CODES.CORRUPT_PDF
     );
@@ -220,7 +257,7 @@ export async function runOfficeConvert(
   if (existsSync(outPath)) return outPath;
 
   const tail = stderr.trim().slice(-STDERR_TAIL);
-  throw officeError(
+  throw typedError(
     `LibreOffice conversion failed (exit ${code})${tail ? `: ${tail}` : ""}`,
     TOOL_ERROR_CODES.CORRUPT_PDF
   );

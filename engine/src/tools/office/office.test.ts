@@ -9,6 +9,11 @@ import { extractPageText } from "../../render/textextract";
 import { registerTools } from "../registry";
 import { makeDocx, makeOdt, makePptx, makeXlsx } from "../../testing/ooxml";
 import { EXPORT_FILTERS, findSoffice, runOfficeConvert } from "./libreoffice";
+import {
+  activeConversionCount,
+  killActiveConversions,
+  spawnSoffice,
+} from "./libreoffice";
 import { runOfficeToPdf } from "./officetopdf";
 
 const ctx = { cancelled: () => false, notifyProgress: () => {} };
@@ -243,5 +248,32 @@ describe("office registry", () => {
     const tools = new Map();
     registerTools(tools);
     expect(tools.has("officeToPdf")).toBe(true);
+  });
+});
+
+describe("soffice child tracking", () => {
+  it("tracks a live child and kills it on the exit hook", async () => {
+    // A short-lived node process stands in for soffice: the point is that the
+    // module registers the child while it runs and reaps it on process exit.
+    const before = activeConversionCount();
+    const exited = spawnSoffice(
+      process.execPath,
+      ["-e", "setTimeout(() => {}, 5000)"],
+      process.cwd()
+    );
+    expect(activeConversionCount()).toBe(before + 1);
+
+    killActiveConversions();
+    expect(activeConversionCount()).toBe(0);
+    // The killed child closes (Windows reports a null code for signal kills)
+    // rather than hanging the promise.
+    const result = await exited;
+    expect(result.code === null || typeof result.code === "number").toBe(true);
+  });
+
+  it("drops a child from tracking when it closes on its own", async () => {
+    const before = activeConversionCount();
+    await spawnSoffice(process.execPath, ["-e", "0"], process.cwd());
+    expect(activeConversionCount()).toBe(before);
   });
 });
