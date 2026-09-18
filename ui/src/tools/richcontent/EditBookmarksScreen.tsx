@@ -119,8 +119,10 @@ export function EditBookmarksScreen() {
     setFiles([picked[0]]);
   };
 
+  // An empty list is runnable: it clears the outline (the engine deletes
+  // /Outlines). A present-but-incomplete row is what blocks the CTA.
   const runnable =
-    files.length >= 1 && rows.length >= 1 && validRows.length === rows.length;
+    files.length >= 1 && validRows.length === rows.length;
 
   return (
     <main style={{ padding: 24, width: "100%", maxWidth: 720, margin: "0 auto" }}>

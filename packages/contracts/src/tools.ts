@@ -689,11 +689,15 @@ export const ViewBookmarksInputSchema = z
   .strict();
 export type ViewBookmarksInput = z.infer<typeof ViewBookmarksInputSchema>;
 
-/** Replaces the whole outline (the UI editor is the source of truth after View). */
+/**
+ * Replaces the whole outline (the UI editor is the source of truth after View).
+ * An empty list is valid and clears the outline (writeBookmarks deletes the
+ * catalog's /Outlines entry).
+ */
 export const EditBookmarksInputSchema = z
   .object({
     filePath: z.string().min(1),
-    bookmarks: z.array(BookmarkNodeSchema).min(1),
+    bookmarks: z.array(BookmarkNodeSchema).min(0),
   })
   .strict();
 export type EditBookmarksInput = z.infer<typeof EditBookmarksInputSchema>;

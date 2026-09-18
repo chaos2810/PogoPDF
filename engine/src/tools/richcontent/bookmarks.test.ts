@@ -75,6 +75,26 @@ describe("bookmark view and edit", () => {
     expect(result.bookmarks).toEqual([]);
   });
 
+  it("clears an existing outline when edited with an empty list", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogopdf-bm-"));
+    const path = await fixtureWithOutline(work);
+    // Sanity: the fixture really has an outline before the clear.
+    const before = (await runViewBookmarks({ filePath: path }, ctx, work)) as {
+      bookmarks: unknown[];
+    };
+    expect(before.bookmarks.length).toBeGreaterThan(0);
+
+    const cleared = await runEditBookmarks(
+      { filePath: path, bookmarks: [] },
+      ctx,
+      work
+    );
+    const after = (await runViewBookmarks({ filePath: cleared }, ctx, work)) as {
+      bookmarks: unknown[];
+    };
+    expect(after.bookmarks).toEqual([]);
+  });
+
   it("roundtrips a CJK bookmark title through PDFHexString", async () => {
     const work = mkdtempSync(join(tmpdir(), "pogopdf-bm-"));
     await makePdf(join(work, "cjk.pdf"), 1);

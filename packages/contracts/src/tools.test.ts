@@ -943,8 +943,14 @@ describe("EditBookmarksInputSchema", () => {
     });
     expect(parsed.bookmarks[0].children[0].children[0].title).toBe("Sub 1.1.1");
   });
-  it("rejects an empty bookmarks array (min 1)", () => {
-    expect(EditBookmarksInputSchema.safeParse({ filePath: PDF, bookmarks: [] }).success).toBe(false);
+  it("accepts an empty bookmarks array (clears the outline)", () => {
+    const parsed = EditBookmarksInputSchema.parse({ filePath: PDF, bookmarks: [] });
+    expect(parsed.bookmarks).toEqual([]);
+  });
+  it("still rejects unknown keys on the empty-list form via .strict()", () => {
+    expect(
+      EditBookmarksInputSchema.safeParse({ filePath: PDF, bookmarks: [], replace: true }).success
+    ).toBe(false);
   });
   it("rejects a nested node with page below 1", () => {
     expect(EditBookmarksInputSchema.safeParse({
