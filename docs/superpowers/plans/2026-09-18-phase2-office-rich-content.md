@@ -218,7 +218,7 @@ Add screens for office, rich content, OCR, and attachment tools
 
 **Files:** build-release.ps1 (stage lo-bin program tree + ocr-data into the deps tar - LO adds ~700MB-1GB raw; zstd-compressed embedded blob grows accordingly - RECORD the final exe size honestly; if the embedded blob exceeds practical single-exe limits (>~500MB compressed), DECIDE + document: keep embedding (single-file goal) vs optional office component fetched on first use - present the size to the user for the call), THIRD-PARTY-NOTICES (LibreOffice MPL block + tesseract data), smoke-release gains office conversion (gated on staged soffice), native-modules.md updated.
 - [x] `npx tauri build` green; headless verification incl. office conversion from the installed exe (if embedded) - fresh-cache extraction timing will grow; record
-- [x] Full suite + both visual gates green -> Phase 2 complete gate: present the exe-size delta + timing to the user before declaring done
+- [ ] Full suites green; visual gates not needed for this task (no UI or engine source changes; the release script, Rust-free) -> Phase 2 complete gate: present the exe-size delta + timing to the user before declaring done
 
 **Task 11 result (Option A: embed everything trimmed).** The user chose to keep
 the offline single-exe promise. `build-release.ps1` stages `lo-bin/` to `lo/`
