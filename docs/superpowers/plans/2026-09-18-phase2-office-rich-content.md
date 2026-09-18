@@ -217,8 +217,19 @@ Add screens for office, rich content, OCR, and attachment tools
 ### Task 11: Release packing - LibreOffice + mupdf + OCR data + wrap gate
 
 **Files:** build-release.ps1 (stage lo-bin program tree + ocr-data into the deps tar - LO adds ~700MB-1GB raw; zstd-compressed embedded blob grows accordingly - RECORD the final exe size honestly; if the embedded blob exceeds practical single-exe limits (>~500MB compressed), DECIDE + document: keep embedding (single-file goal) vs optional office component fetched on first use - present the size to the user for the call), THIRD-PARTY-NOTICES (LibreOffice MPL block + tesseract data), smoke-release gains office conversion (gated on staged soffice), native-modules.md updated.
-- [ ] `npx tauri build` green; headless verification incl. office conversion from the installed exe (if embedded) - fresh-cache extraction timing will grow; record
-- [ ] Full suite + both visual gates green -> Phase 2 complete gate: present the exe-size delta + timing to the user before declaring done
+- [x] `npx tauri build` green; headless verification incl. office conversion from the installed exe (if embedded) - fresh-cache extraction timing will grow; record
+- [x] Full suite + both visual gates green -> Phase 2 complete gate: present the exe-size delta + timing to the user before declaring done
+
+**Task 11 result (Option A: embed everything trimmed).** The user chose to keep
+the offline single-exe promise. `build-release.ps1` stages `lo-bin/` to `lo/`
+with robocopy exclusions (dict-* extensions, *.mo, help, readmes, gallery):
+1504 MB raw to 760 MB staged. The deps tar went from 211 MB to 968 MB; the
+zstd-embedded deps blob is 258.5 MB; `pogopdf.exe` is 293.0 MB; installers are
+286.5 MB (MSI) and 287.8 MB (NSIS). First launch with a wiped cache spawned the
+engine at 13.2 s (the user's required measurement); the second launch reused the
+cache in 1.0 s. Both the staged-pair and the extracted installed-layout smoke
+runs pass, including a docx converted through the trimmed `lo/` tree with its
+text extracted. No zombies, no `.tmp` leftovers.
 
 ---
 
