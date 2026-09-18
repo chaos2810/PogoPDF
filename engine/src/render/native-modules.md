@@ -57,7 +57,7 @@ conversion reads are staged, using `robocopy` with exclusions:
 
 - `share/extensions/dict-*` (spell-check dictionaries, ~455 MB)
 - all `*.mo` files (translated UI strings, ~262 MB)
-- `help/` (~11 MB), `readmes/` (~2 MB), `share/gallery/` (~13 MB)
+- top-level `help/` (~11 MB; a few MB of nested help dirs inside share/extensions remain and are harmless), `readmes/` (~2 MB), `share/gallery/` (~13 MB)
 
 That takes the staged tree from ~1504 MB raw to ~760 MB. Retained: `program/`,
 `Fonts/`, `presets/`, `share/config`, `share/registry`, `share/xpdfimport`, and
