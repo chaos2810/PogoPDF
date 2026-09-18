@@ -71,7 +71,10 @@ export function registerFileCopy(
 /**
  * The attachments editor lists embedded files before running the edit tool.
  * This is an RPC method (like file.copy), not a tool: it returns its data
- * directly rather than through the job queue.
+ * directly rather than through the job queue. Each entry carries a stable `id`
+ * (its index in the list) so the UI can key duplicate-named rows without them
+ * collapsing. `removeNames` stays name-based: the tool removes the FIRST match
+ * per name, so checking any row sends that name once.
  */
 export function registerAttachmentsList(
   dispatcher: ReturnType<typeof createDispatcher>
@@ -81,7 +84,8 @@ export function registerAttachmentsList(
     async (params) => {
       const p = AttachmentsListParamsSchema.parse(params);
       const doc = await loadPdf(p.filePath, { updateMetadata: false });
-      return { attachments: listEmbeddedFiles(doc) };
+      const attachments = listEmbeddedFiles(doc).map((entry, id) => ({ id, ...entry }));
+      return { attachments };
     },
     AttachmentsListParamsSchema
   );

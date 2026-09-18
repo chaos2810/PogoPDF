@@ -346,8 +346,8 @@ describe("attachments.list RPC", () => {
           id: 1,
           result: {
             attachments: [
-              { name: "one.txt", size: 3 },
-              { name: "two.txt", size: 5 },
+              { id: 0, name: "one.txt", size: 3 },
+              { id: 1, name: "two.txt", size: 5 },
             ],
           },
         })

@@ -2,30 +2,23 @@ import { extname, join } from "node:path";
 import { readFile, writeFile, rm } from "node:fs/promises";
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
-import { ComicToPdfInputSchema, TOOL_ERROR_CODES } from "@pogopdf/contracts";
+import { ComicToPdfInputSchema } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { loadImageEmbeddable } from "../../render/decode";
 import { assertNotCancelled } from "../organize/organize";
 import { addFitImagePage } from "../convertin/imagestopdf";
 import { savePdf } from "../pdfdoc";
+import { corrupt, unsupported } from "../errors";
 
 /** Image entry extensions a comic archive may hold (the v1 image formats). */
 const IMAGE_EXT = /\.(png|jpe?g|jfif|webp|gif|bmp|tiff?)$/i;
 
-function corrupt(message: string): Error {
-  return Object.assign(new Error(message), { code: TOOL_ERROR_CODES.CORRUPT_PDF });
-}
-
-function unsupported(message: string): Error {
-  return Object.assign(new Error(message), { code: TOOL_ERROR_CODES.UNSUPPORTED_FORMAT });
-}
-
 /**
  * CBZ -> PDF: every image entry becomes one page sized to the image and drawn
- * 1:1 (the imagesToPdf "fit" path). Entries are ordered by name so page order
- * matches comic readers, which sort lexically. A zip with no image entries is
- * UNSUPPORTED_FORMAT; unreadable zip bytes are CORRUPT_PDF. CBR (rar) is not
- * supported in v1.
+ * 1:1 (the imagesToPdf "fit" path). Entries are ordered naturally by name so
+ * page order matches comic readers, which sort page-2 before page-10. A zip with
+ * no image entries is UNSUPPORTED_FORMAT; unreadable zip bytes are CORRUPT_PDF.
+ * CBR (rar) is not supported in v1.
  */
 export async function runComicToPdf(
   input: unknown,
@@ -40,7 +33,9 @@ export async function runComicToPdf(
     const zip = await JSZip.loadAsync(await readFile(filePath));
     entries = Object.values(zip.files)
       .filter((entry) => !entry.dir && IMAGE_EXT.test(entry.name))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      // Numeric-aware so page-2 precedes page-10 (plain localeCompare orders
+      // page-10 first, which scrambles unpadded comic pages).
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw corrupt(`Cannot read comic archive ${filePath}: ${msg}`);

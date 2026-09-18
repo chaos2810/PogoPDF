@@ -6,12 +6,15 @@ import { callEngine } from "../../app/rpc";
 import { FileToolScreen } from "../FileToolScreen";
 import { Hint } from "../organize/forms";
 
-type Attachment = { name: string; size: number };
+type Attachment = { id: number; name: string; size: number };
 
 export function EditAttachmentsScreen() {
   const { lang } = useApp();
   const [loaded, setLoaded] = useState<Attachment[] | null>(null);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  // Rows are keyed by the list RPC's stable id, so duplicate names are distinct
+  // rows instead of collapsing into one. The engine removes the FIRST match per
+  // name, so buildInput sends each checked name once.
+  const [checked, setChecked] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -32,11 +35,11 @@ export function EditAttachmentsScreen() {
     }
   };
 
-  const toggle = (name: string) =>
+  const toggle = (id: number) =>
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
 
@@ -47,7 +50,11 @@ export function EditAttachmentsScreen() {
       ctaKey="tool.editAttachments.cta"
       buildInput={(files) => ({
         filePath: files[0],
-        removeNames: [...checked],
+        removeNames: [
+          ...new Set(
+            (loaded ?? []).filter((a) => checked.has(a.id)).map((a) => a.name)
+          ),
+        ],
       })}
       // The list must be loaded (and at least one file ticked) before removing.
       canRun={(files) => files.length >= 1 && loaded !== null && checked.size > 0}
@@ -94,7 +101,7 @@ export function EditAttachmentsScreen() {
             >
               {loaded.map((a) => (
                 <li
-                  key={a.name}
+                  key={a.id}
                   data-testid="data-row"
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
@@ -108,8 +115,8 @@ export function EditAttachmentsScreen() {
                     <input
                       type="checkbox"
                       data-testid={`editAttachments-check-${a.name}`}
-                      checked={checked.has(a.name)}
-                      onChange={() => toggle(a.name)}
+                      checked={checked.has(a.id)}
+                      onChange={() => toggle(a.id)}
                     />
                     <span style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                       {a.name}

@@ -201,6 +201,28 @@ describe("runComicToPdf", () => {
     expect(await hasInk(out, 1)).toBe(true);
   });
 
+  it("orders unpadded page numbers naturally: page-2 precedes page-10", async () => {
+    const dir = outDir();
+    // Insertion order lists page-10 first; only numeric-aware sorting puts
+    // page-2 on page 1. localeCompare alone would also order page-10 first.
+    const src = await makeComicZip(join(dir, "natural.cbz"), [
+      { name: "page-10.png", bytes: await solidImage("png", { r: 0, g: 0, b: 255 }) },
+      { name: "page-2.png", bytes: await solidImage("png", { r: 255, g: 0, b: 0 }) },
+    ]);
+    const out = await runComicToPdf({ filePath: src }, ctx, dir);
+
+    const renderer = await getPdfRenderer(out);
+    try {
+      const first = await renderer.renderPage(0, 72);
+      const d0 = first.getContext("2d").getImageData(40, 25, 1, 1).data;
+      // Page 1 must be page-2 (red), not page-10 (blue).
+      expect(d0[0]).toBeGreaterThan(200);
+      expect(d0[2]).toBeLessThan(80);
+    } finally {
+      await renderer.close();
+    }
+  });
+
   it("maps a corrupt zip to CORRUPT_PDF", async () => {
     const dir = outDir();
     const bad = join(dir, "broken.cbz");

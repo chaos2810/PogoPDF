@@ -179,8 +179,8 @@ function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): 
   if (method === "attachments.list") {
     return {
       attachments: [
-        { name: "appendix-data.zip", size: 184320 },
-        { name: "chart.png", size: 42112 },
+        { id: 0, name: "appendix-data.zip", size: 184320 },
+        { id: 1, name: "chart.png", size: 42112 },
       ],
     };
   }
