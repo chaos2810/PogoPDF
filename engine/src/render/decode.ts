@@ -4,7 +4,7 @@ import { extname } from "node:path";
 import sharp from "sharp";
 import type { Metadata } from "sharp";
 import { createCanvas, loadImage as loadCanvasImage } from "@napi-rs/canvas";
-import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
+import { corrupt, unsupported } from "../tools/errors";
 
 /** The two containers pdf-lib can embed without re-encoding. */
 export type ImageKind = "jpg" | "png";
@@ -55,14 +55,6 @@ const SHARP_TRANSCODE: ReadonlySet<InputImageFormat> = new Set([
   "gif",
   "svg",
 ]);
-
-function corrupt(message: string): Error {
-  return Object.assign(new Error(message), { code: TOOL_ERROR_CODES.CORRUPT_PDF });
-}
-
-function unsupported(message: string): Error {
-  return Object.assign(new Error(message), { code: TOOL_ERROR_CODES.UNSUPPORTED_FORMAT });
-}
 
 function ascii(bytes: Buffer, start: number, length: number): string {
   return bytes.toString("latin1", start, start + length);

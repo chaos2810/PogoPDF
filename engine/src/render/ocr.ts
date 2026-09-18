@@ -1,8 +1,8 @@
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import Tesseract from "tesseract.js";
+import { unsupported } from "../tools/errors";
 
 /**
  * One recognized word: the text plus its tesseract bounding box in IMAGE pixels
@@ -114,11 +114,8 @@ export function findOcrDataDir(language: string): string | null {
 export function resolveOcrDataDir(language: string): string {
   const found = findOcrDataDir(language);
   if (!found) {
-    throw Object.assign(
-      new Error(
-        `OCR language data for "${language}" not found. Run engine/scripts/fetch-ocr-data.ps1`
-      ),
-      { code: TOOL_ERROR_CODES.UNSUPPORTED_FORMAT }
+    throw unsupported(
+      `OCR language data for "${language}" not found. Run engine/scripts/fetch-ocr-data.ps1`
     );
   }
   return found;

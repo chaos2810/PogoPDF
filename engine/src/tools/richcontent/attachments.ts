@@ -5,11 +5,11 @@ import {
   AddAttachmentsInputSchema,
   EditAttachmentsInputSchema,
   ExtractAttachmentsInputSchema,
-  TOOL_ERROR_CODES,
 } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { assertNotCancelled } from "../organize/organize";
 import { loadPdf, savePdf } from "../pdfdoc";
+import { corrupt, unsupported } from "../errors";
 import {
   getEmbeddedFile,
   listEmbeddedFileEntries,
@@ -17,9 +17,7 @@ import {
 } from "./embeddedfiles";
 
 function missingFile(path: string): Error {
-  return Object.assign(new Error(`File not found: ${path}`), {
-    code: TOOL_ERROR_CODES.CORRUPT_PDF,
-  });
+  return corrupt(`File not found: ${path}`);
 }
 
 /** Last path segment, stripped of both separator styles on any platform. */
@@ -78,9 +76,7 @@ export async function runExtractAttachments(
   const doc = await loadPdf(filePath, { updateMetadata: false });
   const files = listEmbeddedFileEntries(doc);
   if (files.length === 0) {
-    throw Object.assign(new Error("No embedded files in this PDF"), {
-      code: TOOL_ERROR_CODES.UNSUPPORTED_FORMAT,
-    });
+    throw unsupported("No embedded files in this PDF");
   }
 
   const used = new Set<string>();

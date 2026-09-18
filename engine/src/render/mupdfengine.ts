@@ -2,6 +2,7 @@
 import { extname } from "node:path";
 import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import type * as Mupdf from "mupdf";
+import { corrupt, unsupported } from "../tools/errors";
 
 export type RichDocumentKind = "ebook" | "xps";
 
@@ -31,14 +32,6 @@ const XPS_MAGIC: Record<string, string> = {
   xps: "application/oxps",
   oxps: "application/oxps",
 };
-
-function corrupt(message: string): Error {
-  return Object.assign(new Error(message), { code: TOOL_ERROR_CODES.CORRUPT_PDF });
-}
-
-function unsupported(message: string): Error {
-  return Object.assign(new Error(message), { code: TOOL_ERROR_CODES.UNSUPPORTED_FORMAT });
-}
 
 /** The mupdf content-type hint for a path, or a typed UNSUPPORTED_FORMAT. */
 function magicFor(path: string, kind: RichDocumentKind): string {
