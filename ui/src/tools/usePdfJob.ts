@@ -32,6 +32,12 @@ export function usePdfJob(
   // The latest progress notification, kept whole so a screen can react to a
   // specific stage (OCR's "ocr.droppedLines" warning).
   const [lastProgress, setLastProgress] = useState<ProgressPayload | null>(null);
+  // A latch for terminal warning stages. The engine emits a generic
+  // stage:"done" notification AFTER every tool returns, so a warning stage
+  // (OCR's dropped searchable lines) would be overwritten if the UI derived its
+  // banner from the single latest payload. Keep the warning separately so it
+  // survives later progress events until the next run/reset.
+  const [warning, setWarning] = useState<ProgressPayload | null>(null);
   // Set while a job is in flight so the running card can cancel it.
   const jobIdRef = useRef<string | null>(null);
 
@@ -40,6 +46,7 @@ export function usePdfJob(
       onProgress((p) => {
         setPercent(p.percent);
         setLastProgress(p);
+        if (p.stage === "ocr.droppedLines" && p.pagesDone > 0) setWarning(p);
       }),
     []
   );
@@ -79,6 +86,7 @@ export function usePdfJob(
     setErrorCode(undefined);
     setData(null);
     setLastProgress(null);
+    setWarning(null);
     jobIdRef.current = null;
   };
 
@@ -104,9 +112,9 @@ export function usePdfJob(
     if (files.length === 0) return;
     setPhase("running");
     setPercent(0);
-    // A fresh job must not inherit the previous run's final stage (the OCR
-    // dropped-lines warning is derived from the last notification).
+    // A fresh job must not inherit the previous run's warning.
     setLastProgress(null);
+    setWarning(null);
     try {
       const result = await startJob(toolId, buildInput(files), {
         onJobId: (id) => {
@@ -141,6 +149,7 @@ export function usePdfJob(
     data,
     setData,
     lastProgress,
+    warning,
     isDragActive,
     reset,
     cancel,

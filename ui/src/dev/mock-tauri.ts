@@ -207,17 +207,29 @@ function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): 
         : state.outputPaths
           ? { jobId: params.jobId, outputPaths: state.outputPaths.slice() }
           : { jobId: params.jobId, outputPath: state.outputPath };
+    // The real engine emits a terminal stage:"done" progress notification after
+    // EVERY successful job returns. Mirror it so the gates exercise the real
+    // lifecycle (a tool warning stage must survive this later event). Error and
+    // cancel settlements emit nothing, exactly like the engine.
+    const emitDone = () =>
+      emit("engine://progress", {
+        jsonrpc: "2.0",
+        method: "progress",
+        params: { jobId: params.jobId, percent: 100, stage: "done", pagesDone: 0 },
+      });
     if (state.jobMode === "hold") {
       return new Promise((resolve, reject) => {
         state.resolveJob = (settle) => {
           if (settle === "cancel") {
             reject(JSON.stringify({ code: -32005, message: "Job cancelled" }));
           } else {
+            emitDone();
             resolve(result);
           }
         };
       });
     }
+    emitDone();
     return result;
   }
   if (method === "job.cancel") {

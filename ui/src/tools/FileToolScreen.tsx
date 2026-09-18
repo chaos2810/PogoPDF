@@ -69,7 +69,7 @@ export function FileToolScreen({
     percent,
     error,
     errorCode,
-    lastProgress,
+    warning,
     isDragActive,
     reset,
     cancel,
@@ -99,7 +99,9 @@ export function FileToolScreen({
       throw new Error("Expected a file result");
     });
 
-  const warningKey = progressWarningKey ? progressWarningKey(lastProgress) : null;
+  // The warning comes from the latch (usePdfJob), not the single latest
+  // progress payload, so the engine's terminal done notification cannot hide it.
+  const warningKey = progressWarningKey ? progressWarningKey(warning) : null;
 
   // Notify only when the file list actually changes, not on the initial mount
   // (the attachment editor clears its loaded list on a genuine replacement).
