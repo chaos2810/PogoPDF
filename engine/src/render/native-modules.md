@@ -47,6 +47,26 @@ protect/unlock/flatten find the binary in both dev and release layouts. If
 `qpdf-bin/` is absent the build warns loudly and still produces a release without
 the secure tools (their runtime error is the typed "qpdf not found").
 
+`LibreOffice` is likewise not a Node package: `build-release.ps1` stages the
+trimmed `engine/lo-bin/` tree into `engine-deps-<id>/lo/`, which is exactly the
+location `resolveSoffice()` (`engine/src/tools/office/libreoffice.ts`) resolves
+from the release spawn cwd (`cwd/lo/program/soffice.exe`). `soffice.exe` is a
+launcher that loads `soffice.bin` and every DLL from its own `program/`
+directory, so the whole `program/` tree ships. Only the pieces headless PDF
+conversion reads are staged, using `robocopy` with exclusions:
+
+- `share/extensions/dict-*` (spell-check dictionaries, ~455 MB)
+- all `*.mo` files (translated UI strings, ~262 MB)
+- `help/` (~11 MB), `readmes/` (~2 MB), `share/gallery/` (~13 MB)
+
+That takes the staged tree from ~1504 MB raw to ~760 MB. Retained: `program/`,
+`Fonts/`, `presets/`, `share/config`, `share/registry`, `share/xpdfimport`, and
+the root license files (`license.txt`, `LICENSE.html`, `NOTICE`,
+`CREDITS.fodt`, `version.ini` build id). The trim was verified by converting a
+docx through it and extracting the PDF text. If `lo-bin/` is absent the build
+warns loudly and omits the office tools (their runtime error is the typed
+"LibreOffice not found"); the smoke test's office case skips with a note.
+
 On Windows there is **no separate `@img/sharp-libvips` runtime package**:
 `@img/sharp-win32-x64` itself contains `lib/libvips-42.dll` and
 `lib/libvips-cpp-*.dll`. `@img/sharp-libvips-*` exists only as a build-time/dev
@@ -95,6 +115,10 @@ This is why the release engine is a two-part payload rather than one blob.
       `parse5`, `css-tree`, `undici`, `tough-cookie`, `whatwg-*`)
     - `qpdf/qpdf.exe` + `qpdf/qpdf29.dll` + the MSVC runtime DLLs, staged from
       `engine/qpdf-bin/` so `resolveQpdf()` finds them under the release cwd
+    - `lo/program/soffice.exe` + the rest of the trimmed LibreOffice tree, staged
+      from `engine/lo-bin/` so `resolveSoffice()` finds them under the release cwd
+    - `ocr-data/*.traineddata`, staged from `engine/ocr-data/` so `resolveOcrDataDir()`
+      finds them under the release cwd
 
 Both artifacts share one **build id** (sha256 over both files) in their names:
 `engine-<id>.exe` and `engine-deps-<id>/`. The bootstrap derives its deps
@@ -173,3 +197,9 @@ Nothing here affects development: `npm run app` runs the engine through
   count. Run against both the staged pair and the engine extracted under
   `%LOCALAPPDATA%\PogoPDF\bin\`, it proves `resolveQpdf()` finds the staged
   `qpdf/qpdf.exe` (and its DLLs) in the real release layout.
+- `smoke-release.mjs` (Task 11, Phase 2) crafts a minimal docx through the shared
+  `engine/src/testing/ooxml.ts` builder, converts it with the staged `lo/` tree,
+  and reads the fixture text back out through `pdfToText`. That proves both that
+  `resolveSoffice()` finds `lo/program/soffice.exe` under the release cwd and
+  that the trimmed tree still performs a headless conversion. The case skips with
+  a loud note when no `lo/` was staged, matching the qpdf missing-binary gate.

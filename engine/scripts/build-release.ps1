@@ -181,6 +181,46 @@ process.stdout.write(JSON.stringify(out));
         Write-Warning "ocr-data not found: the release will omit OCR language data and the ocr tool will fail at runtime with 'language data not found'. Run engine/scripts/fetch-ocr-data.ps1 and rebuild."
     }
 
+    # LibreOffice (MPL-2.0) backs officeToPdf for doc/docx/rtf/odt/xls/xlsx/ods/
+    # ppt/pptx/odp/odg. The whole tree is staged at lo/, because resolveSoffice
+    # (office/libreoffice.ts) resolves <deps>/lo/program/soffice.exe from the
+    # release spawn cwd, and soffice.exe is a launcher that loads soffice.bin plus
+    # its DLLs from its own program/ directory.
+    #
+    # Only the pieces headless PDF conversion needs are staged. robocopy is used
+    # because the exclusion list mixes directory names (help, readmes,
+    # share/gallery), a wildcard directory family (share/extensions/dict-*), and
+    # a file wildcard (*.mo). Dictionaries are spell-check data, .mo files are
+    # translated UI strings, and help/readmes/gallery are never read by
+    # `--headless --convert-to`; together they are ~740 MB of the 1.5 GB tree.
+    # A missing tree warns loudly and skips, matching the qpdf/ocr-data pattern:
+    # the release still builds, the office tools fail typed at runtime, and the
+    # smoke test's office case is skipped with a note.
+    $loSrc = Join-Path (Resolve-Path .).Path "lo-bin"
+    $loDest = Join-Path $deps "lo"
+    if (Test-Path (Join-Path $loSrc "program\soffice.exe")) {
+        # robocopy copies from a source into a destination root; stage into lo/
+        # under the deps root rather than copying lo-bin/ to a sibling.
+        $dictDirs = Get-ChildItem (Join-Path $loSrc "share\extensions") -Directory -Filter "dict-*" -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.FullName }
+        $exclDirs = @() + $dictDirs + @(
+            (Join-Path $loSrc "help"),
+            (Join-Path $loSrc "readmes"),
+            (Join-Path $loSrc "share\gallery")
+        )
+        # /NFL /NDL /NJH /NP keep the per-file/per-dir lines out of the build log.
+        & robocopy $loSrc $loDest /E /XD @exclDirs /XF *.mo /NFL /NDL /NJH /NP | Out-Null
+        # robocopy exit codes 0..7 are success (bit flags for copied/skipped/
+        # mismatched items); 8 and above are failures.
+        if ($LASTEXITCODE -ge 8) { throw "robocopy of LibreOffice failed with exit code $LASTEXITCODE" }
+        $loStats = Get-ChildItem $loDest -Recurse -File | Measure-Object Length -Sum
+        $loMb = "{0:N1} MB" -f ($loStats.Sum / 1MB)
+        Write-Output "lo: staged $($loStats.Count) file(s), $loMb at lo/ in the deps tar (trimmed: dict-*, *.mo, help/, readmes/, gallery/)"
+    }
+    else {
+        Write-Warning "lo-bin not found: the release will omit LibreOffice and officeToPdf (docx/xlsx/pptx/odt/...) will fail at runtime with 'LibreOffice not found'. Run engine/scripts/fetch-libreoffice.ps1 and rebuild."
+    }
+
     # Archive the tree (bsdtar ships with Windows 10+). Extracted at runtime by
     # the Rust app into %LOCALAPPDATA%\PogoPDF\bin\engine-<hash>\.
     $depsTar = Join-Path (Resolve-Path .).Path "dist\engine-deps.tar"

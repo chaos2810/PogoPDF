@@ -1,13 +1,15 @@
-﻿// Smoke-test a staged release engine: ping, a pdfToImages job, and a
-// protect -> unlock roundtrip backed by the staged qpdf, end-to-end.
+﻿// Smoke-test a staged release engine: ping, a pdfToImages job, an OCR job, and
+// a protect -> unlock roundtrip backed by the staged qpdf. When LibreOffice is
+// staged (deps/lo/program/soffice.exe) an office conversion case also runs.
 //
 // Usage: node engine/scripts/smoke-release.mjs <engine.exe> <fixture.pdf>
 // The engine is run against the sibling engine-deps-<id>/ directory (the same
 // layout src-tauri produces), so this exercises the SEA bootstrap, the native
-// module resolution, and the release qpdf layout (deps/qpdf/) without building
-// the whole app.
+// module resolution, the release qpdf layout (deps/qpdf/), and the staged
+// LibreOffice layout (deps/lo/) without building the whole app.
 import { spawn } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 
@@ -37,6 +39,29 @@ const qpdfExe = join(deps, "qpdf", "qpdf.exe");
 if (!statSync(qpdfExe, { throwIfNoEntry: false })?.isFile()) {
   console.error(`missing staged qpdf at ${qpdfExe}`);
   process.exit(2);
+}
+
+// LibreOffice is staged at deps/lo/ (build-release.ps1) and resolved by
+// resolveSoffice() from the release spawn cwd. Its case is optional: a release
+// built without engine/lo-bin is still smoke-testable for everything else.
+const sofficeExe = join(deps, "lo", "program", "soffice.exe");
+const hasSoffice = statSync(sofficeExe, { throwIfNoEntry: false })?.isFile() === true;
+if (!hasSoffice) {
+  console.warn(`[smoke] no staged LibreOffice at ${sofficeExe}; skipping the office conversion case.`);
+}
+
+// Load the repo's OOXML fixture builder (TypeScript) through tsx so the docx
+// crafted here is byte-for-byte the one the engine tests use.
+async function loadDocxBuilder() {
+  const { register } = await import("tsx/esm/api");
+  const unregister = register();
+  try {
+    const mod = await import("../src/testing/ooxml.ts");
+    return { makeDocx: mod.makeDocx, unregister };
+  } catch (e) {
+    if (typeof unregister === "function") unregister();
+    throw e;
+  }
 }
 
 const child = spawn(exe, [], { cwd: deps, stdio: ["pipe", "pipe", "pipe"] });
@@ -103,6 +128,10 @@ const request = (method, params) =>
   });
 
 const uuid = (n) => `${String(n).repeat(8)}-1111-4111-8111-111111111111`;
+
+// Office conversion scratch (the crafted docx + its output) is removed whichever
+// path the smoke takes.
+let scratch = null;
 
 async function main() {
   const pong = await request("engine.ping");
@@ -183,22 +212,73 @@ async function main() {
     );
   }
 
+  // LibreOffice-backed conversion: craft a minimal docx, convert it through the
+  // STAGED lo/ tree, then prove the output is a real PDF whose text is
+  // extractable. This exercises build-release's trimmed lo/ layout end-to-end:
+  // resolveSoffice() finds deps/lo/program/soffice.exe from the release spawn
+  // cwd, and soffice.bin plus its DLLs all live under that same program/ dir.
+  // The office case is skipped (loudly) when no lo/ was staged.
+  let officeSummary = "office skipped (no staged LibreOffice)";
+  if (hasSoffice) {
+    scratch = mkdtempSync(join(tmpdir(), "pogopdf-smoke-office-"));
+    const { makeDocx, unregister } = await loadDocxBuilder();
+    let docx;
+    try {
+      docx = await makeDocx(join(scratch, "smoke.docx"), "Hello Office Smoke");
+    } finally {
+      if (typeof unregister === "function") unregister();
+    }
+
+    const converted = await request("job.start", {
+      jobId: uuid(5),
+      toolId: "officeToPdf",
+      input: { filePath: docx },
+    });
+    const convertedPath = converted.outputPath;
+    if (!convertedPath?.toLowerCase().endsWith(".pdf")) {
+      throw new Error("officeToPdf did not return a .pdf: " + convertedPath);
+    }
+    if (readFileSync(convertedPath).subarray(0, 4).toString("ascii") !== "%PDF") {
+      throw new Error("converted office output is not a PDF: " + convertedPath);
+    }
+    const convertedDoc = await PDFDocument.load(readFileSync(convertedPath));
+    if (convertedDoc.getPageCount() < 1) {
+      throw new Error("converted office PDF has no pages");
+    }
+
+    // Extract the text back through the engine (pdfToText) to prove the
+    // document rendered rather than producing a blank page.
+    const textResult = await request("job.start", {
+      jobId: uuid(6),
+      toolId: "pdfToText",
+      input: { filePath: convertedPath },
+    });
+    const textPath = textResult.outputPath;
+    const text = readFileSync(textPath, "utf8");
+    if (!text.includes("Hello Office Smoke")) {
+      throw new Error("converted office PDF text did not contain the fixture paragraph");
+    }
+    officeSummary = `office docx conversion (${convertedDoc.getPageCount()} page(s), text verified)`;
+  }
+
   if (err.trim()) throw new Error("stderr not clean: " + err.trim());
   console.log(
     `PASS: ping + pdfToImages (${raster.outputPaths.length} page(s)) + ocr ` +
       `(${ocr.outputPaths.length} txt) + protect/unlock ` +
-      `roundtrip (${unlocked.getPageCount()} page(s)) via ${depsName}`
+      `roundtrip (${unlocked.getPageCount()} page(s)) + ${officeSummary} via ${depsName}`
   );
 }
 
 main().then(
   () => {
     clearTimeout(timer);
+    if (scratch) rmSync(scratch, { recursive: true, force: true });
     child.kill();
     process.exit(0);
   },
   (e) => {
     clearTimeout(timer);
+    if (scratch) rmSync(scratch, { recursive: true, force: true });
     console.error("FAIL\n" + (e?.message ?? e) + (out || err ? "\n" + out + "\n" + err : ""));
     child.kill();
     process.exit(1);

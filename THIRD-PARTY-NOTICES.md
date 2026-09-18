@@ -48,11 +48,13 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | tesseract language data (eng, chi_tra, chi_sim, jpn, kor, deu, fra, spa) | tessdata_fast, main | Apache-2.0 |
 | qpdf (qpdf.exe + qpdf29.dll + MSVC runtime DLLs) | 11.10.1 | Apache-2.0 |
 | mupdf (MuPDF.js wasm) | 1.28.1 | **AGPL-3.0-or-later** |
+| LibreOffice (headless `soffice`) | 26.2.6 | **MPL-2.0** with LGPL-3.0-or-later components |
 
 `engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
 copied into `engine-deps-<id>/`; `qpdf.exe` and its runtime DLLs are copied into
 `engine-deps-<id>/qpdf/`; the OCR language data is copied into
-`engine-deps-<id>/ocr-data/`; the remaining packages are copied under
+`engine-deps-<id>/ocr-data/`; the trimmed LibreOffice tree is copied into
+`engine-deps-<id>/lo/`; the remaining packages are copied under
 `engine-deps-<id>/node_modules/`. This includes the transitive dependency trees
 of `pdfkit` (fontkit, linebreak, png-js, @noble/ciphers, @noble/hashes, fflate,
 …; MIT) and `jsdom` (parse5, css-tree, tough-cookie, undici, whatwg-*, …), whose
@@ -163,3 +165,45 @@ location at runtime. (If the application is ever updated, the extracted
 
 The corresponding libvips source for the shipped build is available from the
 sharp project's release artifacts and the libvips repository linked above.
+
+## LibreOffice (office document conversion)
+
+PogoPDF's engine ships **LibreOffice** 26.2.6 for `officeToPdf`: headless
+`soffice.exe --convert-to pdf` converts Word, Excel, PowerPoint, RTF, and ODF
+documents. LibreOffice is invoked as a spawned command-line process, not linked
+into `pogopdf.exe`.
+
+- The Document Foundation, <https://www.libreoffice.org>
+- LibreOffice is primarily licensed under the **Mozilla Public License 2.0
+  (MPL-2.0)**, <https://www.mozilla.org/MPL/2.0/>
+- It bundles components under other licenses, including **LGPL-3.0-or-later**
+  (for example, the HarfBuzz and libxml2-family libraries and several UNO
+  pieces). The complete per-file license texts ship with the tree at
+  `engine-deps-<id>/lo/license.txt`, `lo/LICENSE.html`, `lo/NOTICE`, and
+  `lo/CREDITS.fodt`; upstream records the full component license inventory at
+  <https://www.libreoffice.org/about-us/licenses/>.
+
+Under MPL-2.0 §3.3 ("Distribution of a Larger Work"), the MPL permits combining
+LibreOffice with PogoPDF's AGPL-3.0 code; that is the **Secondary License**
+provision that lets an MPL-2.0 file be included in a Larger Work under the terms
+of a secondary license. PogoPDF does not modify LibreOffice.
+
+### Staged layout and trim
+
+Only the files headless PDF conversion reads are shipped. `build-release.ps1`
+stages `engine/lo-bin/` into `engine-deps-<id>/lo/`, excluding:
+
+- `share/extensions/dict-*` (spell-check dictionaries, ~455 MB)
+- all `*.mo` files (translated user-interface strings, ~262 MB; headless
+  conversion renders documents, not the UI)
+- `help/` (~11 MB), `readmes/` (~2 MB), and `share/gallery/` (~13 MB)
+
+The retained tree is `program/` (the `soffice.exe` launcher, `soffice.bin`, and
+its DLLs, which all resolve from the executable's own directory), `Fonts/`,
+`presets/`, `share/config`, `share/registry`, and `share/xpdfimport`. This trim
+was verified by converting a docx through the trimmed tree and extracting the
+resulting text. The version, build id, and license files are retained.
+
+If `engine/lo-bin/` is absent, `build-release.ps1` warns loudly and builds a
+release without the office tools; `officeToPdf` then fails with a typed
+unsupported-format error naming `engine/scripts/fetch-libreoffice.ps1`.
