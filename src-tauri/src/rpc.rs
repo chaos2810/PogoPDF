@@ -22,7 +22,7 @@ pub struct EngineProcess {
     // sidecar state hand out shared `Arc<EngineProcess>` handles instead of
     // holding a lock for the whole (possibly long) engine call.
     child: Mutex<Child>,
-    stdin: Mutex<ChildStdin>,
+    stdin: Mutex<Option<ChildStdin>>,
     next_id: AtomicU64,
     pending: Arc<Mutex<HashMap<u64, tokio::sync::oneshot::Sender<Value>>>>,
     reader: Mutex<Option<std::thread::JoinHandle<()>>>,
@@ -100,7 +100,7 @@ impl EngineProcess {
 
         Ok(Self {
             child: Mutex::new(child),
-            stdin: Mutex::new(stdin),
+            stdin: Mutex::new(Some(stdin)),
             next_id: AtomicU64::new(1),
             pending,
             reader: Mutex::new(Some(reader)),
@@ -125,14 +125,18 @@ impl EngineProcess {
             "params": params,
         });
         {
-            let mut stdin = self.stdin.lock().unwrap();
-            if let Err(e) = writeln!(*stdin, "{request}") {
-                drop(stdin);
+            let mut stdin_slot = self.stdin.lock().unwrap();
+            let Some(stdin) = stdin_slot.as_mut() else {
+                self.pending.lock().unwrap().remove(&id);
+                return Err("engine stdin closed".to_string());
+            };
+            if let Err(e) = writeln!(stdin, "{request}") {
+                drop(stdin_slot);
                 self.pending.lock().unwrap().remove(&id);
                 return Err(format!("engine stdin write failed: {e}"));
             }
             if let Err(e) = stdin.flush() {
-                drop(stdin);
+                drop(stdin_slot);
                 self.pending.lock().unwrap().remove(&id);
                 return Err(format!("engine stdin flush failed: {e}"));
             }
@@ -148,13 +152,29 @@ impl EngineProcess {
     /// Kill the child, wait for it to exit, and drop every parked sender. Takes
     /// `&self` so callers holding an `Arc` can kill without a mutable borrow.
     pub fn kill(&self) {
-        // Dropping stdin signals the engine watchdog (`process.stdin.on("end")`)
-        // to exit even before the kill lands; both paths are fine.
-        {
+        // Close stdin FIRST by taking the ChildStdin out of the mutex:
+        // dropping it closes the pipe, which fires the engine watchdog
+        // (`process.stdin.on("end") -> process.exit(0)`). Its exit hooks
+        // kill an in-flight soffice conversion. If the engine has not
+        // exited after a short grace window, kill hard as a fallback.
+        drop(self.stdin.lock().unwrap().take());
+        let graceful = {
             let mut child = self.child.lock().unwrap();
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+            let mut exited = false;
+            for _ in 0..20 {
+                if let Ok(Some(_)) = child.try_wait() {
+                    exited = true;
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            if !exited {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            exited
+        };
+        let _ = graceful;
         self.reader.lock().unwrap().take();
         // Drop any in-flight senders even if the reader thread has not observed EOF yet.
         self.pending.lock().unwrap().clear();
