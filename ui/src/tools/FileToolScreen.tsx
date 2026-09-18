@@ -1,21 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { useApp } from "../app/store";
 import { t } from "@pogopdf/i18n";
 import { pickPdfs, type ProgressPayload } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
 import { usePdfJob } from "./usePdfJob";
-import {
-  CARD_STYLE,
-  DropZone,
-  ErrorCard,
-  Footnote,
-  JobWarning,
-  Queue,
-  RunningCard,
-  ToolHeader,
-  ValidationMessage,
-} from "./SharedToolParts";
+import { ToolFrame } from "./ToolFrame";
 
 export type FileToolScreenProps = {
   toolId: string;
@@ -60,21 +49,11 @@ export function FileToolScreen({
   dropKeys,
   progressWarningKey,
 }: FileToolScreenProps) {
-  const { lang, navigate } = useApp();
-  const {
-    files,
-    setFiles,
-    phase,
-    setPhase,
-    percent,
-    error,
-    errorCode,
-    warning,
-    isDragActive,
-    reset,
-    cancel,
-    run,
-  } = usePdfJob(toolId, buildInput, { multiple: acceptMultiple, extensions });
+  const job = usePdfJob(toolId, buildInput, {
+    multiple: acceptMultiple,
+    extensions,
+  });
+  const { files, setFiles, reset, warning, run } = job;
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [outputPaths, setOutputPaths] = useState<string[] | null>(null);
 
@@ -136,91 +115,43 @@ export function FileToolScreen({
     );
   };
 
+  const renderDone = () => {
+    if (outputPaths) return <SaveAsBar outputPaths={outputPaths} onReset={handleReset} />;
+    if (outputPath) return <SaveAsBar outputPath={outputPath} onReset={handleReset} />;
+    return null;
+  };
+
   return (
-    <main style={{ padding: 24, width: "100%", maxWidth: 720, margin: "0 auto" }}>
-      <ToolHeader toolId={toolId} onBack={() => navigate({ kind: "home" })} />
-
-      {phase === "pick" && (
-        <div style={CARD_STYLE}>
-          <DropZone
-            toolId={toolId}
-            isDragActive={isDragActive}
-            multiple={acceptMultiple}
-            onClick={() => void pick()}
-            dropKeys={dropKeys}
-          />
-
-          <Footnote footnoteKey={footnoteKey} />
-
-          <Queue
-            toolId={toolId}
-            files={files}
-            onRemove={(path) => setFiles((prev) => prev.filter((x) => x !== path))}
-            onAddMore={acceptMultiple ? () => void pick() : undefined}
-          />
-
-          {optionsNode && (
-            <div
-              data-testid="options-form"
-              // Two columns on wide cards so tall option forms stay inside the
-              // viewport with the CTA; single column when narrow.
-              style={{
-                marginTop: 16,
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                columnGap: 16,
-              }}
-            >
-              {optionsNode}
-            </div>
-          )}
-
-          <ValidationMessage toolId={toolId} errorKey={showError} />
-
-          <button
-            data-testid={`${toolId}-cta`}
-            disabled={!runnable}
-            onClick={start}
+    <ToolFrame
+      toolId={toolId}
+      job={job}
+      ctaKey={ctaKey}
+      canRun={runnable}
+      validationKey={showError}
+      acceptMultiple={acceptMultiple}
+      onPick={() => void pick()}
+      onRun={start}
+      dropKeys={dropKeys}
+      footnoteKey={footnoteKey}
+      pickContent={
+        optionsNode ? (
+          <div
+            data-testid="options-form"
+            // Two columns on wide cards so tall option forms stay inside the
+            // viewport with the CTA; single column when narrow.
             style={{
-              marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
-              fontWeight: 700, border: "none", cursor: runnable ? "pointer" : "not-allowed",
-              background: runnable ? "var(--accent)" : "var(--border)",
-              color: runnable ? "var(--accent-contrast)" : "var(--muted)",
+              marginTop: 16,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              columnGap: 16,
             }}
           >
-            {t(ctaKey, lang)}
-          </button>
-        </div>
-      )}
-
-      {phase === "running" && (
-        <RunningCard toolId={toolId} percent={percent} onCancel={() => void cancel()} />
-      )}
-
-      {phase === "done" && outputPaths && (
-        <div style={CARD_STYLE}>
-          <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
-          {warningKey && <JobWarning toolId={toolId} warningKey={warningKey} />}
-          <SaveAsBar outputPaths={outputPaths} onReset={handleReset} />
-        </div>
-      )}
-
-      {phase === "done" && outputPath && (
-        <div style={CARD_STYLE}>
-          <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
-          {warningKey && <JobWarning toolId={toolId} warningKey={warningKey} />}
-          <SaveAsBar outputPath={outputPath} onReset={handleReset} />
-        </div>
-      )}
-
-      {phase === "error" && (
-        <ErrorCard
-          toolId={toolId}
-          error={error}
-          errorCode={errorCode}
-          onBack={() => setPhase("pick")}
-        />
-      )}
-    </main>
+            {optionsNode}
+          </div>
+        ) : undefined
+      }
+      warningKey={warningKey}
+      renderDone={renderDone}
+    />
   );
 }

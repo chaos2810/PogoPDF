@@ -8,15 +8,7 @@ import { pickPdfs, startJob } from "../../app/rpc";
 import { usePdfJob } from "../usePdfJob";
 import { SaveAsBar } from "../../components/SaveAsBar";
 import { Hint } from "../organize/forms";
-import {
-  CARD_STYLE,
-  DropZone,
-  ErrorCard,
-  Queue,
-  RunningCard,
-  ToolHeader,
-  ValidationMessage,
-} from "../SharedToolParts";
+import { ToolFrame } from "../ToolFrame";
 
 // The v1 editor is a flat list: saving replaces the outline with the rows shown.
 // Nested bookmarks load flattened so nothing is hidden, and the hint says so.
@@ -27,7 +19,7 @@ function flatten(nodes: BookmarkNode[]): Row[] {
 }
 
 export function EditBookmarksScreen() {
-  const { lang, navigate } = useApp();
+  const { lang } = useApp();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -36,19 +28,7 @@ export function EditBookmarksScreen() {
   const rowsRef = useRef<Row[]>(rows);
   rowsRef.current = rows;
 
-  const {
-    files,
-    setFiles,
-    phase,
-    setPhase,
-    percent,
-    error,
-    errorCode,
-    isDragActive,
-    reset,
-    cancel,
-    run,
-  } = usePdfJob(
+  const job = usePdfJob(
     TOOL_IDS.editBookmarks,
     (fs) => ({
       filePath: fs[0],
@@ -57,6 +37,7 @@ export function EditBookmarksScreen() {
         .map((r) => ({ title: r.title, page: r.page, children: [] })),
     })
   );
+  const { files, setFiles, reset, run } = job;
 
   // Auto-load the outline whenever the picked PDF changes.
   useEffect(() => {
@@ -121,27 +102,19 @@ export function EditBookmarksScreen() {
 
   // An empty list is runnable: it clears the outline (the engine deletes
   // /Outlines). A present-but-incomplete row is what blocks the CTA.
-  const runnable =
-    files.length >= 1 && validRows.length === rows.length;
+  const runnable = files.length >= 1 && validRows.length === rows.length;
 
   return (
-    <main style={{ padding: 24, width: "100%", maxWidth: 720, margin: "0 auto" }}>
-      <ToolHeader toolId={TOOL_IDS.editBookmarks} onBack={() => navigate({ kind: "home" })} />
-
-      {phase === "pick" && (
-        <div style={CARD_STYLE}>
-          <DropZone
-            toolId={TOOL_IDS.editBookmarks}
-            isDragActive={isDragActive}
-            multiple={false}
-            onClick={() => void pick()}
-          />
-          <Queue
-            toolId={TOOL_IDS.editBookmarks}
-            files={files.length > 0 ? [files[0]] : []}
-            onRemove={() => setFiles([])}
-          />
-
+    <ToolFrame
+      toolId={TOOL_IDS.editBookmarks}
+      job={job}
+      ctaKey="tool.editBookmarks.cta"
+      canRun={runnable}
+      validationKey={validationKey}
+      onPick={() => void pick()}
+      onRun={start}
+      pickContent={
+        <>
           {files.length > 0 && loading && (
             <div data-testid="editBookmarks-loading" style={{ color: "var(--muted)", marginTop: 12 }}>
               {t("tool.editBookmarks.loading", lang)}
@@ -220,45 +193,11 @@ export function EditBookmarksScreen() {
               <Hint keyName="tool.editBookmarks.latinHint" stacked />
             </div>
           )}
-
-          <ValidationMessage toolId={TOOL_IDS.editBookmarks} errorKey={validationKey} />
-
-          <button
-            data-testid="editBookmarks-cta"
-            disabled={!runnable}
-            onClick={start}
-            style={{
-              marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
-              fontWeight: 700, border: "none",
-              cursor: runnable ? "pointer" : "not-allowed",
-              background: runnable ? "var(--accent)" : "var(--border)",
-              color: runnable ? "var(--accent-contrast)" : "var(--muted)",
-            }}
-          >
-            {t("tool.editBookmarks.cta", lang)}
-          </button>
-        </div>
-      )}
-
-      {phase === "running" && (
-        <RunningCard toolId={TOOL_IDS.editBookmarks} percent={percent} onCancel={() => void cancel()} />
-      )}
-
-      {phase === "done" && outputPath && (
-        <div style={CARD_STYLE}>
-          <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
-          <SaveAsBar outputPath={outputPath} onReset={handleReset} />
-        </div>
-      )}
-
-      {phase === "error" && (
-        <ErrorCard
-          toolId={TOOL_IDS.editBookmarks}
-          error={error}
-          errorCode={errorCode}
-          onBack={() => setPhase("pick")}
-        />
-      )}
-    </main>
+        </>
+      }
+      renderDone={() =>
+        outputPath ? <SaveAsBar outputPath={outputPath} onReset={handleReset} /> : null
+      }
+    />
   );
 }

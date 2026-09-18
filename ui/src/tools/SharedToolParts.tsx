@@ -21,7 +21,7 @@ const PLAIN_CARD_STYLE = {
 /**
  * Intake drop zone shared by every file/data tool screen. Idle/drag styling and
  * the drop-zone wording (multi vs single, optional override) are identical across
- * tools; the surrounding card is the screen's concern.
+ * tools; ToolFrame provides the surrounding card.
  */
 export function DropZone({
   toolId,

@@ -9,9 +9,9 @@ type SettleTarget = "done" | "data";
 
 /**
  * Shared machinery for tool screens: drag-drop intake, progress subscription,
- * job start/cancel, and the pick/running/done/error phase machine. The two
- * shells (FileToolScreen, DataToolScreen) own their own chrome and diff only in
- * how they settle a result and how they present the pick/done phases.
+ * job start/cancel, and the pick/running/done/error phase machine. ToolFrame
+ * owns the chrome around this state; screens differ only in how they settle a
+ * result and what they show in the pick/data phases.
  */
 export function usePdfJob(
   toolId: string,
