@@ -76,6 +76,28 @@ fn main() {
             engine: tokio::sync::RwLock::new(None),
         })
         .setup(|app| {
+            // MS Office style loading popup: a small borderless centered
+            // window that shows while the engine boots. The main window is
+            // created hidden by config and revealed by `startup_complete`
+            // once the UI mounted and the engine answered engine.ping.
+            let splash = tauri::WebviewWindowBuilder::new(
+                app,
+                "splash",
+                tauri::WebviewUrl::App("splash.html".into()),
+            )
+            .title("PogoPDF")
+            .inner_size(320.0, 220.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .center();
+
+            splash
+                .build()
+                .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+
             let (cmd, cwd) =
                 engine_launch_spec().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
 
@@ -87,6 +109,33 @@ fn main() {
 
             let state = app.state::<SidecarState>();
             *state.engine.blocking_write() = Some(engine);
+            let engine_for_watch = state.engine.blocking_read().clone();
+            drop(state);
+
+            // Startup handoff: the main window starts hidden (config) and the
+            // splash shows while the engine boots. This watcher pings the
+            // engine from the shell side and swaps splash -> main the moment
+            // it answers, so the handoff does not depend on the hidden main
+            // window's webview having run its JS. The UI's own
+            // `startup_complete` call stays as a second (idempotent) trigger.
+            let app_handle = app.handle().clone();
+            if let Some(engine) = engine_for_watch {
+                tauri::async_runtime::spawn(async move {
+                    for _ in 0..120 {
+                        if engine.call("engine.ping", serde_json::json!({})).await.is_ok() {
+                            if let Some(main) = app_handle.get_webview_window("main") {
+                                let _ = main.show();
+                                let _ = main.set_focus();
+                            }
+                            if let Some(splash) = app_handle.get_webview_window("splash") {
+                                let _ = splash.close();
+                            }
+                            return;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -94,10 +143,17 @@ fn main() {
             commands::dialog_open_pdf,
             commands::dialog_save,
             commands::dialog_pick_folder,
-            commands::reveal
+            commands::reveal,
+            commands::startup_complete
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
+                // Only the main window owns the engine lifecycle. The splash
+                // closes on every successful startup, which must NOT kill the
+                // engine; closing the main window does.
+                if window.label() != "main" {
+                    return;
+                }
                 let state = window.app_handle().state::<SidecarState>();
                 // Short blocking write guard: take the handle out so a running
                 // job.start RPC cannot delay window teardown.

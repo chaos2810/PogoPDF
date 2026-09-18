@@ -3,6 +3,20 @@ use tauri::{Manager, State};
 
 use crate::sidecar::SidecarState;
 
+/// The UI calls this once the React app has mounted and the engine answered
+/// engine.ping: the splash has done its job, so swap it for the main window.
+#[tauri::command]
+pub fn startup_complete(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.show().map_err(|e| e.to_string())?;
+        main.set_focus().map_err(|e| e.to_string())?;
+    }
+    if let Some(splash) = app.get_webview_window("splash") {
+        splash.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn rpc_call(
     state: State<'_, SidecarState>,

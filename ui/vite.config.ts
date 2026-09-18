@@ -6,5 +6,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
   server: { port: 5173, strictPort: true },
-  build: { target: "chrome105" },
+  build: {
+    target: "chrome105",
+    rollupOptions: {
+      input: { main: "index.html", splash: "splash.html" },
+    },
+  },
 });
