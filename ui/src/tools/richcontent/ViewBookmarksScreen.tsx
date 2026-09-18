@@ -17,7 +17,12 @@ function BookmarkTree({ nodes, depth }: { nodes: BookmarkNode[]; depth: number }
       style={{ listStyle: "none", padding: 0, margin: 0 }}
     >
       {nodes.map((node, i) => (
-        <li key={`${depth}-${i}`} data-testid="bookmark-row" style={{ marginBottom: 4 }}>
+        <li
+          key={`${depth}-${i}`}
+          data-testid="bookmark-row"
+          data-depth={depth}
+          style={{ marginBottom: 4 }}
+        >
           <div
             style={{
               display: "flex", gap: 12, padding: "6px 0",

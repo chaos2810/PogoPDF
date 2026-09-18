@@ -74,6 +74,20 @@ export const STATES = [
   { name: "palette-open", intent: "Command palette overlay after Ctrl+K: centered panel, readable list" },
   { name: "palette-utility", intent: "Command palette filtered to 'metadata': utility tools visible with their 'Utility' category label (nav.utility) rendered in the category column" },
   { name: "settings", intent: "Settings screen: theme + language pills with the current choice highlighted" },
+  { name: "office-form", intent: "Office to PDF with 1 .docx file queued (document placeholder card), the supported-formats hint visible below the drop zone, and the CTA enabled" },
+  { name: "ebook-form", intent: "Ebook to PDF with 1 .epub file queued, font size 14 and margins filled: the two numeric fields and the format hint on one rhythm, CTA enabled" },
+  { name: "comic-form", intent: "Comic to PDF with 1 .cbz file queued, the CBZ-only hint visible, CTA enabled" },
+  { name: "ocr-form", intent: "OCR PDF with 1 file, language Japanese (日本語), DPI 300, the searchable-text checkbox ticked, and the Latin-only limitation hint visible in full; CTA enabled" },
+  { name: "ocr-warning", intent: "OCR finished with a dropped-lines progress stage: the done card shows the red-tinted warning banner above the Save As bar" },
+  { name: "tables-form", intent: "Extract Tables with Markdown selected, pages \"1-2\", and the table-detection hint visible; CTA enabled" },
+  { name: "pdftomarkdown-form", intent: "PDF to Markdown with pages filled and the structure-is-approximate hint visible below the field; CTA enabled" },
+  { name: "prepareai-form", intent: "Prepare for AI with pages \"2\" and the export hint under the field; CTA enabled" },
+  { name: "attachments-add-form", intent: "Add Attachments with 1 PDF queued as a thumbnail card and 2 attachment rows (report.docx, data.xlsx) below the attachment files label, each with a remove ✕; CTA enabled" },
+  { name: "attachments-extract-done", intent: "Extract Attachments finished with 3 output files: the Save All bar plus 3 status rows with centered check icons" },
+  { name: "attachments-edit-view", intent: "Remove Attachments with the embedded-file list loaded (2 rows with sizes and checkboxes), the first row ticked, and the logical-removal hint visible; CTA enabled" },
+  { name: "bookmarks-view", intent: "View Bookmarks result card showing a nested outline (3 top-level entries, two with children): each depth level indents further right, titles and page labels aligned" },
+  { name: "bookmarks-edit-form", intent: "Edit Bookmarks with a PDF picked and the outline auto-loaded as flat rows (title + page inputs each), the Add row button and the replace hint visible; CTA enabled" },
+  { name: "toc-form", intent: "Table of Contents with position \"After the first page\" selected, the localized default title in the field, and both hints (page-number shift and Latin-1) visible; CTA enabled" },
 ];
 
 const CHECKLIST = [
@@ -107,6 +121,10 @@ const CHECKLIST = [
   "Utility/secure bare forms (flatten-form, removemetadata-form, pdfstozip-form, rasterize-form, compare-view): the bare tools show a centred queue card above the drop zone with the hint and enabled CTA below; pdfsToZip shows 3 PDF thumbnail cards wrapping evenly; rasterize-form shows the DPI field and hint.",
   "Compare result (compare-view): the five label/value rows share one left label column, values are left-aligned, no label wraps to two lines at this width, the em-dash placeholder reads as an empty value, and the similarity caveat (\u201cFlags large visual changes\u2026\u201d) renders as muted small text between the rows and the Back action.",
   "Any text that looks cut off mid-glyph or truncated without an ellipsis.",
+  "Attachment rows (attachments-add-form, attachments-edit-view): these are simple name+remove rows, NOT thumbnail cards; the file name and size (and the remove ✕ or checkbox) must stay on one line each and align in a column. In attachments-edit-view the ticked checkbox is visibly checked and the unticked one is not.",
+  "Bookmark tree (bookmarks-view): the outline must read as a tree, with each deeper level indented further right than its parent, and every row's title and page label horizontally aligned within its level.",
+  "OCR warning (ocr-warning): the warning banner is visible on the done card, above the Save As bar, in a red-tinted box, and its text is fully readable (not clipped).",
+  "OCR form (ocr-form): the language select shows 日本語, DPI is 300, the searchable-text checkbox is ticked, and the long Latin-only hint is rendered in full without clipping.",
 ];
 
 function stateLine(s, i) {

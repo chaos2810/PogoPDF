@@ -333,6 +333,12 @@ const SPLIT_OUT = [
   "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\invoice-2024\\part-3.pdf",
 ];
 
+const ATTACH_OUT = [
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\appendix-data.zip",
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\chart.png",
+  "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\source-notes.txt",
+];
+
 async function main() {
   rmSync(shotsDir, { recursive: true, force: true });
   mkdirSync(shotsDir, { recursive: true });
@@ -957,6 +963,212 @@ async function main() {
     await clickAria(page, "Settings");
     await sleep(150);
     await shot("settings");
+
+    // --- Office to PDF: docx via the office picker + formats hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Office to PDF");
+    await clickTestId(page, "officeToPdf-dropzone");
+    await sleep(200);
+    // The office picker must return the canned docx (not the PDF default).
+    const officeCard = await page.evaluate(
+      () =>
+        document.querySelector('[data-testid="officeToPdf-file-name"]')?.textContent?.trim() ?? null
+    );
+    if (officeCard !== "quarterly-report.docx") {
+      throw new Error(`office-form: office picker did not queue the docx (${officeCard})`);
+    }
+    await shot("office-form");
+
+    // --- Ebook to PDF: epub + font size 14 + margins ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Ebook to PDF");
+    await clickTestId(page, "ebookToPdf-dropzone");
+    await sleep(200);
+    const ebookCard = await page.evaluate(
+      () =>
+        document.querySelector('[data-testid="ebookToPdf-file-name"]')?.textContent?.trim() ?? null
+    );
+    if (!ebookCard || !ebookCard.endsWith(".epub")) {
+      throw new Error(`ebook-form: ebook picker did not queue the epub (${ebookCard})`);
+    }
+    await typeInto(page, "ebook-fontsize", "14");
+    await typeInto(page, "ebook-margins", "90");
+    await shot("ebook-form");
+
+    // --- Comic to PDF: cbz + hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Comic to PDF");
+    await clickTestId(page, "comicToPdf-dropzone");
+    await sleep(200);
+    const comicCard = await page.evaluate(
+      () =>
+        document.querySelector('[data-testid="comicToPdf-file-name"]')?.textContent?.trim() ?? null
+    );
+    if (!comicCard || !comicCard.endsWith(".cbz")) {
+      throw new Error(`comic-form: comic picker did not queue the cbz (${comicCard})`);
+    }
+    await shot("comic-form");
+
+    // --- OCR: Japanese, DPI 300, searchable checked, Latin hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "OCR PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await selectByValue(page, "ocr-language", "jpn");
+    await typeInto(page, "ocr-dpi", "300");
+    await shot("ocr-form");
+
+    // --- OCR done with dropped searchable lines → warning banner ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "OCR PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock(() => window.__mockJobControl("hold"));
+    await clickTestId(page, "ocr-cta");
+    await sleep(100);
+    await mock(() =>
+      window.__mockProgress({ percent: 100, stage: "ocr.droppedLines", pagesDone: 3 })
+    );
+    await sleep(120);
+    await mock(() => window.__mockResolveJob());
+    await sleep(300);
+    await mock(() => window.__mockJobControl("auto"));
+    // The warning banner is the whole point: its text must be on the done card.
+    const ocrWarning = await page.evaluate(
+      () => document.querySelector('[data-testid="ocr-warning"]')?.textContent?.trim() ?? null
+    );
+    if (!ocrWarning) {
+      throw new Error("ocr-warning: the dropped-lines warning banner did not render");
+    }
+    await shot("ocr-warning");
+
+    // --- Extract Tables: markdown + pages 1-2 + hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Extract Tables");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "extracttables-format", "Markdown");
+    await typeInto(page, "extracttables-pages", "1-2");
+    await shot("tables-form");
+
+    // --- PDF to Markdown: pages + approximation hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to Markdown");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "pdftomarkdown-pages", "1-3");
+    await shot("pdftomarkdown-form");
+
+    // --- Prepare for AI: pages 2 ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Prepare for AI");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "prepareai-pages", "2");
+    await shot("prepareai-form");
+
+    // --- Add Attachments: PDF card + 2 attachment rows ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Add Attachments");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "addAttachments-add");
+    await sleep(150);
+    const attachmentRows = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="data-row"]')].map(
+        (r) => r.textContent?.replace(/\s+/g, " ").trim() ?? ""
+      )
+    );
+    if (attachmentRows.length !== 2) {
+      throw new Error(
+        `attachments-add-form: expected 2 attachment rows (${JSON.stringify(attachmentRows)})`
+      );
+    }
+    await shot("attachments-add-form");
+
+    // --- Extract Attachments done: 3 outputs → Save All rows ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Extract Attachments");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock((p) => window.__mockSetOutputPaths(p), ATTACH_OUT);
+    await mock(() => window.__mockJobControl("auto"));
+    await clickTestId(page, "extractAttachments-cta");
+    await sleep(400);
+    await clickTestId(page, "save-all");
+    await sleep(400);
+    await shot("attachments-extract-done");
+    await mock(() => window.__mockSetOutputPaths(null));
+
+    // --- Remove Attachments: loaded list with one box ticked ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Remove Attachments");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "editAttachments-load");
+    await sleep(200);
+    await clickTestId(page, "editAttachments-check-appendix-data.zip");
+    await sleep(120);
+    const editAttachmentRows = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="data-row"]')].map((r) => {
+        const box = r.querySelector('input[type="checkbox"]');
+        return { text: r.textContent?.replace(/\s+/g, " ").trim() ?? "", checked: box?.checked ?? null };
+      })
+    );
+    if (
+      editAttachmentRows.length !== 2 ||
+      editAttachmentRows.filter((r) => r.checked).length !== 1
+    ) {
+      throw new Error(
+        `attachments-edit-view: expected 2 rows with 1 ticked (${JSON.stringify(editAttachmentRows)})`
+      );
+    }
+    await shot("attachments-edit-view");
+
+    // --- View Bookmarks: nested outline tree ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "View Bookmarks");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "viewBookmarks-cta");
+    await sleep(300);
+    const bookmarkDepths = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="bookmark-row"]')].map((r) =>
+        Number(r.getAttribute("data-depth") ?? "0")
+      )
+    );
+    const hasDepth = (d) => bookmarkDepths.includes(d);
+    if (!hasDepth(0) || !hasDepth(1) || !hasDepth(2)) {
+      throw new Error(
+        `bookmarks-view: canned tree did not render with nesting (${JSON.stringify(bookmarkDepths)})`
+      );
+    }
+    await shot("bookmarks-view");
+
+    // --- Edit Bookmarks: auto-loaded flat rows + add + hints ---
+    // Load a compact outline so the form (rows + add button + hints + CTA) stays
+    // inside the viewport; the full tree is the point of bookmarks-view instead.
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Edit Bookmarks");
+    await mock(() =>
+      window.__mockSetDataResult("viewBookmarks", {
+        bookmarks: [
+          { title: "Introduction", page: 1, children: [] },
+          { title: "Method", page: 5, children: [] },
+          { title: "Conclusion", page: 12, children: [] },
+        ],
+      })
+    );
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(400);
+    const editBookmarkRows = await page.evaluate(
+      () => document.querySelectorAll('[data-testid="data-row"]').length
+    );
+    if (editBookmarkRows !== 3) {
+      throw new Error(
+        `bookmarks-edit-form: expected the compact outline auto-loaded as 3 rows (got ${editBookmarkRows})`
+      );
+    }
+    await shot("bookmarks-edit-form");
+    await mock(() => window.__mockSetDataResult("viewBookmarks", null));
+
+    // --- Table of Contents: after-cover + default title + both hints ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Table of Contents");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "toc-position", "After the first page");
+    await shot("toc-form");
   } finally {
     await browser.close();
     if (vite) {

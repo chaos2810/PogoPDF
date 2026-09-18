@@ -321,6 +321,23 @@ export function collectPageMetrics() {
   });
   const dataRowCount = dataRows.length;
 
+  // --- 4e2. bookmark tree rows (View Bookmarks) ---
+  // The outline is a tree, so the data-row label-column check does not apply
+  // (the indent is intentional). Collect each row's nesting depth (data-depth)
+  // and the x of its title span: deeper rows must sit further right.
+  const bookmarkRows = [...document.querySelectorAll('[data-testid="bookmark-row"]')].map((li) => {
+    const depth = Number(li.getAttribute("data-depth") ?? "0") || 0;
+    const content = li.querySelector(":scope > div");
+    const title = content?.firstElementChild ?? content ?? li;
+    const r = title.getBoundingClientRect();
+    return {
+      depth,
+      x: +r.x.toFixed(2),
+      width: +r.width.toFixed(2),
+      text: snippet(li, 40),
+    };
+  });
+
   // Table-shaped data rows: columns must line up across rows and no two cells in
   // a row may overlap (table display is not flex/grid).
   const dataTables = [...document.querySelectorAll('table[data-testid="data-rows"]')].map((table) => {
@@ -391,6 +408,7 @@ export function collectPageMetrics() {
     cardsInfo,
     dataRows,
     dataRowCount,
+    bookmarkRows,
     dataTables,
     gridInfo,
     saveAllRows,
@@ -551,6 +569,40 @@ function checkDataRowsAligned(rows) {
   };
 }
 
+// Bookmark tree (viewBookmarks): each depth level indents further right, and no
+// row's title starts left of the level above it. Children share their parent's
+// indent plus a constant step. Catches a flattened or double-indented tree.
+function checkBookmarkTreeAligned(rows) {
+  if (!rows || rows.length === 0) return { pass: true, detail: "no bookmark rows" };
+  const byDepth = new Map();
+  for (const r of rows) {
+    const list = byDepth.get(r.depth) ?? [];
+    list.push(r.x);
+    byDepth.set(r.depth, list);
+  }
+  const depths = [...byDepth.keys()].sort((a, b) => a - b);
+  // Every depth level must show exactly one indent x (rows at a level align).
+  const spreads = depths.map((d) => {
+    const xs = byDepth.get(d);
+    return +(Math.max(...xs) - Math.min(...xs)).toFixed(2);
+  });
+  // Each deeper level must start strictly right of the level above.
+  const steps = [];
+  for (let i = 1; i < depths.length; i++) {
+    const prev = byDepth.get(depths[i - 1])[0];
+    const cur = byDepth.get(depths[i])[0];
+    steps.push(+(cur - prev).toFixed(2));
+  }
+  const allIndent = steps.every((s) => s > 0);
+  return {
+    pass: spreads.every((s) => s <= 1) && allIndent,
+    depthCount: depths.length,
+    rowCount: rows.length,
+    spreads,
+    steps,
+  };
+}
+
 // Table data view (dimensions): columns line up and cells within a row do not
 // overlap (table layout is neither flex nor grid, so the generic scan misses it).
 function checkDataTablesAligned(tables) {
@@ -611,12 +663,32 @@ const CTA_EXPECTATIONS = {
   "removemetadata-form": false,
   "pdfstozip-form": false,
   "rasterize-form": false,
+  "office-form": false,
+  "ebook-form": false,
+  "comic-form": false,
+  "ocr-form": false,
+  "tables-form": false,
+  "pdftomarkdown-form": false,
+  "prepareai-form": false,
+  "attachments-add-form": false, // 2 attachment rows → enabled
+  "attachments-edit-view": false, // one attachment ticked → enabled
+  "bookmarks-edit-form": false,
+  "toc-form": false,
 };
 
 // States that render a data card (View Metadata, Compare PDFs) / data table
 // (Page Dimensions).
-const DATA_CARD_STATES = new Set(["metadata-view", "compare-view"]);
+const DATA_CARD_STATES = new Set([
+  "metadata-view",
+  "compare-view",
+  "attachments-add-form",
+  "attachments-edit-view",
+  "bookmarks-edit-form",
+]);
 const DATA_TABLE_STATES = new Set(["dimensions-view"]);
+// States that render the bookmark outline tree (nested indent instead of a
+// single label column).
+const BOOKMARK_TREE_STATES = new Set(["bookmarks-view"]);
 
 // States whose pick phase queues thumbnail cards. If the preview pipeline
 // regresses to placeholders, thumbCount drops below the card count and the
@@ -631,6 +703,9 @@ const PLACEHOLDER_CARD_STATES = new Set([
   "textpdf-form",
   "markdown-form",
   "csvtopdf-form",
+  "office-form",
+  "ebook-form",
+  "comic-form",
 ]);
 const CARD_STATES = new Set([
   "merge-files",
@@ -679,6 +754,7 @@ export function evaluateState(name, state) {
     "saveall-rows-centered": checkSaveAllRowsCentered(state.saveAllRows).pass,
     "data-rows-aligned": null, // only asserted for data-card states
     "data-table-aligned": null, // only asserted for table-shaped data states
+    "bookmark-tree-aligned": null, // only asserted for bookmarks-view
     "cta-disabled-visible": null, // only asserted for states in CTA_EXPECTATIONS
     "dragover-state-visible": null, // cross-state, filled in by buildReport
     "theme-tokens-correct": null, // only meaningful for home-* states
@@ -702,6 +778,11 @@ export function evaluateState(name, state) {
   }
   if (DATA_TABLE_STATES.has(name)) {
     invariants["data-table-aligned"] = checkDataTablesAligned(state.dataTables).pass;
+  }
+  if (BOOKMARK_TREE_STATES.has(name)) {
+    invariants["bookmark-tree-aligned"] = checkBookmarkTreeAligned(
+      state.bookmarkRows
+    ).pass;
   }
   if (CARD_STATES.has(name)) {
     invariants["cards-thumbnails-present"] = checkCardsThumbnailsPresent(
@@ -746,6 +827,8 @@ export function evaluateState(name, state) {
     dataRowsAligned: checkDataRowsAligned(state.dataRows),
     dataTables: state.dataTables,
     dataTablesAligned: checkDataTablesAligned(state.dataTables),
+    bookmarkRows: state.bookmarkRows,
+    bookmarkTreeAligned: checkBookmarkTreeAligned(state.bookmarkRows),
     cta: state.cta,
     textNodeCount: state.textNodes.length,
     bodyBg: state.bodyBg,

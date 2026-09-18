@@ -150,7 +150,7 @@ export function EditBookmarksScreen() {
           )}
 
           {files.length > 0 && !loading && (
-            <div data-testid="editBookmarks-rows" style={{ marginTop: 12 }}>
+            <div data-testid="data-rows" style={{ marginTop: 12 }}>
               {rows.length === 0 && (
                 <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 8 }}>
                   {t("tool.editBookmarks.noBookmarks", lang)}
@@ -159,7 +159,7 @@ export function EditBookmarksScreen() {
               {rows.map((row, i) => (
                 <div
                   key={i}
-                  data-testid="editBookmarks-row"
+                  data-testid="data-row"
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}
                 >
                   <input

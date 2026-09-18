@@ -56,13 +56,13 @@ export function AddAttachmentsScreen() {
                 {t("tool.addAttachments.selected", lang, { count: String(attachments.length) })}
               </div>
               <ul
-                data-testid="addAttachments-list"
+                data-testid="data-rows"
                 style={{ listStyle: "none", padding: 0, margin: "6px 0 0" }}
               >
                 {attachments.map((path) => (
                   <li
                     key={path}
-                    data-testid="addAttachments-attachment-row"
+                    data-testid="data-row"
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "6px 0", borderBottom: "1px solid var(--border)",

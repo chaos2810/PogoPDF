@@ -89,19 +89,22 @@ export function EditAttachmentsScreen() {
           )}
           {loaded && loaded.length > 0 && (
             <ul
-              data-testid="editAttachments-rows"
+              data-testid="data-rows"
               style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}
             >
               {loaded.map((a) => (
                 <li
                   key={a.name}
-                  data-testid="editAttachments-row"
+                  data-testid="data-row"
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "8px 0", borderBottom: "1px solid var(--border)",
                   }}
                 >
-                  <label className="pogopdf-radio-choice" style={{ margin: 0 }}>
+                  <label
+                    className="pogopdf-radio-choice"
+                    style={{ margin: 0, flex: 1, minWidth: 0 }}
+                  >
                     <input
                       type="checkbox"
                       data-testid={`editAttachments-check-${a.name}`}
@@ -112,7 +115,11 @@ export function EditAttachmentsScreen() {
                       {a.name}
                     </span>
                   </label>
-                  <span style={{ color: "var(--muted)", fontSize: 12, flexShrink: 0 }}>{a.size} B</span>
+                  <span
+                    style={{ color: "var(--muted)", fontSize: 12, flex: "0 0 84px", textAlign: "right" }}
+                  >
+                    {a.size} B
+                  </span>
                 </li>
               ))}
             </ul>

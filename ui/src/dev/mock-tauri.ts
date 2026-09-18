@@ -28,8 +28,8 @@ const CANNED_OFFICE = ["C:\\Users\\demo\\Documents\\quarterly-report.docx"];
 const CANNED_EBOOK = ["C:\\Users\\demo\\Documents\\designing-data-intensive-applications.epub"];
 const CANNED_COMIC = ["C:\\Users\\demo\\Downloads\\saga-volume-1.cbz"];
 const CANNED_ANY = [
-  "C:\\Users\\demo\\Documents\\appendix-data.zip",
-  "C:\\Users\\demo\\Pictures\\chart.png",
+  "C:\\Users\\demo\\Documents\\report.docx",
+  "C:\\Users\\demo\\Documents\\data.xlsx",
 ];
 
 const state = {
@@ -181,7 +181,6 @@ function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): 
       attachments: [
         { name: "appendix-data.zip", size: 184320 },
         { name: "chart.png", size: 42112 },
-        { name: "source-notes.txt", size: 2048 },
       ],
     };
   }
