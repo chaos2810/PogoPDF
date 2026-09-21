@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ChevronLeft, ChevronRight, Loader2, Save, Search as SearchIcon, ZoomIn, ZoomOut } from "lucide-react";
 import { t } from "@pogopdf/i18n";
+import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import { useApp } from "../../app/store";
-import { onProgress, pickFiles, pickImages, startJob } from "../../app/rpc";
+import { cancelJob, onProgress, pickFiles, pickImages, startJob } from "../../app/rpc";
 import { openPdfDoc, type PdfDocHandle } from "../../app/pdfpage";
 import { SaveAsBar } from "../../components/SaveAsBar";
 import { basename } from "../paths";
@@ -107,6 +108,8 @@ export function EditorScreen() {
   // In-flight pointer gesture handlers, so every cleanup path removes the same refs.
   const gesture = useRef<{ move: (e: PointerEvent) => void; end: (e: PointerEvent) => void } | null>(null);
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set while a save is in flight so the overlay's Cancel can cancel it.
+  const saveJobId = useRef<string | null>(null);
 
   const removeGesture = useCallback(() => {
     const g = gesture.current;
@@ -480,12 +483,34 @@ export function EditorScreen() {
     setPhase("running");
     setPercent(0);
     try {
-      const result = await startJob("editorSave", { filePath, annotations });
+      const result = await startJob(
+        "editorSave",
+        { filePath, annotations },
+        { onJobId: (id) => { saveJobId.current = id; } }
+      );
       if ("outputPath" in result) setOutputPath(result.outputPath);
       setPhase("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setPhase("error");
+      // Cancel is a user action, not a failure: return to editing and keep the
+      // document so the annotations are not lost.
+      if ((e as { code?: number }).code === TOOL_ERROR_CODES.CANCELLED) {
+        setPhase("editor");
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+        setPhase("error");
+      }
+    } finally {
+      saveJobId.current = null;
+    }
+  };
+
+  const cancelSave = async () => {
+    const jobId = saveJobId.current;
+    if (!jobId) return;
+    try {
+      await cancelJob(jobId);
+    } catch {
+      /* cancel is best-effort; the job result still settles the UI */
     }
   };
 
@@ -498,7 +523,7 @@ export function EditorScreen() {
   };
 
   const pageItems = useMemo(() => itemsForPage(doc, page), [doc, page]);
-  const selected = findItem(doc, doc.selectedId);
+  const hasRedact = useMemo(() => doc.items.some((item) => item.type === "redact"), [doc]);
   const editing = findItem(doc, editingId);
   const editingRect = editing?.rect ? normalizeRect(editing.rect) : null;
 
@@ -800,7 +825,7 @@ export function EditorScreen() {
             }}
           >
             <span>{t("tool.editor.hint", lang)}</span>
-            {selected?.type === "redact" && (
+            {hasRedact && (
               <span data-testid="editor-redact-hint" style={{ color: "var(--danger)" }}>
                 {t("tool.editor.redactHint", lang)}
               </span>
@@ -847,6 +872,17 @@ export function EditorScreen() {
                 <div style={{ height: 8, borderRadius: 999, background: "var(--border)", marginTop: 8 }}>
                   <div style={{ width: `${percent}%`, height: "100%", borderRadius: 999, background: "var(--accent)", transition: "width 200ms" }} />
                 </div>
+                <button
+                  data-testid="editor-save-cancel"
+                  onClick={() => void cancelSave()}
+                  style={{
+                    marginTop: 12, padding: "8px 16px", borderRadius: "var(--radius-pill)",
+                    fontWeight: 600, background: "transparent", border: "1px solid var(--border)",
+                    color: "var(--text)", cursor: "pointer",
+                  }}
+                >
+                  {t("common.cancel", lang)}
+                </button>
               </>
             ) : (
               <>
