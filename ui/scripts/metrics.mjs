@@ -382,6 +382,70 @@ export function collectPageMetrics() {
       }
     : null;
 
+  // --- 4f. editor overlay (page bitmap, annotation geometry, selection, search) ---
+  // The annotation wrapper is a full-page layer (inset:0), so the mark's own
+  // geometry lives on its first child element. Comparing that against the
+  // editor-page box proves the overlay lines up with the rendered page instead
+  // of drifting. Freehand is an inset:0 SVG and is skipped by the alignment
+  // check (its ink bounds are not a rect).
+  const editorPageEl = document.querySelector('[data-testid="editor-page"]');
+  const markBodyRect = (el) => {
+    const body = el.firstElementChild;
+    if (!body) return null;
+    const r = body.getBoundingClientRect();
+    return { x: +r.x.toFixed(2), y: +r.y.toFixed(2), width: +r.width.toFixed(2), height: +r.height.toFixed(2) };
+  };
+  const editorSelectionEl = document.querySelector('[data-testid="editor-selection"]');
+  const editorRailEl = document.querySelector('[data-testid="editor-tool-rail"]');
+  const editorPulseEl = document.querySelector('[data-testid="editor-search-pulse"]');
+  // Sample the rendered bitmap for non-white pixels: a blank page is a real
+  // regression the geometry checks cannot see. A data: URL image taints no
+  // canvas, so getImageData is safe; a 64px-wide sample is plenty.
+  const bitmapEl = document.querySelector('[data-testid="editor-page-bitmap"]');
+  let inkFraction = null;
+  if (bitmapEl instanceof HTMLImageElement && bitmapEl.complete && bitmapEl.naturalWidth > 0) {
+    try {
+      const c = document.createElement("canvas");
+      c.width = 64;
+      c.height = 90;
+      const cx = c.getContext("2d");
+      cx.drawImage(bitmapEl, 0, 0, 64, 90);
+      const data = cx.getImageData(0, 0, 64, 90).data;
+      let ink = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] < 235 || data[i + 1] < 235 || data[i + 2] < 235) ink++;
+      }
+      inkFraction = ink / (64 * 90);
+    } catch {
+      inkFraction = null;
+    }
+  }
+  const editorInfo = editorPageEl
+    ? {
+        page: rectOf(editorPageEl),
+        hasBitmap: bitmapEl !== null,
+        inkFraction,
+        annotations: [...document.querySelectorAll('[data-testid="editor-annotation"]')].map((el) => ({
+          type: el.getAttribute("data-item-type"),
+          selected: el.getAttribute("data-selected") === "true",
+          body: markBodyRect(el),
+        })),
+        selection: editorSelectionEl?.firstElementChild
+          ? rectOf(editorSelectionEl.firstElementChild)
+          : null,
+        handles: [...document.querySelectorAll('[data-testid^="editor-handle-"]')].map(rectOf),
+        toolRail: editorRailEl ? rectOf(editorRailEl) : null,
+        toolCount: editorRailEl ? editorRailEl.querySelectorAll("button").length : 0,
+        activeTool: editorRailEl
+          ? editorRailEl.querySelectorAll('button[aria-pressed="true"]').length
+          : 0,
+        pulse: editorPulseEl ? rectOf(editorPulseEl) : null,
+        results: document.querySelectorAll('[data-testid="editor-search-result"]').length,
+        redactMark: document.querySelector('[data-testid="editor-redact-mark"]') !== null,
+        redactHint: document.querySelector('[data-testid="editor-redact-hint"]') !== null,
+      }
+    : null;
+
   // --- 5. drop zone + theme tokens ---
   const dz = document.querySelector('[data-testid="merge-dropzone"]');
   const dropZone = dz
@@ -415,6 +479,7 @@ export function collectPageMetrics() {
     saveAllRowCount,
     saveAllErrorCount,
     saveAllRetryExists,
+    editorInfo,
     cta,
     dropZone,
   };
@@ -674,6 +739,18 @@ const CTA_EXPECTATIONS = {
   "attachments-edit-view": false, // one attachment ticked → enabled
   "bookmarks-edit-form": false,
   "toc-form": false,
+  "formfill-form": false, // form loaded with a fillable field → enabled
+  "formfill-filled": false, // values entered → enabled
+  "formcreate-placed": false, // 3 valid rows → enabled
+  "sign-draw": false, // ink points present → enabled
+  "sign-type": false, // signature text present → enabled
+  "stamp-form": false,
+  "removeannotations-form": false, // 3 types ticked → enabled
+  "sanitize-form": false,
+  "bates-form": false,
+  "pagelabels-form": false,
+  "removeblank-form": false,
+  "restrictions-form": false,
 };
 
 // States that render a data card (View Metadata, Compare PDFs) / data table
@@ -689,6 +766,15 @@ const DATA_TABLE_STATES = new Set(["dimensions-view"]);
 // States that render the bookmark outline tree (nested indent instead of a
 // single label column).
 const BOOKMARK_TREE_STATES = new Set(["bookmarks-view"]);
+// Editor states and which editor invariants each asserts. `page` needs a
+// rasterized bitmap; `marks`/`selection`/`search`/`redact` are per-state.
+const EDITOR_STATES = {
+  "editor-open": { page: true, rail: true },
+  "editor-annotated": { page: true, marks: true },
+  "editor-selected": { page: true, marks: true, selection: true },
+  "editor-search-results": { page: true, search: true },
+  "editor-redact-marked": { page: true, marks: true, redact: true },
+};
 
 // States whose pick phase queues thumbnail cards. If the preview pipeline
 // regresses to placeholders, thumbCount drops below the card count and the
@@ -739,6 +825,123 @@ function checkRealPdfGrid(info) {
   };
 }
 
+// The editor's page bitmap must actually have rasterized AND carry ink: the
+// fixture has visible text, so a blank/near-blank sample means the real pdf.js
+// pipeline silently failed. The ink threshold is deliberately generous (any
+// pixel darker than 235 counts), so a light watermark would still pass.
+const MIN_EDITOR_INK = 0.01;
+function checkEditorPageRendered(info) {
+  if (!info) return { pass: false, detail: "no editor page" };
+  const page = info.page;
+  return {
+    pass:
+      info.hasBitmap &&
+      page.width > 0 &&
+      page.height > 0 &&
+      info.inkFraction !== null &&
+      info.inkFraction >= MIN_EDITOR_INK,
+    hasBitmap: info.hasBitmap,
+    inkFraction: info.inkFraction,
+    page,
+  };
+}
+
+// Every non-freehand mark's body must sit inside the page box (a rect drawn on
+// the page can never escape it). Freehand is an inset:0 SVG, skipped.
+function checkEditorMarksInside(info) {
+  if (!info) return { pass: false, detail: "no editor info" };
+  const page = info.page;
+  const rectMarks = info.annotations.filter((a) => a.type !== "freehand" && a.body);
+  const escapes = rectMarks.filter(
+    (a) =>
+      a.body.x < page.x - 1 ||
+      a.body.y < page.y - 1 ||
+      a.body.x + a.body.width > page.x + page.width + 1 ||
+      a.body.y + a.body.height > page.y + page.height + 1
+  );
+  return {
+    pass: rectMarks.length > 0 && escapes.length === 0,
+    markCount: info.annotations.length,
+    rectMarkCount: rectMarks.length,
+    escapes,
+  };
+}
+
+// The selection outline plus eight handles must be present when a mark is
+// selected, and every handle center must sit on the outline's perimeter
+// (corners and edge midpoints), which catches a drifting handle.
+function checkEditorSelectionHandles(info) {
+  if (!info) return { pass: false, detail: "no editor info" };
+  const s = info.selection;
+  const handles = info.handles;
+  if (!s || handles.length !== 8) {
+    return { pass: false, hasSelection: Boolean(s), handleCount: handles.length };
+  }
+  const cx = (h) => h.x + h.width / 2;
+  const cy = (h) => h.y + h.height / 2;
+  // A handle is valid when its center x is on the left/right edge or the
+  // horizontal midpoint, and its center y is on the top/bottom edge or the
+  // vertical midpoint.
+  const midX = s.x + s.width / 2;
+  const midY = s.y + s.height / 2;
+  const near = (a, b) => Math.abs(a - b) <= 2;
+  const ok = (h) =>
+    (near(cx(h), s.x) || near(cx(h), s.x + s.width) || near(cx(h), midX)) &&
+    (near(cy(h), s.y) || near(cy(h), s.y + s.height) || near(cy(h), midY));
+  const bad = handles.filter((h) => !ok(h));
+  return {
+    pass: handles.length === 8 && bad.length === 0,
+    hasSelection: true,
+    handleCount: handles.length,
+    badHandles: bad,
+  };
+}
+
+// The tool rail has one button per editor tool plus a single active tool; the
+// rail must never overlap the page canvas (a negative-gap catch).
+function checkEditorToolRail(info) {
+  if (!info || !info.toolRail) return { pass: false, detail: "no tool rail" };
+  const rail = info.toolRail;
+  const page = info.page;
+  const gap = page.x - (rail.x + rail.width);
+  return {
+    pass: info.toolCount >= 13 && info.activeTool === 1 && gap >= -1,
+    toolCount: info.toolCount,
+    activeTool: info.activeTool,
+    railPageGap: +gap.toFixed(2),
+  };
+}
+
+// Search results must render, and the pulse highlight must be on the page box.
+function checkEditorSearch(info) {
+  if (!info) return { pass: false, detail: "no editor info" };
+  const p = info.pulse;
+  const page = info.page;
+  const onPage =
+    p &&
+    p.x >= page.x - 4 &&
+    p.y >= page.y - 6 &&
+    p.x + p.width <= page.x + page.width + 2 &&
+    p.y + p.height <= page.y + page.height + 2;
+  return {
+    pass: info.results > 0 && Boolean(onPage),
+    results: info.results,
+    hasPulse: Boolean(p),
+    pulseOnPage: Boolean(onPage),
+  };
+}
+
+// A marked redaction must show the hatched MARKED mark AND the red warning
+// line under the canvas (the warning is the user-facing half of the state).
+function checkEditorRedactMarked(info) {
+  if (!info) return { pass: false, detail: "no editor info" };
+  return {
+    pass: info.redactMark && info.redactHint,
+    redactMark: info.redactMark,
+    redactHint: info.redactHint,
+  };
+}
+
 // Returns { invariants, evidence } for one captured state.
 export function evaluateState(name, state) {
   const invariants = {
@@ -759,6 +962,12 @@ export function evaluateState(name, state) {
     "dragover-state-visible": null, // cross-state, filled in by buildReport
     "theme-tokens-correct": null, // only meaningful for home-* states
     "grid-real-thumbs": null, // only asserted for organize-grid-real
+    "editor-page-rendered": null, // only asserted for editor states
+    "editor-marks-inside-page": null, // only asserted for editor mark states
+    "editor-selection-handles": null, // only asserted for editor-selected
+    "editor-tool-rail": null, // only asserted for editor states with a rail
+    "editor-search": null, // only asserted for editor-search-results
+    "editor-redact-marked": null, // only asserted for editor-redact-marked
   };
 
   if (name === "home-light" || name === "home-dark") {
@@ -788,6 +997,33 @@ export function evaluateState(name, state) {
     invariants["cards-thumbnails-present"] = checkCardsThumbnailsPresent(
       state.cardsInfo,
       true
+    ).pass;
+  }
+  const editorSpec = EDITOR_STATES[name];
+  if (editorSpec) {
+    invariants["editor-page-rendered"] = checkEditorPageRendered(
+      state.editorInfo
+    ).pass;
+  }
+  if (editorSpec?.marks) {
+    invariants["editor-marks-inside-page"] = checkEditorMarksInside(
+      state.editorInfo
+    ).pass;
+  }
+  if (editorSpec?.selection) {
+    invariants["editor-selection-handles"] = checkEditorSelectionHandles(
+      state.editorInfo
+    ).pass;
+  }
+  if (editorSpec?.rail) {
+    invariants["editor-tool-rail"] = checkEditorToolRail(state.editorInfo).pass;
+  }
+  if (editorSpec?.search) {
+    invariants["editor-search"] = checkEditorSearch(state.editorInfo).pass;
+  }
+  if (editorSpec?.redact) {
+    invariants["editor-redact-marked"] = checkEditorRedactMarked(
+      state.editorInfo
     ).pass;
   }
 
@@ -820,6 +1056,13 @@ export function evaluateState(name, state) {
     gridCellsEqualSize: checkGridCellsEqualSize(state.gridInfo),
     gridInfo: state.gridInfo,
     realPdfGrid: name === "organize-grid-real" ? checkRealPdfGrid(state.gridInfo) : null,
+    editorInfo: state.editorInfo,
+    editorPageRendered: EDITOR_STATES[name] ? checkEditorPageRendered(state.editorInfo) : null,
+    editorMarksInside: EDITOR_STATES[name]?.marks ? checkEditorMarksInside(state.editorInfo) : null,
+    editorSelectionHandles: EDITOR_STATES[name]?.selection ? checkEditorSelectionHandles(state.editorInfo) : null,
+    editorToolRail: EDITOR_STATES[name]?.rail ? checkEditorToolRail(state.editorInfo) : null,
+    editorSearch: EDITOR_STATES[name]?.search ? checkEditorSearch(state.editorInfo) : null,
+    editorRedactMarked: EDITOR_STATES[name]?.redact ? checkEditorRedactMarked(state.editorInfo) : null,
     saveAllRows: state.saveAllRows,
     saveAllRowsCentered: checkSaveAllRowsCentered(state.saveAllRows),
     saveAllRowCount: state.saveAllRowCount,

@@ -88,6 +88,24 @@ export const STATES = [
   { name: "bookmarks-view", intent: "View Bookmarks result card showing a nested outline (3 top-level entries, two with children): each depth level indents further right, titles and page labels aligned" },
   { name: "bookmarks-edit-form", intent: "Edit Bookmarks with a PDF picked and the outline auto-loaded as flat rows (title + page inputs each), the Add row button and the replace hint visible; CTA enabled" },
   { name: "toc-form", intent: "Table of Contents with position \"After the first page\" selected, the localized default title in the field, and both hints (page-number shift and Latin-1) visible; CTA enabled" },
+  { name: "editor-open", intent: "PDF Editor with a real 2-page PDF loaded: the page bitmap rendered inside the white page box, the tool rail on the left, and page navigation plus zoom controls in the top bar" },
+  { name: "editor-annotated", intent: "Editor with the real page plus three marks: a rectangle outline, a translucent highlight band and a free text note, each sitting on the page where it was drawn" },
+  { name: "editor-redact-marked", intent: "Editor showing a hatched MARKED redaction rectangle on the page and the red warning line under the canvas" },
+  { name: "editor-selected", intent: "Editor with the rectangle mark selected: a dashed selection outline plus eight accent resize handles on the corners and edge midpoints" },
+  { name: "editor-search-results", intent: "Editor search panel open with canned matches: the page-labelled result list on the right plus the accent pulse highlight on the page" },
+  { name: "formfill-form", intent: "Fill Form with a canned form loaded: text, checkbox, dropdown and radio fields plus one read-only field, with the fields-found count" },
+  { name: "formfill-filled", intent: "Fill Form with values entered: a text field typed, the checkbox ticked, the dropdown and radio chosen, and the read-only field left dimmed" },
+  { name: "formfill-empty", intent: "Fill Form with a canned form that has zero fields: the honest empty message and no primary action button" },
+  { name: "formcreate-placed", intent: "Create Form with three field rows, each carrying name, label, type and X/Y/W/H coordinates, plus the add-field button" },
+  { name: "sign-draw", intent: "Sign PDF in Draw mode with an ink stroke drawn on the signature pad and the Clear action below it" },
+  { name: "sign-type", intent: "Sign PDF in Type mode with signature text typed into the field" },
+  { name: "stamp-form", intent: "Stamp PDF with the stamp text, an accent colour and a rotation value set" },
+  { name: "removeannotations-form", intent: "Remove Annotations with three type checkboxes ticked and the All types toggle unticked" },
+  { name: "sanitize-form", intent: "Sanitize PDF showing its five cleanup checkboxes, all ticked, with the notes below them" },
+  { name: "bates-form", intent: "Bates Numbering with a position chosen, the 1 / 5 format selected and a prefix filled in" },
+  { name: "pagelabels-form", intent: "Page Labels with a Roman numeral style and a prefix filled in" },
+  { name: "removeblank-form", intent: "Remove Blank Pages with the tolerance slider moved and the percentage readout updated" },
+  { name: "restrictions-form", intent: "Remove Restrictions with the password field filled and shown as masked dots" },
 ];
 
 const CHECKLIST = [
@@ -125,6 +143,18 @@ const CHECKLIST = [
   "Bookmark tree (bookmarks-view): the outline must read as a tree, with each deeper level indented further right than its parent, and every row's title and page label horizontally aligned within its level.",
   "OCR warning (ocr-warning): the warning banner is visible on the done card, above the Save As bar, in a red-tinted box, and its text is fully readable (not clipped).",
   "OCR form (ocr-form): the language select shows 日本語, DPI is 300, the searchable-text checkbox is ticked, and the long Latin-only hint is rendered in full without clipping.",
+  "Editor tool rail (editor-open, editor-annotated, editor-selected): every tool icon is legible as its own glyph (no two icons look like a blur or a duplicate), the active tool is visibly highlighted, and the rail never overlaps the page canvas.",
+  "Editor page render (editor-open): the page bitmap fills the white page box with no letterboxing gap, and the bitmap is not a blank white rectangle (faint black marks are visible somewhere on the page).",
+  "Annotation overlay alignment (editor-annotated, editor-selected): the rectangle outline, the highlight band and the free-text note sit on the page at the drawn positions, not offset outside the white page box or floating over the tool rail.",
+  "Redact marking (editor-redact-marked): the redaction rectangle reads as a dark 45 degree hatch with a dashed white border and a MARKED label; it must be visually distinct from a plain rectangle, and the red warning line under the canvas is present.",
+  "Resize handles (editor-selected): exactly eight small accent squares, one at each corner and each edge midpoint of the dashed selection outline, with the handle centers on the outline.",
+  "Search results (editor-search-results): the panel lists each match with a page label, and the accent pulse rectangle is visible on the page (not off the page or behind the tool rail).",
+  "Form widgets (formfill-form, formfill-filled): each field type renders its own control (text box, checkbox, dropdown select, radio row), the read-only field is visibly dimmed, and in formfill-filled the ticked/selected controls are clearly checked while the others are not.",
+  "Form fill empty (formfill-empty): the empty message is visible and there is NO primary CTA button under it.",
+  "Form create rows (formcreate-placed): the three field rows each show name, label, type and four coordinate boxes aligned on one row, and the rows do not overlap the drop zone or CTA.",
+  "Signature pad (sign-draw, sign-type): the pad ink is a visible dark stroke inside the pad box (not clipped to the border or outside it); in sign-type the typed name is visible in the text field and the pad is gone.",
+  "Checked states (removeannotations-form, sanitize-form, removeblank-form): ticked checkboxes render a clear check mark and unticked ones render empty; the Remove Annotations All types toggle is visibly unticked while the three type boxes are ticked.",
+  "Form field alignment (bates-form, pagelabels-form, stamp-form, restrictions-form): labels, controls and hints share one left edge and vertical rhythm; the password field in restrictions-form shows masked dots, never the plaintext.",
 ];
 
 function stateLine(s, i) {

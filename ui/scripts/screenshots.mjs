@@ -316,10 +316,11 @@ const TEXT_FILE = "C:\\Users\\demo\\Documents\\meeting-notes.txt";
 const MARKDOWN_FILE = "C:\\Users\\demo\\Documents\\release-notes.md";
 const CSV_FILE = "C:\\Users\\demo\\Documents\\inventory-q3.csv";
 
-// Tiny 2-page PDF (page 2 has /Rotate 90) generated with pdf-lib; used by the
-// organize-grid-real state to exercise the real pdf.js pipeline end to end.
+// 2-page PDF (page 2 has /Rotate 90) generated with pdf-lib, with visible text
+// on both pages. Shared by organize-grid-real (real pdf.js pipeline, one rotated
+// cell) and the editor states (the page bitmaps must render with ink, not blank).
 const REAL_PDF_B64 =
-  "JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL1R5cGUgL09ialN0bQovTiA1Ci9GaXJzdCAyNgovTGVuZ3RoIDI3OAo+PgpzdHJlYW0KeJzVkj1rwzAQhnf9ihubSWfJlu1gDI0/llIIplNLBhGLYChRkW1o/33vorSlQ+nSpcNrSb7npJPeSwBBQYagoUghhUwXkIFJNFSVkA9vLw7k3p7cLOTdNM7wRAzCQAx/D0I2fj0voERdi6+Mxi722Z9ETIWE4Q9iH/y4Hl2Aqu/6HjFHRJOSDKJqaWxIJUnRmmKqoDkpT6+if7lG1LcU66NMHnM4fmGza35HI7GGmTayaRHXn+fyWV3cQ/1WT1kLee/H1i4ObtqtQmWwTAyaJMPicUPPEZxd/P+93KX+yZ9/vOE3n9leNjk46oHoshzc7NdwJNuJq/m93DjZnX+l3kHuNqRmIx3+cis5+IUrLpG5dx/wpusKZW5kc3RyZWFtCmVuZG9iagoKNyAwIG9iago8PAovU2l6ZSA4Ci9Sb290IDIgMCBSCi9JbmZvIDMgMCBSCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9UeXBlIC9YUmVmCi9MZW5ndGggMzYKL1cgWyAxIDIgMiBdCi9JbmRleCBbIDAgOCBdCj4+CnN0cmVhbQp4nBXEsQ0AIAwDMKcgZg7n56J6MLrLYcpU05p2XJLHB09iAtAKZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjM5NgolJUVPRg==";
+  "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";
 
 const IMAGE_OUT = [
   "C:\\Users\\demo\\AppData\\Local\\Temp\\pogopdf\\job\\report\\image-1.jpg",
@@ -1169,6 +1170,341 @@ async function main() {
     await mock((p) => window.__mockDrop(p), [SHORT[0]]);
     await clickLabel(page, "toc-position", "After the first page");
     await shot("toc-form");
+
+    // ===== Phase 3 editor family =====
+
+    // --- PDF Editor: real blob-backed 2-page PDF (same seam as organize-grid-real) ---
+    // The editor renders page 1 through pdf.js; the tool rail and page chrome
+    // frame the canvas.
+    const loadEditorPdf = async () => {
+      await page.evaluate((b64) => {
+        const bin = atob(b64);
+        const bytes = new Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        window.__mockSetFiles([window.__mockBlobPath(bytes)]);
+      }, REAL_PDF_B64);
+      await clickTestId(page, "editor-dropzone");
+      await page.waitForSelector('[data-testid="editor-page-bitmap"]', { timeout: 8000 });
+      // The bitmap <img> must finish decoding before capture: the ink check
+      // samples the decoded pixels, not just the element's presence.
+      await page.waitForFunction(
+        () => {
+          const img = document.querySelector('[data-testid="editor-page-bitmap"]');
+          return img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0;
+        },
+        { timeout: 8000 }
+      );
+      await sleep(300);
+    };
+    // Page box in viewport coords; annotation drags are fractions of it so the
+    // gestures stay readable at any zoom.
+    const editorPageBox = () =>
+      page.evaluate(() => {
+        const r = document.querySelector('[data-testid="editor-page"]').getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      });
+    const drawOnPage = async (tool, fx1, fy1, fx2, fy2) => {
+      const b = await editorPageBox();
+      await clickTestId(page, `editor-tool-${tool}`);
+      await sleep(80);
+      await page.mouse.move(b.x + b.width * fx1, b.y + b.height * fy1);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * fx2, b.y + b.height * fy2, { steps: 8 });
+      await page.mouse.up();
+      await sleep(120);
+    };
+    // Drop selection: switch to Select (and let React commit the tool change,
+    // otherwise the pointerdown still runs the previous draw tool and leaves
+    // the mark selected), then click a spot with no mark.
+    const clearEditorSelection = async (fx, fy) => {
+      // Let the last draw commit before switching tools: a pending addItem
+      // update would otherwise land after the deselect and restore the mark.
+      await sleep(200);
+      await clickTestId(page, "editor-tool-select");
+      await sleep(200);
+      // The editor canvas scrolls, and a tool that adds a footer (the redact
+      // warning) shrinks it, so clamp the click to the visible canvas box
+      // instead of trusting a raw page fraction (a page taller than the canvas
+      // would otherwise put the click below the canvas and outside the editor).
+      const b = await editorPageBox();
+      const c = await page.evaluate(() => {
+        const r = document.querySelector('[data-testid="editor-canvas"]').getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      });
+      const targetX = b.x + b.width * fx;
+      const targetY = Math.min(b.y + b.height * fy, c.y + c.height - 12);
+      if (targetX >= c.x && targetX <= c.x + c.width && targetY >= c.y) {
+        await page.mouse.click(targetX, targetY);
+        await sleep(200);
+      }
+    };
+
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF Editor");
+    await loadEditorPdf();
+    await shot("editor-open");
+
+    // --- Editor: rect + highlight + free text on the real page ---
+    await drawOnPage("rect", 0.15, 0.08, 0.55, 0.18);
+    await drawOnPage("highlight", 0.15, 0.3, 0.62, 0.36);
+    {
+      const b = await editorPageBox();
+      await clickTestId(page, "editor-tool-freetext");
+      await page.mouse.click(b.x + b.width * 0.15, b.y + b.height * 0.25);
+      await sleep(150);
+      await typeInto(page, "editor-text-input", "Reviewed by A. Lovelace");
+      await page.keyboard.press("Enter");
+      await sleep(150);
+    }
+    await clearEditorSelection(0.8, 0.55);
+    await shot("editor-annotated");
+
+    // --- Editor: a marked redaction (hatch + warning) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF Editor");
+    await loadEditorPdf();
+    await drawOnPage("redact", 0.2, 0.1, 0.6, 0.2);
+    await clearEditorSelection(0.8, 0.55);
+    const redactSeen = await page.evaluate(() => ({
+      mark: document.querySelector('[data-testid="editor-redact-mark"]') !== null,
+      hint: document.querySelector('[data-testid="editor-redact-hint"]') !== null,
+    }));
+    if (!redactSeen.mark || !redactSeen.hint) {
+      throw new Error(`editor-redact-marked: redaction mark/warning missing (${JSON.stringify(redactSeen)})`);
+    }
+    await shot("editor-redact-marked");
+
+    // --- Editor: one mark selected (8 resize handles) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF Editor");
+    await loadEditorPdf();
+    await drawOnPage("rect", 0.2, 0.08, 0.6, 0.22);
+    {
+      // Re-select through the Select tool so the state reads as a user action.
+      const b = await editorPageBox();
+      await clickTestId(page, "editor-tool-select");
+      await page.mouse.click(b.x + b.width * 0.4, b.y + b.height * 0.15);
+      await sleep(150);
+      const handleCount = await page.evaluate(
+        () => document.querySelectorAll('[data-testid^="editor-handle-"]').length
+      );
+      if (handleCount !== 8) {
+        throw new Error(`editor-selected: expected 8 resize handles (got ${handleCount})`);
+      }
+    }
+    await shot("editor-selected");
+
+    // --- Editor: search panel with canned matches + pulse on the page ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF Editor");
+    await loadEditorPdf();
+    // The fixture page is small (about 200 x 300 pt at this zoom), so keep the
+    // pulse origins well inside it; a 140pt-wide pulse near x=20 still fits.
+    await mock(() =>
+      window.__mockSetSearchResults([
+        { page: 1, snippet: "…quarterly revenue reconciliation…", x: 20, y: 60 },
+        { page: 2, snippet: "…appendix and audit notes…", x: 30, y: 120 },
+      ])
+    );
+    await clickTestId(page, "editor-search-toggle");
+    await sleep(120);
+    await typeInto(page, "editor-search-input", "revenue");
+    await clickTestId(page, "editor-search-run");
+    await sleep(300);
+    await clickTestId(page, "editor-search-result");
+    await sleep(150);
+    await shot("editor-search-results");
+
+    // --- Fill Form: canned fields (text + checkbox + dropdown + radio + readOnly) ---
+    const FORM_FIELDS = {
+      fields: [
+        { name: "fullName", type: "text", value: "", readOnly: false, required: true },
+        { name: "agree", type: "checkbox", value: "false", readOnly: false, required: false },
+        {
+          name: "department", type: "dropdown", value: "",
+          options: ["Engineering", "Sales", "Support"], readOnly: false, required: false,
+        },
+        {
+          name: "plan", type: "radio", value: "",
+          options: ["Basic", "Pro"], readOnly: false, required: false,
+        },
+        { name: "accountId", type: "text", value: "ACC-1024", readOnly: true, required: false },
+      ],
+    };
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Fill Form");
+    await mock((d) => window.__mockSetDataResult("formFields", d), FORM_FIELDS);
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(400);
+    const formFieldCount = await page.evaluate(
+      () => document.querySelectorAll('[data-testid^="formfill-field-"]').length
+    );
+    if (formFieldCount < 5) {
+      throw new Error(`formfill-form: the canned fields did not render (got ${formFieldCount})`);
+    }
+    await shot("formfill-form");
+
+    // --- Fill Form: values entered across the widget types ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Fill Form");
+    await mock((d) => window.__mockSetDataResult("formFields", d), FORM_FIELDS);
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(400);
+    await typeInto(page, "formfill-field-fullName", "Ada Lovelace");
+    await clickCheckbox(page, "formfill-field-agree");
+    await selectByValue(page, "formfill-field-department", "Engineering");
+    await clickCheckbox(page, "formfill-field-plan-Pro");
+    await shot("formfill-filled");
+
+    // --- Fill Form: an empty form (honest empty state, no CTA) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Fill Form");
+    await mock(() => window.__mockSetDataResult("formFields", { fields: [] }));
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(400);
+    const emptyState = await page.evaluate(() => ({
+      empty: document.querySelector('[data-testid="formfill-empty"]') !== null,
+      cta: document.querySelector('[data-testid="formFill-cta"]') !== null,
+    }));
+    if (!emptyState.empty || emptyState.cta) {
+      throw new Error(`formfill-empty: empty state wrong (${JSON.stringify(emptyState)})`);
+    }
+    await shot("formfill-empty");
+    await mock(() => window.__mockSetDataResult("formFields", null));
+
+    // --- Create Form: three field rows with coordinates ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Create Form");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "formcreate-add");
+    await clickTestId(page, "formcreate-add");
+    await clickTestId(page, "formcreate-add");
+    await typeInto(page, "formcreate-name-0", "firstName");
+    await typeInto(page, "formcreate-label-0", "First name");
+    await typeInto(page, "formcreate-name-1", "email");
+    await typeInto(page, "formcreate-label-1", "Email");
+    await typeInto(page, "formcreate-name-2", "agree");
+    await typeInto(page, "formcreate-label-2", "Agree");
+    await selectByValue(page, "formcreate-type-2", "checkbox");
+    await scrollCtaIntoView(page);
+    await shot("formcreate-placed");
+
+    // --- Sign PDF: Draw mode with ink on the pad ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Sign PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(120);
+    await scrollCtaIntoView(page);
+    {
+      const pad = await page.evaluate(() => {
+        const r = document.querySelector('[data-testid="sign-pad"]').getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      });
+      const pt = (fx, fy) => ({ x: pad.x + pad.width * fx, y: pad.y + pad.height * fy });
+      const a = pt(0.1, 0.7);
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      for (const [fx, fy] of [[0.25, 0.3], [0.4, 0.7], [0.55, 0.25], [0.7, 0.6], [0.85, 0.35]]) {
+        const p = pt(fx, fy);
+        await page.mouse.move(p.x, p.y, { steps: 4 });
+      }
+      await page.mouse.up();
+      await sleep(150);
+    }
+    await shot("sign-draw");
+
+    // --- Sign PDF: Type mode with text entered ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Sign PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "sign-mode", "Type");
+    await sleep(120);
+    await typeInto(page, "sign-text", "Ada Lovelace");
+    await scrollCtaIntoView(page);
+    await shot("sign-type");
+
+    // --- Stamp PDF: text + colour + rotation filled ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Stamp PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "stamp-text", "APPROVED");
+    await typeInto(page, "stamp-color", "#1D4ED8");
+    await typeInto(page, "stamp-rotate", "15");
+    await shot("stamp-form");
+
+    // --- Remove Annotations: three types ticked, All types off ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Remove Annotations");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickCheckbox(page, "removeannotations-type-highlight");
+    await clickCheckbox(page, "removeannotations-type-underline");
+    await clickCheckbox(page, "removeannotations-type-rect");
+    await sleep(120);
+    const annotChecks = await page.evaluate(() => {
+      const all = document.querySelector('[data-testid="removeannotations-all"]');
+      const types = ["highlight", "underline", "rect"].map(
+        (t) => document.querySelector(`[data-testid="removeannotations-type-${t}"]`)?.checked ?? null
+      );
+      return { all: all?.checked ?? null, types, allDisabled: all?.disabled ?? null };
+    });
+    if (annotChecks.all !== false || annotChecks.types.some((v) => v !== true)) {
+      throw new Error(`removeannotations-form: checkbox state wrong (${JSON.stringify(annotChecks)})`);
+    }
+    await shot("removeannotations-form");
+
+    // --- Sanitize PDF: the default five-checkbox state (all on) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Sanitize PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await sleep(120);
+    const sanitizeChecks = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid^="sanitize-"]')]
+        .filter((el) => el.tagName === "INPUT")
+        .map((el) => el.checked)
+    );
+    if (sanitizeChecks.length !== 5 || sanitizeChecks.some((c) => c !== true)) {
+      throw new Error(`sanitize-form: expected 5 checked flags (${JSON.stringify(sanitizeChecks)})`);
+    }
+    await shot("sanitize-form");
+
+    // --- Bates Numbering: position + format + prefix ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Bates Numbering");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "bates-position", "Bottom right");
+    await clickLabel(page, "bates-format", "1 / 5");
+    await typeInto(page, "bates-prefix", "ACME-");
+    await shot("bates-form");
+
+    // --- Page Labels: Roman style + prefix ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Page Labels");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await selectByValue(page, "pagelabels-style", "roman-upper");
+    await typeInto(page, "pagelabels-prefix", "Appendix-");
+    await shot("pagelabels-form");
+
+    // --- Remove Blank Pages: tolerance moved off the default ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Remove Blank Pages");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "removeblankpages-tolerance", "15");
+    await sleep(120);
+    await shot("removeblank-form");
+
+    // --- Remove Restrictions: password filled and masked ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Remove Restrictions");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "removerestrictions-password", "document-pass");
+    const restrictionsMasked = await page.evaluate(() => {
+      const f = document.querySelector('[data-testid="removerestrictions-password"]');
+      return { type: f?.getAttribute("type"), value: f?.value };
+    });
+    if (restrictionsMasked.type !== "password" || restrictionsMasked.value !== "document-pass") {
+      throw new Error(`restrictions-form: password not masked (${JSON.stringify(restrictionsMasked)})`);
+    }
+    await shot("restrictions-form");
   } finally {
     await browser.close();
     if (vite) {
