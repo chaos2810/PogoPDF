@@ -4,7 +4,7 @@ import type { ChildProcess } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PDFDocument } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef } from "pdf-lib";
 
 const ENGINE_DIR = join(import.meta.dirname, "..");
 
@@ -12,6 +12,20 @@ async function makePdf(path: string, pages: number) {
   const doc = await PDFDocument.create();
   for (let i = 0; i < pages; i++) doc.addPage([595.28, 841.89]);
   writeFileSync(path, await doc.save());
+}
+
+// Walk a page's /Annots low-level: raw get plus instanceof, no lookupMaybe.
+function pageAnnots(doc: PDFDocument, pageIndex: number): PDFDict[] {
+  const raw: unknown = doc.getPage(pageIndex).node.get(PDFName.of("Annots"));
+  const arr = raw instanceof PDFRef ? doc.context.lookup(raw) : raw;
+  if (!(arr instanceof PDFArray)) return [];
+  const out: PDFDict[] = [];
+  for (let i = 0; i < arr.size(); i++) {
+    const entry = arr.get(i);
+    const dict = entry instanceof PDFRef ? doc.context.lookup(entry) : entry;
+    if (dict instanceof PDFDict) out.push(dict);
+  }
+  return out;
 }
 
 const children = new Set<ChildProcess>();
@@ -232,6 +246,96 @@ describe("engine stdio smoke", () => {
 
       const doc = await PDFDocument.load(readFileSync(outPath), { updateMetadata: false });
       expect(doc.getTitle()).toBe("Smoke Title");
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
+
+  it("saves an annotation via editorSave and reloads it as a real /Annots entry", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    await makePdf(join(work, "f", "annot.pdf"), 1);
+
+    const child = startEngine();
+    try {
+      const resp = rpcLine(child, 7);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 7,
+          method: "job.start",
+          params: {
+            jobId: "623e4567-e89b-12d3-a456-426614174000",
+            toolId: "editorSave",
+            input: {
+              filePath: join(work, "f", "annot.pdf"),
+              annotations: [{ type: "rect", page: 1, rect: { x: 100, y: 120, w: 80, h: 40 } }],
+            },
+          },
+        }) + "\n"
+      );
+      const result = await resp;
+      expect(result.error).toBeUndefined();
+      expect(result.result.jobId).toBe("623e4567-e89b-12d3-a456-426614174000");
+      const outPath = result.result.outputPath as string;
+      expect(outPath).toBeTruthy();
+      expect(existsSync(outPath)).toBe(true);
+
+      const doc = await PDFDocument.load(readFileSync(outPath));
+      const annots = pageAnnots(doc, 0);
+      expect(annots.length).toBeGreaterThan(0);
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
+
+  it("fills a form via formFill and reads the value back after reload", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    const srcPath = join(work, "f", "form.pdf");
+    const blank = await PDFDocument.create();
+    const page = blank.addPage([595.28, 841.89]);
+    blank.getForm().createTextField("fullName").addToPage(page, {
+      x: 40,
+      y: 40,
+      width: 200,
+      height: 24,
+    });
+    writeFileSync(srcPath, await blank.save());
+
+    const child = startEngine();
+    try {
+      const resp = rpcLine(child, 8);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 8,
+          method: "job.start",
+          params: {
+            jobId: "723e4567-e89b-12d3-a456-426614174000",
+            toolId: "formFill",
+            input: {
+              filePath: srcPath,
+              values: [{ name: "fullName", value: "Ada Lovelace" }],
+            },
+          },
+        }) + "\n"
+      );
+      const result = await resp;
+      expect(result.error).toBeUndefined();
+      expect(result.result.jobId).toBe("723e4567-e89b-12d3-a456-426614174000");
+      const outPath = result.result.outputPath as string;
+      expect(outPath).toBeTruthy();
+      expect(existsSync(outPath)).toBe(true);
+
+      const doc = await PDFDocument.load(readFileSync(outPath));
+      expect(doc.getForm().getTextField("fullName").getText()).toBe("Ada Lovelace");
 
       child.stdin!.end();
       await new Promise((r) => child.once("exit", r));
