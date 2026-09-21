@@ -298,13 +298,15 @@ describe("runRemoveMetadata", () => {
     doc.addPage([200, 300]);
     // pdf-lib does not author XMP, so craft the raw stream the way an external
     // producer would and register it on the catalog.
+    const marker = "REMOVE_METADATA_XMP_MARKER_42";
     const xmp = PDFRawStream.of(
       doc.context.obj({ Type: "Metadata", Subtype: "XML" }),
-      new TextEncoder().encode("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"/>")
+      new TextEncoder().encode(marker)
     );
     doc.catalog.set(PDFName.of("Metadata"), doc.context.register(xmp));
     const src = join(dir, "xmp.pdf");
     writeFileSync(src, await doc.save());
+    expect(readFileSync(src).includes(Buffer.from(marker, "latin1"))).toBe(true);
 
     const before = await PDFDocument.load(readFileSync(src), { updateMetadata: false });
     expect(before.catalog.get(PDFName.of("Metadata"))).toBeDefined();
@@ -312,6 +314,8 @@ describe("runRemoveMetadata", () => {
     const out = await runRemoveMetadata({ filePath: src }, ctx, outDir());
     const after = await PDFDocument.load(readFileSync(out), { updateMetadata: false });
     expect(after.catalog.get(PDFName.of("Metadata"))).toBeUndefined();
+    // The stream object is deleted, not just unreferenced, so its bytes leave.
+    expect(readFileSync(out).includes(Buffer.from(marker, "latin1"))).toBe(false);
   });
 
   it("leaves no Metadata key on a document that had none", async () => {

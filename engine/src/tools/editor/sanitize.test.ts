@@ -5,12 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fixtureDir } from "../../testing/fixtures";
 import { registerTools } from "../registry";
-import { runAddAttachments } from "../richcontent/attachments";
 import { runViewMetadata } from "../../tools/convertout/viewmetadata";
 import { writeAnnotations } from "./annotations";
 import { runSanitize } from "./sanitize";
 
 const ctx = { cancelled: () => false, notifyProgress: () => {} };
+
+const ATTACH_MARKER = "SANITIZE_ATTACH_MARKER_ABC123";
+const XMP_MARKER = "SANITIZE_XMP_MARKER_XYZ789";
 
 function outDir(): string {
   return mkdtempSync(join(tmpdir(), "pogopdf-sanitize-"));
@@ -73,7 +75,12 @@ async function pageHasAnnots(path: string, pageIndex: number): Promise<boolean> 
   return arr instanceof PDFArray && arr.size() > 0;
 }
 
-/** Base PDF carrying metadata, an annotation, a form field and a JS action. */
+/**
+ * Kitchen-sink PDF carrying metadata, an annotation, a form field, a JS action,
+ * an embedded file and an XMP stream. Attachment and XMP bytes are written as
+ * uncompressed streams with recognizable markers (useObjectStreams:false) so the
+ * byte-level scrub can be asserted with a plain Buffer search.
+ */
 async function makeKitchenSink(path: string): Promise<string> {
   const doc = await PDFDocument.create();
   doc.setTitle("Sensitive title");
@@ -99,21 +106,51 @@ async function makeKitchenSink(path: string): Promise<string> {
     ],
     { cancelled: () => false }
   );
-  writeFileSync(path, await doc.save());
+
+  const context = doc.context;
+  const attachBytes = new TextEncoder().encode(ATTACH_MARKER);
+  const streamRef = context.register(
+    context.stream(attachBytes, {
+      Type: "EmbeddedFile",
+      Params: { Size: attachBytes.length },
+    })
+  );
+  const specRef = context.register(
+    context.obj({ Type: "Filespec", F: PDFString.of("note.txt"), EF: { F: streamRef } })
+  );
+  // Merge into the existing /Names dict so the JavaScript subtree survives.
+  const names = doc.catalog.lookup(PDFName.of("Names"), PDFDict);
+  names.set(
+    PDFName.of("EmbeddedFiles"),
+    context.obj({ Names: [PDFString.of("note.txt"), specRef] })
+  );
+  doc.catalog.set(PDFName.of("AF"), context.obj([specRef]));
+
+  const xmpBytes = new TextEncoder().encode(XMP_MARKER);
+  const xmpRef = context.register(
+    context.stream(xmpBytes, { Type: "Metadata", Subtype: "XML" })
+  );
+  doc.catalog.set(PDFName.of("Metadata"), xmpRef);
+
+  writeFileSync(path, await doc.save({ useObjectStreams: false }));
   return path;
+}
+
+function rawBytes(path: string): Buffer {
+  return readFileSync(path);
+}
+
+function containsMarker(path: string, marker: string): boolean {
+  return rawBytes(path).includes(Buffer.from(marker, "latin1"));
 }
 
 describe("runSanitize", () => {
   let dir: string;
-  let attachSrc: string;
   let sink: string;
 
   beforeAll(async () => {
     dir = fixtureDir("editor-sanitize");
-    attachSrc = join(dir, "note.txt");
-    writeFileSync(attachSrc, "attached secret bytes");
-    const base = await makeKitchenSink(join(dir, "base.pdf"));
-    sink = await runAddAttachments({ filePath: base, attachments: [attachSrc] }, ctx, outDir());
+    sink = await makeKitchenSink(join(dir, "base.pdf"));
   });
 
   it("removes all five surfaces when every flag is on", async () => {
@@ -132,6 +169,16 @@ describe("runSanitize", () => {
 
     const doc = await load(out);
     expect(doc.getForm().getFields()).toHaveLength(0);
+  });
+
+  it("scrubs attachment and XMP marker bytes from the output", async () => {
+    // Precondition: the markers really are in the input's raw bytes.
+    expect(containsMarker(sink, ATTACH_MARKER)).toBe(true);
+    expect(containsMarker(sink, XMP_MARKER)).toBe(true);
+
+    const out = await runSanitize({ filePath: sink }, ctx, outDir());
+    expect(containsMarker(out, ATTACH_MARKER)).toBe(false);
+    expect(containsMarker(out, XMP_MARKER)).toBe(false);
   });
 
   it("keeps annotations when removeAnnotations is false", async () => {
@@ -187,6 +234,26 @@ describe("runSanitize", () => {
     const data = await runViewMetadata({ filePath: out }, ctx, outDir());
     expect(data.title).toBe("Sensitive title");
     expect(data.author).toBe("Sensitive author");
+  });
+
+  it("keeps attachments and their bytes when removeAttachments is false", async () => {
+    // flattenForms off: the qpdf pass recompresses streams, hiding raw markers.
+    const out = await runSanitize(
+      { filePath: sink, removeAttachments: false, flattenForms: false },
+      ctx,
+      outDir()
+    );
+    expect(await hasEmbeddedFilesAsync(out)).toBe(true);
+    expect(containsMarker(out, ATTACH_MARKER)).toBe(true);
+  });
+
+  it("keeps JavaScript when removeJavaScript is false", async () => {
+    const out = await runSanitize(
+      { filePath: sink, removeJavaScript: false, flattenForms: false },
+      ctx,
+      outDir()
+    );
+    expect(await hasJavaScriptAsync(out)).toBe(true);
   });
 
   it("maps a missing file to CORRUPT_PDF", async () => {

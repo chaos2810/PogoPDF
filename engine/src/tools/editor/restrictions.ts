@@ -27,8 +27,8 @@ export function buildRemoveRestrictionsArgs(
 /**
  * Removes encryption and owner restrictions with qpdf. Owner-restricted files
  * (empty user password) decrypt without any secret; a genuine user password is
- * optional and, when absent, qpdf's "invalid password" report surfaces as the
- * typed ENCRYPTED_PDF error so the UI can prompt for one.
+ * optional and, when absent, the ENCRYPTED_PDF error carries a prompt to supply
+ * one; a supplied-but-wrong password reports that it was incorrect.
  */
 export async function runRemoveRestrictions(
   input: unknown,
@@ -49,9 +49,17 @@ export async function runRemoveRestrictions(
   try {
     await runQpdf(buildRemoveRestrictionsArgs(pwPath, filePath, outPath), outDir);
   } catch (e) {
-    if ((e as { code?: number }).code === TOOL_ERROR_CODES.ENCRYPTED_PDF && password !== undefined) {
+    if ((e as { code?: number }).code === TOOL_ERROR_CODES.ENCRYPTED_PDF) {
+      if (password !== undefined) {
+        throw qpdfError(
+          "Incorrect password. This PDF could not be unlocked.",
+          TOOL_ERROR_CODES.ENCRYPTED_PDF
+        );
+      }
+      // No password supplied: qpdf's raw "supplied password was rejected" is
+      // misleading here, since the user was never asked for one.
       throw qpdfError(
-        "Incorrect password. This PDF could not be unlocked.",
+        "This file needs a password to open. Supply the password and retry.",
         TOOL_ERROR_CODES.ENCRYPTED_PDF
       );
     }

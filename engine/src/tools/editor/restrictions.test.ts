@@ -87,7 +87,10 @@ describe.skipIf(!qpdfBin)("runRemoveRestrictions", () => {
     const enc = await userLocked(src, "secret", "owner");
     await expect(
       runRemoveRestrictions({ filePath: enc }, ctx, outDir())
-    ).rejects.toMatchObject({ code: -32002 });
+    ).rejects.toMatchObject({
+      code: -32002,
+      message: "This file needs a password to open. Supply the password and retry.",
+    });
   });
 
   it("is a passthrough for an unencrypted file", async () => {
