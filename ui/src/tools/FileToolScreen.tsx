@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { t } from "@pogopdf/i18n";
 import { pickPdfs, type ProgressPayload } from "../app/rpc";
 import { SaveAsBar } from "../components/SaveAsBar";
 import { usePdfJob } from "./usePdfJob";
