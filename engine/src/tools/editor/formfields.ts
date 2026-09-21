@@ -1,6 +1,8 @@
 import {
+  PDFButton,
   PDFCheckBox,
   PDFDropdown,
+  PDFOptionList,
   PDFRadioGroup,
   PDFSignature,
   PDFTextField,
@@ -53,10 +55,17 @@ export async function runFormFields(
     else if (field instanceof PDFRadioGroup) {
       entry.type = "radio";
       entry.options = field.getOptions();
-    } else if (field instanceof PDFDropdown) {
+    } else if (field instanceof PDFDropdown || field instanceof PDFOptionList) {
+      // A listbox is an option set like a dropdown, so report the closest
+      // contract type ("dropdown") and keep its options rather than drop data.
       entry.type = "dropdown";
       entry.options = field.getOptions();
     } else if (field instanceof PDFSignature) entry.type = "signature";
+    else if (field instanceof PDFButton) {
+      // A plain push button has no fillable value; skip it instead of
+      // inventing data. The field count in the DataResult makes this visible.
+      continue;
+    }
 
     const value = fieldValue(field);
     if (value !== undefined) entry.value = value;

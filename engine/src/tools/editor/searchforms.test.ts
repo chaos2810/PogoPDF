@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { PDFDocument, StandardFonts, degrees } from "pdf-lib";
+import { PDFDocument, PDFName, StandardFonts, degrees } from "pdf-lib";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -149,6 +149,30 @@ describe("runSearch", () => {
         outDir()
       )
     ).rejects.toMatchObject({ code: -32005 });
+  });
+
+  it("caps matches at 500 without an error, stopping progress at the cap", async () => {
+    // 620 repetitions of "token" on one page, each its own text line.
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([595.28, 841.89]);
+    for (let i = 0; i < 620; i++) {
+      page.drawText("token", { x: 50, y: 800 - i * 1.2, size: 1, font });
+    }
+    const src = join(dir, "cap.pdf");
+    writeFileSync(src, await doc.save());
+
+    const seen: ProgressParams[] = [];
+    const out = await runSearch(
+      { filePath: src, query: "token" },
+      { cancelled: () => false, notifyProgress: (p) => seen.push(p) },
+      outDir()
+    );
+    expect(out.matches).toHaveLength(500);
+    // The cap ends the search without error; the page that hit it still
+    // reports its progress tick, so a single-page run reaches 100.
+    expect(seen.at(-1)!.percent).toBe(100);
+    expect(seen.at(-1)!.pagesDone).toBe(1);
   });
 });
 
@@ -350,6 +374,17 @@ describe("runFormFill", () => {
       )
     ).rejects.toMatchObject({ code: -32005 });
   });
+
+  it("saves NeedAppearances true so viewers regenerate appearances", async () => {
+    const filled = await runFormFill(
+      { filePath: source, values: [{ name: "fullName", value: "Ada" }] },
+      ctx,
+      outDir()
+    );
+    const saved = await PDFDocument.load(readFileSync(filled));
+    const flag = saved.getForm().acroForm.dict.get(PDFName.of("NeedAppearances"));
+    expect(String(flag)).toBe("true");
+  });
 });
 
 describe("runFormCreate", () => {
@@ -450,6 +485,21 @@ describe("runFormCreate", () => {
         outDir()
       )
     ).rejects.toMatchObject({ code: -32002 });
+  });
+
+  it("rejects a non-Latin-1 label with INVALID_INPUT", async () => {
+    const src = await blankPdf(join(dir, "cjk-label.pdf"));
+    await expect(
+      runFormCreate(
+        {
+          filePath: src,
+          page: 1,
+          fields: [{ name: "first", label: "第一頁", type: "text", x: 10, y: 10, w: 100, h: 20 }],
+        },
+        ctx,
+        outDir()
+      )
+    ).rejects.toMatchObject({ code: -32001 });
   });
 });
 
