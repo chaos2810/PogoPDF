@@ -64,4 +64,9 @@ export const registry: ToolMeta[] = [
   { id: TOOL_IDS.viewBookmarks, titleKey: "tool.viewBookmarks.title", descKey: "tool.viewBookmarks.desc", category: "utility", icon: "Bookmark" },
   { id: TOOL_IDS.editBookmarks, titleKey: "tool.editBookmarks.title", descKey: "tool.editBookmarks.desc", category: "utility", icon: "BookMarked" },
   { id: TOOL_IDS.toc, titleKey: "tool.toc.title", descKey: "tool.toc.desc", category: "utility", icon: "ListOrdered" },
+
+  // The editor is a screen, not a tool card: it borrows the editorSave id so
+  // the card opens the editor while the registry stays a 1:1 map of TOOL_IDS.
+  // `search` is the editor's built-in search panel, so it has no card at all.
+  { id: TOOL_IDS.editorSave, titleKey: "tool.editor.title", descKey: "tool.editor.desc", category: "edit", icon: "FilePen" },
 ];

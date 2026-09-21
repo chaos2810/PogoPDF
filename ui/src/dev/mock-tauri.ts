@@ -48,6 +48,12 @@ const state = {
   folder: "C:\\Users\\demo\\Downloads\\split-out",
   copyFailNames: new Set<string>(),
   thumbCount: 6,
+  // Canned search hits for the editor's search panel; x/y are baseline origins
+  // in the page's displayed frame. Overridable via __mockSetSearchResults.
+  searchResults: [
+    { page: 1, snippet: "…quarterly revenue reconciliation…", x: 120, y: 240 },
+    { page: 2, snippet: "…appendix and audit notes…", x: 80, y: 360 },
+  ] as Array<{ page: number; snippet: string; x: number; y: number }>,
 };
 
 // Canvas-drawn fake page images so organize states render without a real PDF.
@@ -197,10 +203,15 @@ function rpc(method: string, params: { jobId?: string; toolId?: string } = {}): 
       return Promise.reject(JSON.stringify({ code: -32003, message: state.jobError }));
     }
     const toolId = params.toolId ?? "";
-    // Data tools (viewMetadata, pageDimensions) return {data: …} under the
-    // canned payload set by __mockSetDataResult / the built-in defaults.
+    // Data tools (viewMetadata, pageDimensions, search) return {data: …} under
+    // the canned payload set by __mockSetDataResult / the built-in defaults.
     const data =
-      state.dataResults[toolId] ?? (toolId in DEFAULT_DATA_RESULTS ? DEFAULT_DATA_RESULTS[toolId] : undefined);
+      state.dataResults[toolId] ??
+      (toolId === "search"
+        ? { matches: state.searchResults.slice() }
+        : toolId in DEFAULT_DATA_RESULTS
+          ? DEFAULT_DATA_RESULTS[toolId]
+          : undefined);
     const result =
       data !== undefined
         ? { jobId: params.jobId, data }
@@ -349,6 +360,20 @@ w.__mockSetFolder = (path: string) => {
 w.__mockCopyFail = (name: string, fail = true) => {
   if (fail) state.copyFailNames.add(name);
   else state.copyFailNames.delete(name);
+};
+// Editor search seam: override the canned hits (an empty array drives the
+// "no results" state). Pass null to restore the built-in defaults.
+w.__mockSetSearchResults = (
+  matches: Array<{ page: number; snippet: string; x: number; y: number }> | null
+) => {
+  if (matches === null) {
+    state.searchResults = [
+      { page: 1, snippet: "…quarterly revenue reconciliation…", x: 120, y: 240 },
+      { page: 2, snippet: "…appendix and audit notes…", x: 80, y: 360 },
+    ];
+  } else {
+    state.searchResults = matches.slice();
+  }
 };
 
 // Thumbnail seam for the organize grid. real pdfthumbs.ts checks for this hook;

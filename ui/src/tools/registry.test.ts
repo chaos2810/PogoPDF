@@ -8,6 +8,26 @@ import { registry } from "./registry";
 // so the UI catalog does not promise a feature that cannot work.
 const HIDDEN_FROM_UI = new Set<string>([TOOL_IDS.xpsToPdf]);
 
+// The editor screen registered editorSave (the card IS the editor; search is its
+// built-in panel). The remaining Phase 3 engine ids (forms, sign, stamps,
+// cleanup) have no UI screen yet; Task 8 adds them and this set shrinks to
+// empty. Listing them here keeps the coverage check strict without pretending
+// the UI ships screens that do not exist.
+const PENDING_UI = new Set<string>([
+  TOOL_IDS.search,
+  TOOL_IDS.formFields,
+  TOOL_IDS.formFill,
+  TOOL_IDS.formCreate,
+  TOOL_IDS.sign,
+  TOOL_IDS.stamp,
+  TOOL_IDS.removeAnnotations,
+  TOOL_IDS.removeBlankPages,
+  TOOL_IDS.removeRestrictions,
+  TOOL_IDS.sanitize,
+  TOOL_IDS.bates,
+  TOOL_IDS.pageLabels,
+]);
+
 describe("registry", () => {
   it("has unique ids", () => {
     const ids = registry.map((t) => t.id);
@@ -19,9 +39,14 @@ describe("registry", () => {
   it("covers exactly the known tool ids, with nothing missing or extra", () => {
     const registered = new Set(registry.map((t) => t.id));
     const known = new Set<string>(Object.values(TOOL_IDS));
-    const expected = Object.values(TOOL_IDS).filter((id) => !HIDDEN_FROM_UI.has(id));
+    const expected = Object.values(TOOL_IDS).filter(
+      (id) => !HIDDEN_FROM_UI.has(id) && !PENDING_UI.has(id)
+    );
     expect(expected.filter((id) => !registered.has(id))).toEqual([]);
     expect(registry.map((t) => t.id).filter((id) => !known.has(id))).toEqual([]);
+  });
+  it("registers the editor screen under the editorSave id", () => {
+    expect(registry.some((t) => t.id === TOOL_IDS.editorSave)).toBe(true);
   });
   it("does not surface a screen for the hidden xpsToPdf id", () => {
     expect(registry.some((t) => t.id === TOOL_IDS.xpsToPdf)).toBe(false);

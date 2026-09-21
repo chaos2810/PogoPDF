@@ -58,6 +58,7 @@ import { EditAttachmentsScreen } from "../tools/richcontent/EditAttachmentsScree
 import { ViewBookmarksScreen } from "../tools/richcontent/ViewBookmarksScreen";
 import { EditBookmarksScreen } from "../tools/richcontent/EditBookmarksScreen";
 import { TocScreen } from "../tools/richcontent/TocScreen";
+import { EditorScreen } from "../tools/editor/EditorScreen";
 
 export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
@@ -113,6 +114,7 @@ export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.viewBookmarks]: ViewBookmarksScreen,
   [TOOL_IDS.editBookmarks]: EditBookmarksScreen,
   [TOOL_IDS.toc]: TocScreen,
+  [TOOL_IDS.editorSave]: EditorScreen,
 };
 
 export function Router() {
