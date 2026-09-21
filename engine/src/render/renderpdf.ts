@@ -14,6 +14,11 @@ export type PdfRenderer = {
   /** Page proxy for text extraction (pdf.js pages are 1-based). */
   getPage(index: number): Promise<PDFPageProxy>;
   /**
+   * Viewer-facing page labels (catalog /PageLabels number tree), or null when
+   * the document declares none. pdf.js resolves the styles to display strings.
+   */
+  getPageLabels(): Promise<string[] | null>;
+  /**
    * Rasterize a single page at `dpi` and return its canvas.
    *
    * Callers MUST render one page at a time and release each canvas before
@@ -60,6 +65,10 @@ export async function getPdfRenderer(path: string): Promise<PdfRenderer> {
 
     async getPage(index: number): Promise<PDFPageProxy> {
       return doc.getPage(index + 1);
+    },
+
+    async getPageLabels(): Promise<string[] | null> {
+      return doc.getPageLabels();
     },
 
     async renderPage(index: number, dpi: number): Promise<Canvas> {

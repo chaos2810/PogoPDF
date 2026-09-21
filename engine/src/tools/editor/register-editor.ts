@@ -1,10 +1,14 @@
 import {
+  BatesNumberInputSchema,
   EditorSaveInputSchema,
   FormCreateInputSchema,
   FormFieldsInputSchema,
   FormFillInputSchema,
+  PageLabelsInputSchema,
   RemoveAnnotationsInputSchema,
   RemoveBlankPagesInputSchema,
+  RemoveRestrictionsInputSchema,
+  SanitizeInputSchema,
   SearchInputSchema,
   SignInputSchema,
   StampInputSchema,
@@ -20,6 +24,10 @@ import { runSign } from "./sign";
 import { runStamp } from "./stamp";
 import { runRemoveAnnotations } from "./removeannotations";
 import { runRemoveBlankPages } from "./removeblankpages";
+import { runRemoveRestrictions } from "./restrictions";
+import { runSanitize } from "./sanitize";
+import { runBates } from "./bates";
+import { runPageLabels } from "./pagelabels";
 
 export function registerEditorTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.editorSave, {
@@ -57,5 +65,21 @@ export function registerEditorTools(tools: ToolRegistry) {
   tools.set(TOOL_IDS.removeBlankPages, {
     schema: RemoveBlankPagesInputSchema,
     run: runRemoveBlankPages,
+  });
+  tools.set(TOOL_IDS.removeRestrictions, {
+    schema: RemoveRestrictionsInputSchema,
+    run: runRemoveRestrictions,
+  });
+  tools.set(TOOL_IDS.sanitize, {
+    schema: SanitizeInputSchema,
+    run: runSanitize,
+  });
+  tools.set(TOOL_IDS.bates, {
+    schema: BatesNumberInputSchema,
+    run: runBates,
+  });
+  tools.set(TOOL_IDS.pageLabels, {
+    schema: PageLabelsInputSchema,
+    run: runPageLabels,
   });
 }
