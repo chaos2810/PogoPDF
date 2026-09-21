@@ -724,4 +724,38 @@ describe("sign and cleanup registry", () => {
       expect(tools.has(id)).toBe(true);
     }
   });
+
+  it("scales an image signature by the scale factor", async () => {
+    const dir = fixtureDir("signclean-scale");
+    const png = join(dir, "sig.png");
+    writeFileSync(
+      png,
+      await sharp({
+        create: { width: 100, height: 60, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      })
+        .png()
+        .toBuffer()
+    );
+    const src = await blankPdf(join(dir, "one.pdf"), 1, { size: [300, 300] });
+    const base = await runSign(
+      { filePath: src, mode: "image", imageFile: png, page: 1, x: 10, y: 10, scale: 1 },
+      ctx,
+      outDir()
+    );
+    const big = await runSign(
+      { filePath: src, mode: "image", imageFile: png, page: 1, x: 10, y: 10, scale: 2 },
+      ctx,
+      outDir()
+    );
+    // A 100x60 red PNG anchored top-left at (10,10). samplePixel reads
+    // canvas pixels (top-left origin, 1:1 with the displayed frame at 72
+    // dpi), so sample displayed (180, 70): inside the scale-2 box
+    // (10..210, 10..130), outside the scale-1 box (10..110, 10..70). The
+    // red channel is 255 for both red ink and white paper, so sample the
+    // green channel: 0 inside the red image, 255 on blank paper.
+    const [, gBig] = await samplePixel(big, 0, 180, 70);
+    const [, gBase] = await samplePixel(base, 0, 180, 70);
+    expect(gBig).toBeLessThan(60);
+    expect(gBase).toBeGreaterThan(200);
+  });
 });
