@@ -1140,3 +1140,29 @@ export type ComparePdfsData = {
   differingPages: number[];
   pageSizeMismatchPages: number[];
 };
+
+/**
+ * Result data for search (the engine's SearchData). Positions are in the
+ * page's DISPLAYED frame (x from the left, y from the top), so the UI can
+ * place a highlight without knowing the page rotation. Capped at 500 matches.
+ */
+export type SearchData = {
+  matches: Array<{
+    page: number;
+    snippet: string;
+    x: number;
+    y: number;
+  }>;
+};
+
+/** Result data for formFields (the engine's FormFieldsData). */
+export type FormFieldsData = {
+  fields: Array<{
+    name: string;
+    type: "text" | "checkbox" | "radio" | "dropdown" | "signature";
+    value?: string;
+    options?: string[];
+    readOnly: boolean;
+    required: boolean;
+  }>;
+};
