@@ -618,7 +618,6 @@ export const zhTW: Record<Key, string> = {
   "tool.formFill.readOnly": "唯讀",
   "tool.formFill.signature": "簽名欄位：請改用「簽署 PDF」工具填寫。",
   "tool.formFill.booleanTrue": "已勾選",
-  "tool.formFill.booleanFalse": "未勾選",
   "tool.formFill.choose": "請選擇一個選項",
   "tool.formFill.latinHint": "本版本的欄位值僅支援 Latin-1 字元。",
   "tool.formFill.fieldsCount": "找到 {{count}} 個欄位",

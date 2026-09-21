@@ -24,6 +24,7 @@ export function PageLabelsScreen() {
   const [outputPath, setOutputPath] = useState<string | null>(null);
 
   const startInvalid = !Number.isInteger(start) || start < 1;
+  const error = startInvalid ? "tool.pageLabels.startInvalid" : null;
 
   const job = usePdfJob(TOOL_IDS.pageLabels, (fs) => ({
     filePath: fs[0], style, start, prefix,
@@ -53,8 +54,8 @@ export function PageLabelsScreen() {
       toolId={TOOL_IDS.pageLabels}
       job={job}
       ctaKey="tool.pageLabels.cta"
-      canRun={files.length >= 1}
-      validationKey={startInvalid ? "tool.pageLabels.startInvalid" : null}
+      canRun={files.length >= 1 && !error}
+      validationKey={files.length > 0 ? error : null}
       onPick={() => void pick()}
       onRun={startJob}
       pickContent={

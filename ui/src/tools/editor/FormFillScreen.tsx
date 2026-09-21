@@ -9,6 +9,7 @@ import { SaveAsBar } from "../../components/SaveAsBar";
 import { usePdfJob } from "../usePdfJob";
 import { Hint } from "../organize/forms";
 import { ToolFrame } from "../ToolFrame";
+import { buildFormFillValues } from "./formfillValues";
 
 type FormField = FormFieldsData["fields"][number];
 
@@ -52,11 +53,12 @@ export function FormFillScreen() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [outputPath, setOutputPath] = useState<string | null>(null);
 
+  // One payload used by both the run gate and the job input.
+  const fillValues = buildFormFillValues(fields, values);
+
   const job = usePdfJob(TOOL_IDS.formFill, (fs) => ({
     filePath: fs[0],
-    values: fields
-      .filter((f) => !f.readOnly && f.type !== "signature")
-      .map((f) => ({ name: f.name, value: values[f.name] ?? "" })),
+    values: fillValues,
   }));
   const { files, setFiles, reset, run } = job;
 
@@ -100,7 +102,6 @@ export function FormFillScreen() {
   const setValue = (name: string, value: string) =>
     setValues((prev) => ({ ...prev, [name]: value }));
 
-  const fillable = fields.filter((f) => !f.readOnly && f.type !== "signature");
   const loaded = files.length > 0 && !loading;
   const empty = loaded && fields.length === 0;
 
@@ -202,7 +203,7 @@ export function FormFillScreen() {
       toolId={TOOL_IDS.formFill}
       job={job}
       ctaKey="tool.formFill.cta"
-      canRun={files.length >= 1 && fillable.length > 0}
+      canRun={files.length >= 1 && fillValues.length > 0}
       hideCta={empty}
       onPick={() => void pick()}
       onRun={start}

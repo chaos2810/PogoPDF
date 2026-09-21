@@ -60,8 +60,8 @@ export function StampScreen() {
       toolId={TOOL_IDS.stamp}
       job={job}
       ctaKey="tool.stamp.cta"
-      canRun={files.length >= 1}
-      validationKey={error}
+      canRun={files.length >= 1 && !error}
+      validationKey={files.length > 0 ? error : null}
       onPick={() => void pick()}
       onRun={start}
       pickContent={

@@ -56,6 +56,8 @@ export function FormCreateScreen() {
 
   const rowValid = (row: Row) =>
     row.name.trim().length > 0 &&
+    Number.isFinite(row.x) &&
+    Number.isFinite(row.y) &&
     Number.isFinite(row.w) &&
     row.w >= 1 &&
     Number.isFinite(row.h) &&
@@ -123,7 +125,7 @@ export function FormCreateScreen() {
       job={job}
       ctaKey="tool.formCreate.cta"
       canRun={runnable}
-      validationKey={validationKey}
+      validationKey={files.length > 0 ? validationKey : null}
       onPick={() => void pick()}
       onRun={start}
       pickContent={

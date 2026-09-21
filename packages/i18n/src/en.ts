@@ -621,7 +621,6 @@ export const en = {
   "tool.formFill.readOnly": "Read only",
   "tool.formFill.signature": "Signature field: fill it with the Sign tool.",
   "tool.formFill.booleanTrue": "Checked",
-  "tool.formFill.booleanFalse": "Not checked",
   "tool.formFill.choose": "Choose an option",
   "tool.formFill.latinHint": "Values use Latin-1 characters only in this version.",
   "tool.formFill.fieldsCount": "{{count}} field(s) found",

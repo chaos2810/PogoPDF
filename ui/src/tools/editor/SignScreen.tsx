@@ -57,8 +57,9 @@ function SignaturePad({
             drawing.current = false;
             e.currentTarget.releasePointerCapture(e.pointerId);
           }}
-          onPointerCancel={() => {
+          onPointerCancel={(e) => {
             drawing.current = false;
+            e.currentTarget.releasePointerCapture(e.pointerId);
           }}
           style={{
             position: "absolute", inset: 0, width: "100%", height: "100%",
@@ -183,8 +184,8 @@ export function SignScreen() {
       toolId={TOOL_IDS.sign}
       job={job}
       ctaKey="tool.sign.cta"
-      canRun={files.length >= 1}
-      validationKey={error}
+      canRun={files.length >= 1 && !error}
+      validationKey={files.length > 0 ? error : null}
       onPick={() => void pick()}
       onRun={start}
       pickContent={

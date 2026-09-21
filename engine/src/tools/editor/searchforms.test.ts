@@ -318,6 +318,24 @@ describe("runFormFill", () => {
     expect(agree!.value).toBe("false");
   });
 
+  it("leaves an omitted choice field unset instead of clearing it", async () => {
+    // Only the text field is supplied; the dropdown is omitted (the UI's
+    // unselected-choice contract) and must keep whatever it held.
+    const seeded = await runFormFill(
+      { filePath: source, values: [{ name: "color", value: "red" }] },
+      ctx,
+      outDir()
+    );
+    const filled = await runFormFill(
+      { filePath: seeded, values: [{ name: "fullName", value: "Ada" }] },
+      ctx,
+      outDir()
+    );
+    const out = await runFormFields({ filePath: filled }, ctx, outDir());
+    const byName = new Map(out.fields.map((f) => [f.name, f]));
+    expect(byName.get("color")!.value).toBe("red");
+  });
+
   it("rejects an unknown field name with INVALID_INPUT naming it", async () => {
     await expect(
       runFormFill({ filePath: source, values: [{ name: "nope", value: "x" }] }, ctx, outDir())

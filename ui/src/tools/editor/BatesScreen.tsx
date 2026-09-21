@@ -71,8 +71,8 @@ export function BatesScreen() {
       toolId={TOOL_IDS.bates}
       job={job}
       ctaKey="tool.bates.cta"
-      canRun={files.length >= 1}
-      validationKey={error}
+      canRun={files.length >= 1 && !error}
+      validationKey={files.length > 0 ? error : null}
       onPick={() => void pick()}
       onRun={start}
       pickContent={
