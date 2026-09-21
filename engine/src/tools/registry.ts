@@ -13,6 +13,7 @@ import { registerRichContentTools } from "./richcontent/register-richcontent";
 import { registerEditTools } from "./edit/register-edit";
 import { registerSecureTools } from "./secure/register-secure";
 import { registerUtilityTools } from "./utility/register-utility";
+import { registerEditorTools } from "./editor/register-editor";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -39,4 +40,5 @@ export function registerTools(tools: ToolRegistry) {
   registerEditTools(tools);
   registerSecureTools(tools);
   registerUtilityTools(tools);
+  registerEditorTools(tools);
 }
