@@ -20,7 +20,12 @@ import {
   PdfToMarkdownInputSchema, PrepareForAiInputSchema, AddAttachmentsInputSchema,
   ExtractAttachmentsInputSchema, EditAttachmentsInputSchema,
   ViewBookmarksInputSchema, EditBookmarksInputSchema, BookmarkNodeSchema,
-  TocInputSchema,
+  TocInputSchema, AnnotationSchema, ANNOTATION_TYPES, EditorSaveInputSchema,
+  SearchInputSchema, FormFieldsInputSchema, FormFillInputSchema,
+  FormCreateInputSchema, SignInputSchema, StampInputSchema,
+  RemoveAnnotationsInputSchema, RemoveBlankPagesInputSchema,
+  RemoveRestrictionsInputSchema, SanitizeInputSchema, BatesNumberInputSchema,
+  PageLabelsInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -976,11 +981,385 @@ describe("TocInputSchema", () => {
   });
 });
 
+describe("AnnotationSchema", () => {
+  const RECT = { x: 10, y: 20, w: 100, h: 30 };
+  it("accepts all 12 types with their required fields", () => {
+    const accepts: Record<(typeof ANNOTATION_TYPES)[number], unknown> = {
+      text: { type: "text", page: 1, rect: RECT, text: "Note" },
+      highlight: { type: "highlight", page: 1, rect: RECT },
+      underline: { type: "underline", page: 2, rect: RECT },
+      strikeout: { type: "strikeout", page: 2, rect: RECT },
+      rect: { type: "rect", page: 1, rect: RECT },
+      ellipse: { type: "ellipse", page: 1, rect: RECT },
+      line: { type: "line", page: 1, rect: RECT },
+      arrow: { type: "arrow", page: 1, rect: RECT },
+      freehand: { type: "freehand", page: 1, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] },
+      redact: { type: "redact", page: 3, rect: RECT },
+      image: { type: "image", page: 1, imagePath: "sig.png", rect: RECT },
+      freetext: { type: "freetext", page: 1, rect: RECT, text: "Hi" },
+    };
+    for (const type of ANNOTATION_TYPES) {
+      expect(AnnotationSchema.safeParse(accepts[type]).success).toBe(true);
+    }
+  });
+  it("defaults color, opacity, lineWidth and fontSize", () => {
+    const parsed = AnnotationSchema.parse({ type: "rect", page: 1, rect: RECT });
+    expect(parsed.color).toBe("#DC2626");
+    expect(parsed.opacity).toBe(1);
+    expect(parsed.lineWidth).toBe(2);
+    expect(parsed.fontSize).toBe(14);
+  });
+  it("rejects freehand without points", () => {
+    expect(AnnotationSchema.safeParse({ type: "freehand", page: 1 }).success).toBe(false);
+  });
+  it("rejects image without imagePath", () => {
+    expect(AnnotationSchema.safeParse({ type: "image", page: 1, rect: RECT }).success).toBe(false);
+  });
+  it("rejects highlight without rect", () => {
+    expect(AnnotationSchema.safeParse({ type: "highlight", page: 1 }).success).toBe(false);
+  });
+  it("rejects freetext without text", () => {
+    expect(AnnotationSchema.safeParse({ type: "freetext", page: 1, rect: RECT }).success).toBe(false);
+  });
+  it("rejects text without rect", () => {
+    expect(AnnotationSchema.safeParse({ type: "text", page: 1, text: "x" }).success).toBe(false);
+  });
+  it("rejects page below 1", () => {
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 0, rect: RECT }).success).toBe(false);
+  });
+  it("rejects an unknown type", () => {
+    expect(AnnotationSchema.safeParse({ type: "circle", page: 1, rect: RECT }).success).toBe(false);
+  });
+  it("rejects opacity below 0.05 and above 1", () => {
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, opacity: 0.04 }).success).toBe(false);
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, opacity: 1.01 }).success).toBe(false);
+  });
+  it("rejects lineWidth below 0.5 and above 12", () => {
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, lineWidth: 0.4 }).success).toBe(false);
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, lineWidth: 12.5 }).success).toBe(false);
+  });
+  it("rejects a malformed color hex string", () => {
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, color: "red" }).success).toBe(false);
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, color: "#fff" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(AnnotationSchema.safeParse({ type: "rect", page: 1, rect: RECT, author: "me" }).success).toBe(false);
+  });
+  it("rejects a rect with unknown keys via .strict()", () => {
+    expect(AnnotationSchema.safeParse({
+      type: "rect", page: 1, rect: { ...RECT, rotation: 90 },
+    }).success).toBe(false);
+  });
+  it("rejects freehand with a single point (min 2)", () => {
+    expect(AnnotationSchema.safeParse({ type: "freehand", page: 1, points: [{ x: 0, y: 0 }] }).success).toBe(false);
+  });
+});
+
+describe("EditorSaveInputSchema", () => {
+  it("accepts a filePath with one annotation", () => {
+    expect(EditorSaveInputSchema.safeParse({
+      filePath: PDF,
+      annotations: [{ type: "rect", page: 1, rect: { x: 0, y: 0, w: 10, h: 10 } }],
+    }).success).toBe(true);
+  });
+  it("rejects an empty annotations array (min 1)", () => {
+    expect(EditorSaveInputSchema.safeParse({ filePath: PDF, annotations: [] }).success).toBe(false);
+  });
+  it("rejects an invalid annotation inside the array", () => {
+    expect(EditorSaveInputSchema.safeParse({
+      filePath: PDF,
+      annotations: [{ type: "highlight", page: 1 }],
+    }).success).toBe(false);
+  });
+  it("rejects an unknown key via .strict()", () => {
+    expect(EditorSaveInputSchema.safeParse({
+      filePath: PDF, annotations: [{ type: "rect", page: 1, rect: { x: 0, y: 0, w: 1, h: 1 } }], flatten: true,
+    }).success).toBe(false);
+  });
+});
+
+describe("SearchInputSchema", () => {
+  it("accepts a filePath and query", () => {
+    expect(SearchInputSchema.safeParse({ filePath: PDF, query: "invoice" }).success).toBe(true);
+  });
+  it("rejects an empty query", () => {
+    expect(SearchInputSchema.safeParse({ filePath: PDF, query: "" }).success).toBe(false);
+  });
+  it("rejects a query above 200 chars", () => {
+    expect(SearchInputSchema.safeParse({ filePath: PDF, query: "x".repeat(201) }).success).toBe(false);
+  });
+});
+
+describe("FormFieldsInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(FormFieldsInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(FormFieldsInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+});
+
+describe("FormFillInputSchema", () => {
+  it("accepts one name/value pair", () => {
+    expect(FormFillInputSchema.safeParse({
+      filePath: PDF, values: [{ name: "fullName", value: "Ada" }],
+    }).success).toBe(true);
+  });
+  it("rejects an empty values array (min 1)", () => {
+    expect(FormFillInputSchema.safeParse({ filePath: PDF, values: [] }).success).toBe(false);
+  });
+  it("rejects an empty field name", () => {
+    expect(FormFillInputSchema.safeParse({
+      filePath: PDF, values: [{ name: "", value: "Ada" }],
+    }).success).toBe(false);
+  });
+  it("rejects an unknown key inside a value entry via .strict()", () => {
+    expect(FormFillInputSchema.safeParse({
+      filePath: PDF, values: [{ name: "a", value: "1", flatten: true }],
+    }).success).toBe(false);
+  });
+});
+
+describe("FormCreateInputSchema", () => {
+  it("accepts a text field with default w/h and page", () => {
+    const parsed = FormCreateInputSchema.parse({
+      filePath: PDF,
+      fields: [{ name: "fullName", label: "Full name", type: "text", x: 40, y: 700 }],
+    });
+    expect(parsed.fields[0].w).toBe(150);
+    expect(parsed.fields[0].h).toBe(24);
+    expect(parsed.page).toBe(1);
+  });
+  it("accepts a dropdown field with options and a checkbox field", () => {
+    expect(FormCreateInputSchema.safeParse({
+      filePath: PDF, page: 2,
+      fields: [
+        { name: "country", label: "Country", type: "dropdown", x: 40, y: 600, options: ["US", "TW"] },
+        { name: "agree", label: "Agree", type: "checkbox", x: 40, y: 560 },
+      ],
+    }).success).toBe(true);
+  });
+  it("rejects a dropdown field without options", () => {
+    expect(FormCreateInputSchema.safeParse({
+      filePath: PDF,
+      fields: [{ name: "country", label: "Country", type: "dropdown", x: 40, y: 600 }],
+    }).success).toBe(false);
+  });
+  it("rejects an empty fields array (min 1)", () => {
+    expect(FormCreateInputSchema.safeParse({ filePath: PDF, fields: [] }).success).toBe(false);
+  });
+  it("rejects an unknown field type", () => {
+    expect(FormCreateInputSchema.safeParse({
+      filePath: PDF,
+      fields: [{ name: "sig", label: "Signature", type: "signature", x: 0, y: 0 }],
+    }).success).toBe(false);
+  });
+  it("rejects a dropdown with an empty options array", () => {
+    expect(FormCreateInputSchema.safeParse({
+      filePath: PDF,
+      fields: [{ name: "c", label: "C", type: "dropdown", x: 0, y: 0, options: [] }],
+    }).success).toBe(false);
+  });
+});
+
+describe("SignInputSchema", () => {
+  it("accepts draw mode with normalized ink points", () => {
+    const parsed = SignInputSchema.parse({
+      filePath: PDF, mode: "draw", x: 100, y: 100,
+      inkPoints: [{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }, { x: 1, y: 1 }],
+    });
+    expect(parsed.page).toBe(1);
+    expect(parsed.scale).toBe(1);
+  });
+  it("accepts type mode with text", () => {
+    expect(SignInputSchema.safeParse({
+      filePath: PDF, mode: "type", text: "Ada Lovelace", x: 100, y: 100, page: 2, scale: 0.1,
+    }).success).toBe(true);
+  });
+  it("accepts image mode with imageFile", () => {
+    expect(SignInputSchema.safeParse({
+      filePath: PDF, mode: "image", imageFile: "sig.png", x: 10, y: 10, scale: 4,
+    }).success).toBe(true);
+  });
+  it("rejects draw mode without inkPoints", () => {
+    expect(SignInputSchema.safeParse({ filePath: PDF, mode: "draw", x: 0, y: 0 }).success).toBe(false);
+  });
+  it("rejects type mode without text", () => {
+    expect(SignInputSchema.safeParse({ filePath: PDF, mode: "type", x: 0, y: 0 }).success).toBe(false);
+  });
+  it("rejects image mode without imageFile", () => {
+    expect(SignInputSchema.safeParse({ filePath: PDF, mode: "image", x: 0, y: 0 }).success).toBe(false);
+  });
+  it("rejects ink points outside the 0..1 range", () => {
+    expect(SignInputSchema.safeParse({
+      filePath: PDF, mode: "draw", x: 0, y: 0,
+      inkPoints: [{ x: 0, y: 0 }, { x: 1.5, y: 0.5 }],
+    }).success).toBe(false);
+  });
+  it("rejects scale outside 0.1..4", () => {
+    expect(SignInputSchema.safeParse({
+      filePath: PDF, mode: "type", text: "x", x: 0, y: 0, scale: 0.05,
+    }).success).toBe(false);
+    expect(SignInputSchema.safeParse({
+      filePath: PDF, mode: "type", text: "x", x: 0, y: 0, scale: 4.1,
+    }).success).toBe(false);
+  });
+  it("rejects an unknown mode", () => {
+    expect(SignInputSchema.safeParse({ filePath: PDF, mode: "stamp", x: 0, y: 0 }).success).toBe(false);
+  });
+});
+
+describe("StampInputSchema", () => {
+  it("accepts text with page/color/rotate defaults", () => {
+    const parsed = StampInputSchema.parse({ filePath: PDF, text: "APPROVED", x: 200, y: 400 });
+    expect(parsed.page).toBe(1);
+    expect(parsed.color).toBe("#DC2626");
+    expect(parsed.rotate).toBe(0);
+  });
+  it("rejects empty text", () => {
+    expect(StampInputSchema.safeParse({ filePath: PDF, text: "", x: 0, y: 0 }).success).toBe(false);
+  });
+  it("rejects rotate beyond ±360", () => {
+    expect(StampInputSchema.safeParse({ filePath: PDF, text: "x", x: 0, y: 0, rotate: 361 }).success).toBe(false);
+    expect(StampInputSchema.safeParse({ filePath: PDF, text: "x", x: 0, y: 0, rotate: -361 }).success).toBe(false);
+  });
+  it("rejects a malformed color hex string", () => {
+    expect(StampInputSchema.safeParse({ filePath: PDF, text: "x", x: 0, y: 0, color: "blue" }).success).toBe(false);
+  });
+});
+
+describe("RemoveAnnotationsInputSchema", () => {
+  it("accepts filePath alone (removes all)", () => {
+    expect(RemoveAnnotationsInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("accepts a subset of annotation types", () => {
+    expect(RemoveAnnotationsInputSchema.safeParse({
+      filePath: PDF, types: ["highlight", "underline"],
+    }).success).toBe(true);
+  });
+  it("rejects a type outside the annotation enum", () => {
+    expect(RemoveAnnotationsInputSchema.safeParse({ filePath: PDF, types: ["circle"] }).success).toBe(false);
+  });
+  it("rejects an unknown key via .strict()", () => {
+    expect(RemoveAnnotationsInputSchema.safeParse({ filePath: PDF, all: true }).success).toBe(false);
+  });
+});
+
+describe("RemoveBlankPagesInputSchema", () => {
+  it("accepts filePath with default tolerance", () => {
+    expect(RemoveBlankPagesInputSchema.parse({ filePath: PDF }).tolerance).toBe(5);
+  });
+  it("rejects tolerance below 0", () => {
+    expect(RemoveBlankPagesInputSchema.safeParse({ filePath: PDF, tolerance: -1 }).success).toBe(false);
+  });
+  it("rejects tolerance above 100", () => {
+    expect(RemoveBlankPagesInputSchema.safeParse({ filePath: PDF, tolerance: 101 }).success).toBe(false);
+  });
+  it("rejects a non-integer tolerance", () => {
+    expect(RemoveBlankPagesInputSchema.safeParse({ filePath: PDF, tolerance: 5.5 }).success).toBe(false);
+  });
+});
+
+describe("RemoveRestrictionsInputSchema", () => {
+  it("accepts filePath alone (owner-password restrictions)", () => {
+    expect(RemoveRestrictionsInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("accepts filePath with a password", () => {
+    expect(RemoveRestrictionsInputSchema.safeParse({ filePath: PDF, password: "secret" }).success).toBe(true);
+  });
+  it("rejects a non-string password", () => {
+    expect(RemoveRestrictionsInputSchema.safeParse({ filePath: PDF, password: 5 }).success).toBe(false);
+  });
+});
+
+describe("SanitizeInputSchema", () => {
+  it("defaults all five cleanup flags to true", () => {
+    const parsed = SanitizeInputSchema.parse({ filePath: PDF });
+    expect(parsed.removeMetadata).toBe(true);
+    expect(parsed.removeAnnotations).toBe(true);
+    expect(parsed.removeAttachments).toBe(true);
+    expect(parsed.removeJavaScript).toBe(true);
+    expect(parsed.flattenForms).toBe(true);
+  });
+  it("accepts explicit false flags", () => {
+    expect(SanitizeInputSchema.safeParse({
+      filePath: PDF, removeMetadata: false, removeAnnotations: false,
+      removeAttachments: false, removeJavaScript: false, flattenForms: false,
+    }).success).toBe(true);
+  });
+  it("rejects an unknown key via .strict()", () => {
+    expect(SanitizeInputSchema.safeParse({ filePath: PDF, removeXmp: true }).success).toBe(false);
+  });
+  it("rejects a non-boolean flag", () => {
+    expect(SanitizeInputSchema.safeParse({ filePath: PDF, removeMetadata: "yes" }).success).toBe(false);
+  });
+});
+
+describe("BatesNumberInputSchema", () => {
+  it("accepts position + format with defaults", () => {
+    const parsed = BatesNumberInputSchema.parse({
+      filePath: PDF, position: "bottom-right", format: "prefix-n",
+    });
+    expect(parsed.prefix).toBe("");
+    expect(parsed.startNumber).toBe(1);
+    expect(parsed.fontSize).toBe(10);
+    expect(parsed.margin).toBe(28);
+  });
+  it("accepts an explicit prefix, startNumber and pages", () => {
+    expect(BatesNumberInputSchema.safeParse({
+      filePath: PDF, position: "top-center", format: "n-of-total",
+      prefix: "CASE-", startNumber: 0, fontSize: 6, margin: 0, pages: "1-3",
+    }).success).toBe(true);
+  });
+  it("rejects startNumber below 0", () => {
+    expect(BatesNumberInputSchema.safeParse({
+      filePath: PDF, position: "bottom-center", format: "n", startNumber: -1,
+    }).success).toBe(false);
+  });
+  it("rejects an unknown format", () => {
+    expect(BatesNumberInputSchema.safeParse({
+      filePath: PDF, position: "bottom-center", format: "page-n",
+    }).success).toBe(false);
+  });
+  it("rejects an unknown position", () => {
+    expect(BatesNumberInputSchema.safeParse({
+      filePath: PDF, position: "middle", format: "n",
+    }).success).toBe(false);
+  });
+  it("rejects fontSize above 72", () => {
+    expect(BatesNumberInputSchema.safeParse({
+      filePath: PDF, position: "bottom-center", format: "n", fontSize: 73,
+    }).success).toBe(false);
+  });
+});
+
+describe("PageLabelsInputSchema", () => {
+  it("accepts a style with default start and prefix", () => {
+    const parsed = PageLabelsInputSchema.parse({ filePath: PDF, style: "roman-lower" });
+    expect(parsed.start).toBe(1);
+    expect(parsed.prefix).toBe("");
+  });
+  it("accepts each known style", () => {
+    for (const style of ["decimal", "roman-upper", "roman-lower", "letters-upper", "letters-lower", "none"] as const) {
+      expect(PageLabelsInputSchema.safeParse({ filePath: PDF, style }).success).toBe(true);
+    }
+  });
+  it("rejects an unknown style", () => {
+    expect(PageLabelsInputSchema.safeParse({ filePath: PDF, style: "roman" }).success).toBe(false);
+  });
+  it("rejects start below 1", () => {
+    expect(PageLabelsInputSchema.safeParse({ filePath: PDF, style: "decimal", start: 0 }).success).toBe(false);
+  });
+  it("rejects a non-integer start", () => {
+    expect(PageLabelsInputSchema.safeParse({ filePath: PDF, style: "decimal", start: 1.5 }).success).toBe(false);
+  });
+});
+
 describe("TOOL_IDS", () => {
-  it("contains all 54 tools with values equal to their keys", () => {
+  it("contains all 67 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(54);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(67);
   });
 });

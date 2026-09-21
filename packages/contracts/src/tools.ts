@@ -55,6 +55,19 @@ export const TOOL_IDS = {
   viewBookmarks: "viewBookmarks",
   editBookmarks: "editBookmarks",
   toc: "toc",
+  editorSave: "editorSave",
+  search: "search",
+  formFields: "formFields",
+  formFill: "formFill",
+  formCreate: "formCreate",
+  sign: "sign",
+  stamp: "stamp",
+  removeAnnotations: "removeAnnotations",
+  removeBlankPages: "removeBlankPages",
+  removeRestrictions: "removeRestrictions",
+  sanitize: "sanitize",
+  bates: "bates",
+  pageLabels: "pageLabels",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -711,6 +724,340 @@ export const TocInputSchema = z
   })
   .strict();
 export type TocInput = z.infer<typeof TocInputSchema>;
+
+/** The shared annotation model for the editor; rects use the displayed frame. */
+export const ANNOTATION_TYPES = [
+  "text",
+  "highlight",
+  "underline",
+  "strikeout",
+  "rect",
+  "ellipse",
+  "line",
+  "arrow",
+  "freehand",
+  "redact",
+  "image",
+  "freetext",
+] as const;
+
+export const AnnotationColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, "color must be a #RRGGBB hex string");
+
+export const AnnotationRectSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    w: z.number(),
+    h: z.number(),
+  })
+  .strict();
+export type AnnotationRect = z.infer<typeof AnnotationRectSchema>;
+
+export const AnnotationPointSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+  })
+  .strict();
+export type AnnotationPoint = z.infer<typeof AnnotationPointSchema>;
+
+export const AnnotationSchema = z
+  .object({
+    type: z.enum(ANNOTATION_TYPES),
+    page: z.number().int().min(1),
+    color: AnnotationColorSchema.default("#DC2626"),
+    opacity: z.number().min(0.05).max(1).default(1),
+    lineWidth: z.number().min(0.5).max(12).default(2),
+    rect: AnnotationRectSchema.optional(),
+    points: z.array(AnnotationPointSchema).min(2).optional(),
+    text: z.string().optional(),
+    imagePath: z.string().optional(),
+    fontSize: z.number().default(14),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    const requireRect = () => {
+      if (v.rect === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["rect"],
+          message: `rect is required for ${v.type} annotations`,
+        });
+      }
+    };
+    switch (v.type) {
+      case "highlight":
+      case "underline":
+      case "strikeout":
+      case "redact":
+      case "rect":
+      case "ellipse":
+      case "line":
+      case "arrow":
+        requireRect();
+        break;
+      case "text":
+        requireRect();
+        if (v.text === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["text"],
+            message: "text is required for text annotations",
+          });
+        }
+        break;
+      case "freetext":
+        requireRect();
+        if (v.text === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["text"],
+            message: "text is required for freetext annotations",
+          });
+        }
+        break;
+      case "freehand":
+        if (v.points === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["points"],
+            message: "points is required for freehand annotations",
+          });
+        }
+        break;
+      case "image":
+        if (v.imagePath === undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["imagePath"],
+            message: "imagePath is required for image annotations",
+          });
+        }
+        break;
+    }
+  });
+export type Annotation = z.infer<typeof AnnotationSchema>;
+
+/** One save job per editor session; annotations are written as PDF annots. */
+export const EditorSaveInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    annotations: z.array(AnnotationSchema).min(1).max(1000),
+  })
+  .strict();
+export type EditorSaveInput = z.infer<typeof EditorSaveInputSchema>;
+
+/** Data result: { matches: [{ page, snippet, x, y }] } (max 500). */
+export const SearchInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    query: z.string().min(1).max(200),
+  })
+  .strict();
+export type SearchInput = z.infer<typeof SearchInputSchema>;
+
+/** Data result: { fields: [...] }; no fields is an empty list, not an error. */
+export const FormFieldsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type FormFieldsInput = z.infer<typeof FormFieldsInputSchema>;
+
+export const FormFillInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    values: z
+      .array(
+        z
+          .object({
+            name: z.string().min(1),
+            value: z.string(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(500),
+  })
+  .strict();
+export type FormFillInput = z.infer<typeof FormFillInputSchema>;
+
+export const FormCreateFieldSchema = z
+  .object({
+    name: z.string().min(1),
+    label: z.string(),
+    type: z.enum(["text", "checkbox", "dropdown"]),
+    x: z.number(),
+    y: z.number(),
+    w: z.number().default(150),
+    h: z.number().default(24),
+    options: z.array(z.string().min(1)).min(1).optional(),
+  })
+  .strict();
+export type FormCreateField = z.infer<typeof FormCreateFieldSchema>;
+
+export const FormCreateInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    fields: z.array(FormCreateFieldSchema).min(1).max(200),
+    page: z.number().int().min(1).default(1),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    v.fields.forEach((field, i) => {
+      if (field.type === "dropdown" && field.options === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["fields", i, "options"],
+          message: "options is required for dropdown fields",
+        });
+      }
+    });
+  });
+export type FormCreateInput = z.infer<typeof FormCreateInputSchema>;
+
+export const SignInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    mode: z.enum(["draw", "type", "image"]),
+    // Draw mode: page-relative points normalized to 0..1.
+    inkPoints: z
+      .array(
+        z
+          .object({
+            x: z.number().min(0).max(1),
+            y: z.number().min(0).max(1),
+          })
+          .strict(),
+      )
+      .min(2)
+      .optional(),
+    text: z.string().optional(),
+    imageFile: z.string().optional(),
+    page: z.number().int().min(1).default(1),
+    x: z.number(),
+    y: z.number(),
+    scale: z.number().min(0.1).max(4).default(1),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.mode === "draw" && v.inkPoints === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["inkPoints"],
+        message: "inkPoints is required for draw mode",
+      });
+    }
+    if (v.mode === "type" && v.text === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["text"],
+        message: "text is required for type mode",
+      });
+    }
+    if (v.mode === "image" && v.imageFile === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["imageFile"],
+        message: "imageFile is required for image mode",
+      });
+    }
+  });
+export type SignInput = z.infer<typeof SignInputSchema>;
+
+/** Page-drawn text stamp; text is WinAnsi-only like all page-drawn text. */
+export const StampInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    text: z.string().min(1),
+    page: z.number().int().min(1).default(1),
+    x: z.number(),
+    y: z.number(),
+    color: AnnotationColorSchema.default("#DC2626"),
+    rotate: z.number().min(-360).max(360).default(0),
+  })
+  .strict();
+export type StampInput = z.infer<typeof StampInputSchema>;
+
+/** types omitted removes every annotation; a given subset filters by type. */
+export const RemoveAnnotationsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    types: z.array(z.enum(ANNOTATION_TYPES)).optional(),
+  })
+  .strict();
+export type RemoveAnnotationsInput = z.infer<typeof RemoveAnnotationsInputSchema>;
+
+/** tolerance = percent of non-background pixels below which a page is blank. */
+export const RemoveBlankPagesInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    tolerance: z.number().int().min(0).max(100).default(5),
+  })
+  .strict();
+export type RemoveBlankPagesInput = z.infer<typeof RemoveBlankPagesInputSchema>;
+
+export const RemoveRestrictionsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    password: z.string().optional(),
+  })
+  .strict();
+export type RemoveRestrictionsInput = z.infer<typeof RemoveRestrictionsInputSchema>;
+
+export const SanitizeInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    removeMetadata: z.boolean().default(true),
+    removeAnnotations: z.boolean().default(true),
+    removeAttachments: z.boolean().default(true),
+    removeJavaScript: z.boolean().default(true),
+    flattenForms: z.boolean().default(true),
+  })
+  .strict();
+export type SanitizeInput = z.infer<typeof SanitizeInputSchema>;
+
+/** Bates differs from pageNumbers: per-file sequence plus a prefix. */
+export const BatesNumberInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    position: z.enum([
+      "bottom-center",
+      "bottom-right",
+      "bottom-left",
+      "top-center",
+      "top-right",
+      "top-left",
+    ]),
+    format: z.enum(["n", "prefix-n", "n-of-total"]),
+    prefix: z.string().default(""),
+    startNumber: z.number().int().min(0).default(1),
+    fontSize: z.number().int().min(6).max(72).default(10),
+    margin: z.number().min(0).max(144).default(28),
+    pages: z.string().optional(),
+  })
+  .strict();
+export type BatesNumberInput = z.infer<typeof BatesNumberInputSchema>;
+
+/** Writes the PDF's native /PageLabels number tree (not drawn text). */
+export const PageLabelsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    style: z.enum([
+      "decimal",
+      "roman-upper",
+      "roman-lower",
+      "letters-upper",
+      "letters-lower",
+      "none",
+    ]),
+    start: z.number().int().min(1).default(1),
+    prefix: z.string().default(""),
+  })
+  .strict();
+export type PageLabelsInput = z.infer<typeof PageLabelsInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),
