@@ -42,6 +42,9 @@ export type ToolFrameProps = {
   renderDone?: () => ReactNode | null;
   // When set, the data phase renders this card instead of a done card.
   renderData?: (data: unknown) => ReactNode;
+  // Hides the primary CTA entirely (the form filler's empty-form state has no
+  // action to offer). The drop zone and queue still render.
+  hideCta?: boolean;
 };
 
 /**
@@ -65,6 +68,7 @@ export function ToolFrame({
   warningKey,
   renderDone,
   renderData,
+  hideCta,
 }: ToolFrameProps) {
   const { lang, navigate } = useApp();
   const {
@@ -115,19 +119,21 @@ export function ToolFrame({
 
           <ValidationMessage toolId={toolId} errorKey={validationKey ?? null} />
 
-          <button
-            data-testid={`${toolId}-cta`}
-            disabled={!ctaEnabled}
-            onClick={onRun}
-            style={{
-              marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
-              fontWeight: 700, border: "none", cursor: canRun ? "pointer" : "not-allowed",
-              background: ctaEnabled ? "var(--accent)" : "var(--border)",
-              color: ctaEnabled ? "var(--accent-contrast)" : "var(--muted)",
-            }}
-          >
-            {t(ctaKey, lang)}
-          </button>
+          {!hideCta && (
+            <button
+              data-testid={`${toolId}-cta`}
+              disabled={!ctaEnabled}
+              onClick={onRun}
+              style={{
+                marginTop: 12, padding: "10px 22px", borderRadius: "var(--radius-pill)",
+                fontWeight: 700, border: "none", cursor: canRun ? "pointer" : "not-allowed",
+                background: ctaEnabled ? "var(--accent)" : "var(--border)",
+                color: ctaEnabled ? "var(--accent-contrast)" : "var(--muted)",
+              }}
+            >
+              {t(ctaKey, lang)}
+            </button>
+          )}
         </div>
       )}
 

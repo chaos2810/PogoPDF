@@ -119,19 +119,25 @@ export function Checkbox({
   onChange,
   labelKey,
   testId,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   labelKey: string;
   testId?: string;
+  disabled?: boolean;
 }) {
   const { lang } = useApp();
   return (
-    <label className="pogopdf-radio-choice" style={{ marginBottom: 12 }}>
+    <label
+      className="pogopdf-radio-choice"
+      style={{ marginBottom: 12, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+    >
       <input
         type="checkbox"
         data-testid={testId}
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
       />
       {t(labelKey, lang)}

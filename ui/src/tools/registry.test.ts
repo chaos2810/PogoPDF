@@ -9,27 +9,17 @@ import { registry } from "./registry";
 const HIDDEN_FROM_UI = new Set<string>([TOOL_IDS.xpsToPdf]);
 
 // Ids that are UI-internal by design: `search` is the editor screen's built-in
-// panel, so it has no tool card and Task 8 will never add one. Like
-// HIDDEN_FROM_UI this is permanent, not a pending screen.
-const UI_INTERNAL = new Set<string>([TOOL_IDS.search]);
+// panel, and `formFields` is the form filler's auto-load RPC (it reads the field
+// list so the screen can render a typed input per field). Neither is a user
+// action on its own, so neither has a tool card. Like HIDDEN_FROM_UI this is
+// permanent, not a pending screen.
+const UI_INTERNAL = new Set<string>([TOOL_IDS.search, TOOL_IDS.formFields]);
 
-// The remaining Phase 3 engine ids (forms, sign, stamps, cleanup) have no UI
-// screen yet; Task 8 adds them and this set shrinks to empty. Listing them here
-// keeps the coverage check strict without pretending the UI ships screens that
-// do not exist.
-const PENDING_UI = new Set<string>([
-  TOOL_IDS.formFields,
-  TOOL_IDS.formFill,
-  TOOL_IDS.formCreate,
-  TOOL_IDS.sign,
-  TOOL_IDS.stamp,
-  TOOL_IDS.removeAnnotations,
-  TOOL_IDS.removeBlankPages,
-  TOOL_IDS.removeRestrictions,
-  TOOL_IDS.sanitize,
-  TOOL_IDS.bates,
-  TOOL_IDS.pageLabels,
-]);
+// The remaining Phase 3 engine ids (forms, sign, stamps, cleanup) had no UI
+// screen before Task 8; the ten screen ids now live in the registry, so this
+// set is empty. It stays declared so a future engine-only id can be listed here
+// (with a comment) instead of weakening the coverage check.
+const PENDING_UI = new Set<string>([]);
 
 describe("registry", () => {
   it("has unique ids", () => {

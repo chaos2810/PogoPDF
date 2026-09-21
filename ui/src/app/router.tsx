@@ -59,6 +59,16 @@ import { ViewBookmarksScreen } from "../tools/richcontent/ViewBookmarksScreen";
 import { EditBookmarksScreen } from "../tools/richcontent/EditBookmarksScreen";
 import { TocScreen } from "../tools/richcontent/TocScreen";
 import { EditorScreen } from "../tools/editor/EditorScreen";
+import { FormFillScreen } from "../tools/editor/FormFillScreen";
+import { FormCreateScreen } from "../tools/editor/FormCreateScreen";
+import { SignScreen } from "../tools/editor/SignScreen";
+import { StampScreen } from "../tools/editor/StampScreen";
+import { RemoveAnnotationsScreen } from "../tools/editor/RemoveAnnotationsScreen";
+import { RemoveBlankPagesScreen } from "../tools/editor/RemoveBlankPagesScreen";
+import { RemoveRestrictionsScreen } from "../tools/editor/RemoveRestrictionsScreen";
+import { SanitizeScreen } from "../tools/editor/SanitizeScreen";
+import { BatesScreen } from "../tools/editor/BatesScreen";
+import { PageLabelsScreen } from "../tools/editor/PageLabelsScreen";
 
 export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
@@ -115,6 +125,16 @@ export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.editBookmarks]: EditBookmarksScreen,
   [TOOL_IDS.toc]: TocScreen,
   [TOOL_IDS.editorSave]: EditorScreen,
+  [TOOL_IDS.formFill]: FormFillScreen,
+  [TOOL_IDS.formCreate]: FormCreateScreen,
+  [TOOL_IDS.sign]: SignScreen,
+  [TOOL_IDS.stamp]: StampScreen,
+  [TOOL_IDS.removeAnnotations]: RemoveAnnotationsScreen,
+  [TOOL_IDS.removeBlankPages]: RemoveBlankPagesScreen,
+  [TOOL_IDS.removeRestrictions]: RemoveRestrictionsScreen,
+  [TOOL_IDS.sanitize]: SanitizeScreen,
+  [TOOL_IDS.bates]: BatesScreen,
+  [TOOL_IDS.pageLabels]: PageLabelsScreen,
 };
 
 export function Router() {

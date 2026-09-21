@@ -65,6 +65,19 @@ export const registry: ToolMeta[] = [
   { id: TOOL_IDS.editBookmarks, titleKey: "tool.editBookmarks.title", descKey: "tool.editBookmarks.desc", category: "utility", icon: "BookMarked" },
   { id: TOOL_IDS.toc, titleKey: "tool.toc.title", descKey: "tool.toc.desc", category: "utility", icon: "ListOrdered" },
 
+  // Phase 3 editor family: forms, signing, and stamps are page-editing tools.
+  { id: TOOL_IDS.formFill, titleKey: "tool.formFill.title", descKey: "tool.formFill.desc", category: "edit", icon: "ClipboardList" },
+  { id: TOOL_IDS.formCreate, titleKey: "tool.formCreate.title", descKey: "tool.formCreate.desc", category: "edit", icon: "SquarePen" },
+  { id: TOOL_IDS.sign, titleKey: "tool.sign.title", descKey: "tool.sign.desc", category: "edit", icon: "Signature" },
+  { id: TOOL_IDS.stamp, titleKey: "tool.stamp.title", descKey: "tool.stamp.desc", category: "edit", icon: "Stamp" },
+  // The cleanup and finishing tools are utility per the design spec grouping.
+  { id: TOOL_IDS.removeAnnotations, titleKey: "tool.removeAnnotations.title", descKey: "tool.removeAnnotations.desc", category: "utility", icon: "Eraser" },
+  { id: TOOL_IDS.removeBlankPages, titleKey: "tool.removeBlankPages.title", descKey: "tool.removeBlankPages.desc", category: "utility", icon: "FileX2" },
+  { id: TOOL_IDS.removeRestrictions, titleKey: "tool.removeRestrictions.title", descKey: "tool.removeRestrictions.desc", category: "utility", icon: "ShieldOff" },
+  { id: TOOL_IDS.sanitize, titleKey: "tool.sanitize.title", descKey: "tool.sanitize.desc", category: "utility", icon: "ShieldCheck" },
+  { id: TOOL_IDS.bates, titleKey: "tool.bates.title", descKey: "tool.bates.desc", category: "utility", icon: "FileDigit" },
+  { id: TOOL_IDS.pageLabels, titleKey: "tool.pageLabels.title", descKey: "tool.pageLabels.desc", category: "utility", icon: "Tags" },
+
   // The editor is a screen, not a tool card: it borrows the editorSave id so
   // the card opens the editor while the registry stays a 1:1 map of TOOL_IDS.
   // `search` is the editor's built-in search panel, so it has no card at all.
