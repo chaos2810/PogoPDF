@@ -88,22 +88,34 @@ function registerAnnot(doc: PdfDoc, page: PDFPage, dict: PDFDict): void {
 
 /**
  * Add the FreeText default-appearance font to a page's /Font resources and
- * return the resource key the /DA string must reference. One key per page.
+ * return the resource key the /DA string must reference. One key per page,
+ * since pdf-lib generates a unique name per page's font dict.
  */
 function ensureFontKey(
-  doc: PdfDoc,
   page: PDFPage,
-  cache: Map<number, string>,
+  cache: Map<number, PDFName>,
   pageIndex: number,
   font: PDFFont
-): string {
+): PDFName {
   const cached = cache.get(pageIndex);
   if (cached) return cached;
   const key = page.node.newFontDictionaryKey("Helv");
   page.node.setFontDictionary(key, font.ref);
-  const asString = key.asString();
-  cache.set(pageIndex, asString);
-  return asString;
+  cache.set(pageIndex, key);
+  return key;
+}
+
+/**
+ * /DR default resources for a FreeText annot, holding the same font under the
+ * same key that its /DA references. Viewers resolve the DA font from here; the
+ * page /Font dict alone is not enough for annotation text.
+ */
+function defaultResources(dict: PDFDict, fontKey: PDFName, font: PDFFont): PDFDict {
+  const fonts = dict.context.obj({}) as PDFDict;
+  fonts.set(fontKey, font.ref);
+  const dr = dict.context.obj({}) as PDFDict;
+  dr.set(PDFName.of("Font"), fonts);
+  return dr;
 }
 
 /** Displayed-frame endpoints of a line/arrow rect: top-left to bottom-right. */
@@ -153,12 +165,14 @@ function writeLine(
   from: { x: number; y: number },
   to: { x: number; y: number },
   color: number[],
-  opacity: number
+  opacity: number,
+  width: number
 ): void {
   const dict = doc.context.obj({}) as PDFDict;
   commonAnnot(dict, "Line", color, opacity);
   dict.set(PDFName.of("Rect"), dict.context.obj(lineBBox(from, to)));
   dict.set(PDFName.of("L"), dict.context.obj([from.x, from.y, to.x, to.y]));
+  dict.set(PDFName.of("BS"), dict.context.obj({ W: width }));
   registerAnnot(doc, page, dict);
 }
 
@@ -198,7 +212,7 @@ export async function writeAnnotations(
 
   const needsFont = annotations.some((a) => a.type === "text" || a.type === "freetext");
   const font = needsFont ? await embedStandardFont(doc) : undefined;
-  const fontKeys = new Map<number, string>();
+  const fontKeys = new Map<number, PDFName>();
 
   const byPage = new Map<number, Annotation[]>();
   for (const annot of annotations) {
@@ -231,10 +245,10 @@ export async function writeAnnotations(
         case "line":
         case "arrow": {
           const { start, end } = lineEndpoints(disp, annot.rect!);
-          writeLine(doc, page, start, end, color, annot.opacity);
+          writeLine(doc, page, start, end, color, annot.opacity, annot.lineWidth);
           if (annot.type === "arrow") {
             for (const leg of arrowLegs(start, end)) {
-              writeLine(doc, page, leg.start, leg.end, color, annot.opacity);
+              writeLine(doc, page, leg.start, leg.end, color, annot.opacity, annot.lineWidth);
             }
           }
           break;
@@ -296,14 +310,16 @@ export async function writeAnnotations(
           }
           const r = toUserRect(disp, annot.rect!);
           const size = clampFontSize(annot.fontSize);
-          const fontKey = ensureFontKey(doc, page, fontKeys, pageIndex, font!);
+          const fontKey = ensureFontKey(page, fontKeys, pageIndex, font!);
           const [cr, cg, cb] = color;
-          const da = `${fontKey} ${size} Tf ${cr.toFixed(4)} ${cg.toFixed(4)} ${cb.toFixed(4)} rg`;
+          const da = `${fontKey.asString()} ${size} Tf ${cr.toFixed(4)} ${cg.toFixed(4)} ${cb.toFixed(4)} rg`;
           const dict = doc.context.obj({}) as PDFDict;
           commonAnnot(dict, "FreeText", color, annot.opacity);
           dict.set(PDFName.of("Rect"), dict.context.obj(rectArray(r)));
           dict.set(PDFName.of("Contents"), encoded);
           dict.set(PDFName.of("DA"), PDFString.of(da));
+          dict.set(PDFName.of("DR"), defaultResources(dict, fontKey, font!));
+          dict.set(PDFName.of("BS"), dict.context.obj({ W: annot.lineWidth }));
           registerAnnot(doc, page, dict);
           break;
         }

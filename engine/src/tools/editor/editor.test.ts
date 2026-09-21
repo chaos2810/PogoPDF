@@ -21,6 +21,7 @@ import { encryptedPdfBytes, fixtureDir, makePdf } from "../../testing/fixtures";
 import { getPdfRenderer } from "../../render/renderpdf";
 import { extractPageText } from "../../render/textextract";
 import { registerTools } from "../registry";
+import { writeAnnotations } from "./annotations";
 import { runEditorSave } from "./editorSave";
 
 const ctx = { cancelled: () => false, notifyProgress: () => {} };
@@ -93,6 +94,20 @@ function title(dict: PDFDict): string {
   throw new Error("annot has no /T title");
 }
 
+/** The font resource key a FreeText /DA string references, without the slash. */
+function daFontKey(dict: PDFDict): string {
+  const da = dict.get(PDFName.of("DA"));
+  if (!(da instanceof PDFString)) throw new Error("FreeText annot has no /DA string");
+  const key = /^\/(\S+)\s/.exec(da.asString())?.[1];
+  if (!key) throw new Error(`cannot parse a /DA font key from: ${da.asString()}`);
+  return key;
+}
+
+/** The page's own /Font resource dict (the page /Font, not the annot /DR). */
+function pageFontDict(doc: PDFDocument, pageIndex: number): PDFDict | undefined {
+  return doc.getPage(pageIndex).node.Resources()?.lookupMaybe(PDFName.of("Font"), PDFDict);
+}
+
 function onlyAnnot(doc: PDFDocument, pageIndex = 0): PDFDict {
   const annots = pageAnnots(doc, pageIndex);
   expect(annots).toHaveLength(1);
@@ -101,27 +116,6 @@ function onlyAnnot(doc: PDFDocument, pageIndex = 0): PDFDict {
 
 async function loadOut(path: string): Promise<PDFDocument> {
   return PDFDocument.load(readFileSync(path));
-}
-
-async function countInk(
-  path: string,
-  pageIndex: number,
-  rect: { x: number; y: number; w: number; h: number }
-): Promise<number> {
-  const renderer = await getPdfRenderer(path);
-  try {
-    const canvas = await renderer.renderPage(pageIndex, 72);
-    const { data } = canvas
-      .getContext("2d")
-      .getImageData(Math.floor(rect.x), Math.floor(rect.y), Math.floor(rect.w), Math.floor(rect.h));
-    let ink = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200) ink++;
-    }
-    return ink;
-  } finally {
-    await renderer.close();
-  }
 }
 
 async function samplePixel(
@@ -312,8 +306,68 @@ describe("runEditorSave annotation dictionaries", () => {
       const contents = dict.get(PDFName.of("Contents"));
       expect(contents).toBeDefined();
       // The default appearance font must be present in the page's /Font dict.
+      const pageFonts = pageFontDict(await loadOut(out), 0);
+      expect(pageFonts, "FreeText font must sit in the page /Font dict").toBeDefined();
+      expect(pageFonts!.has(PDFName.of(daFontKey(dict)))).toBe(true);
       expect(numbers(dict, "C")).toHaveLength(3);
       expect(num(dict, "CA")).toBe(1);
+    }
+  });
+
+  it("carries a /DR that resolves the /DA font to a real font object", async () => {
+    const src = await blankPdf(join(dir, "text-dr.pdf"));
+    const out = await runEditorSave(
+      {
+        filePath: src,
+        annotations: [rectAnnot("freetext", { x: 40, y: 60, w: 220, h: 30 }, { text: "Hello" })],
+      },
+      ctx,
+      outDir()
+    );
+
+    const doc = await loadOut(out);
+    const dict = onlyAnnot(doc);
+    const key = daFontKey(dict);
+
+    // The /DA references the annot's own /DR font, not only the page /Font.
+    const dr = dict.lookupMaybe(PDFName.of("DR"), PDFDict);
+    expect(dr, "FreeText annot needs /DR default resources").toBeDefined();
+    const drFonts = dr!.lookupMaybe(PDFName.of("Font"), PDFDict);
+    expect(drFonts, "/DR needs a /Font dict").toBeDefined();
+    expect(drFonts!.has(PDFName.of(key))).toBe(true);
+
+    const font = drFonts!.lookupMaybe(PDFName.of(key), PDFDict);
+    expect(font, "/DR /Font key must resolve to a font dict").toBeDefined();
+    expect(font!.get(PDFName.of("Type"))?.toString()).toBe("/Font");
+    expect(font!.get(PDFName.of("BaseFont"))?.toString()).toBe("/Helvetica");
+
+    // The same font is also registered in the page /Font under the same key.
+    const pageFonts = pageFontDict(doc, 0);
+    expect(pageFonts!.has(PDFName.of(key))).toBe(true);
+  });
+
+  it("honors the annotation line width in each stroke annot's /BS", async () => {
+    const cases: Array<[Annotation["type"], number]> = [
+      ["rect", 5],
+      ["ellipse", 7],
+      ["line", 3],
+      ["arrow", 4],
+      ["freehand", 6],
+    ];
+    for (const [type, width] of cases) {
+      const src = await blankPdf(join(dir, `bs-${type}.pdf`));
+      const annot: Annotation =
+        type === "freehand"
+          ? ({ type, page: 1, lineWidth: width, points: [{ x: 10, y: 10 }, { x: 60, y: 40 }] } as Annotation)
+          : rectAnnot(type, { x: 10, y: 10, w: 60, h: 40 }, { lineWidth: width });
+      const out = await runEditorSave({ filePath: src, annotations: [annot] }, ctx, outDir());
+      const annots = pageAnnots(await loadOut(out), 0);
+      expect(annots.length).toBeGreaterThan(0);
+      for (const dict of annots) {
+        const bs = dict.lookupMaybe(PDFName.of("BS"), PDFDict);
+        expect(bs, `${type} annot needs /BS`).toBeDefined();
+        expect(bs!.lookupMaybe(PDFName.of("W"), PDFNumber)?.asNumber()).toBe(width);
+      }
     }
   });
 
@@ -498,6 +552,17 @@ describe("runEditorSave redaction", () => {
     const texts = await pageTexts(out);
     expect(texts[0]).toContain("Page 1");
     expect(texts[1]).toBe("");
+  });
+
+  it("rejects a redact annotation passed straight to writeAnnotations", async () => {
+    const doc = await PDFDocument.load(readFileSync(two));
+    await expect(
+      writeAnnotations(
+        doc,
+        [rectAnnot("redact", { x: 10, y: 10, w: 20, h: 20 })],
+        { cancelled: () => false }
+      )
+    ).rejects.toMatchObject({ code: -32001 });
   });
 
   it("rejects a CJK freetext even in the redact branch (WinAnsi)", async () => {
