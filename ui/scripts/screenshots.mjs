@@ -1272,6 +1272,14 @@ async function main() {
     if (!redactSeen.mark || !redactSeen.hint) {
       throw new Error(`editor-redact-marked: redaction mark/warning missing (${JSON.stringify(redactSeen)})`);
     }
+    {
+      const handleCount = await page.evaluate(
+        () => document.querySelectorAll('[data-testid^="editor-handle-"]').length
+      );
+      if (handleCount !== 0) {
+        throw new Error(`editor-redact-marked: expected no resize handles (got ${handleCount})`);
+      }
+    }
     await shot("editor-redact-marked");
 
     // --- Editor: one mark selected (8 resize handles) ---
@@ -1354,6 +1362,27 @@ async function main() {
     await clickCheckbox(page, "formfill-field-agree");
     await selectByValue(page, "formfill-field-department", "Engineering");
     await clickCheckbox(page, "formfill-field-plan-Pro");
+    {
+      const filled = await page.evaluate(() => {
+        const q = (tid) => document.querySelector(`[data-testid="${tid}"]`);
+        return {
+          text: q("formfill-field-fullName")?.value,
+          checkbox: q("formfill-field-agree")?.checked,
+          dropdown: q("formfill-field-department")?.value,
+          radio: q("formfill-field-plan-Pro")?.checked,
+          readOnlyDisabled: q("formfill-field-accountId")?.disabled,
+        };
+      });
+      if (
+        filled.text !== "Ada Lovelace" ||
+        filled.checkbox !== true ||
+        filled.dropdown !== "Engineering" ||
+        filled.radio !== true ||
+        filled.readOnlyDisabled !== true
+      ) {
+        throw new Error(`formfill-filled: entered values wrong (${JSON.stringify(filled)})`);
+      }
+    }
     await shot("formfill-filled");
 
     // --- Fill Form: an empty form (honest empty state, no CTA) ---
