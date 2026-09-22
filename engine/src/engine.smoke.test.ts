@@ -4,6 +4,7 @@ import type { ChildProcess } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as forge from "node-forge";
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef, StandardFonts } from "pdf-lib";
 import { findPymupdfAssets, getPageWords } from "./textedit/pymupdf";
 import { getPdfRenderer } from "./render/renderpdf";
@@ -15,6 +16,34 @@ async function makePdf(path: string, pages: number) {
   const doc = await PDFDocument.create();
   for (let i = 0; i < pages; i++) doc.addPage([595.28, 841.89]);
   writeFileSync(path, await doc.save());
+}
+
+// A self-signed cert + PKCS#12 bundle generated in-test (same shape as the sign
+// tool's unit test), so no binary certificate is checked in.
+function makeSelfSignedP12(passphrase: string): { p12: Buffer; certPem: string } {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = "01";
+  cert.validity.notBefore = new Date(Date.now() - 60_000);
+  const notAfter = new Date();
+  notAfter.setFullYear(notAfter.getFullYear() + 1);
+  cert.validity.notAfter = notAfter;
+  const attrs = [
+    { name: "commonName", value: "PogoPDF Smoke Signer" },
+    { name: "organizationName", value: "PogoPDF" },
+    { shortName: "C", value: "TW" },
+  ];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  const p12Asn1 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [cert], passphrase, {
+    algorithm: "3des",
+  });
+  return {
+    p12: Buffer.from(forge.asn1.toDer(p12Asn1).getBytes(), "binary"),
+    certPem: forge.pki.certificateToPem(cert),
+  };
 }
 
 // Walk a page's /Annots low-level: raw get plus instanceof, no lookupMaybe.
@@ -346,6 +375,110 @@ describe("engine stdio smoke", () => {
       child.kill();
     }
   }, 30000);
+
+  it("overlays two documents end-to-end through the spawned engine", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    await makePdf(join(work, "f", "base.pdf"), 3);
+    await makePdf(join(work, "f", "layer.pdf"), 1);
+
+    const child = startEngine();
+    try {
+      const resp = rpcLine(child, 10);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 10,
+          method: "job.start",
+          params: {
+            jobId: "923e4567-e89b-12d3-a456-426614174000",
+            toolId: "overlay",
+            input: {
+              baseFilePath: join(work, "f", "base.pdf"),
+              overlayFilePath: join(work, "f", "layer.pdf"),
+              mode: "overlay",
+            },
+          },
+        }) + "\n"
+      );
+      const result = await resp;
+      expect(result.error).toBeUndefined();
+      expect(result.result.jobId).toBe("923e4567-e89b-12d3-a456-426614174000");
+      const outPath = result.result.outputPath as string;
+      expect(outPath).toBeTruthy();
+      expect(existsSync(outPath)).toBe(true);
+
+      // The output uses the base page count; the one-page layer repeats.
+      const doc = await PDFDocument.load(readFileSync(outPath));
+      expect(doc.getPageCount()).toBe(3);
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 30000);
+
+  it("signs a document then validates the signature through the spawned engine", async () => {
+    const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+    mkdirSync(join(work, "f"), { recursive: true });
+    await makePdf(join(work, "f", "doc.pdf"), 1);
+    const cred = makeSelfSignedP12("secret");
+    const p12Path = join(work, "f", "cert.p12");
+    writeFileSync(p12Path, cred.p12);
+
+    const child = startEngine();
+    try {
+      const signResp = rpcLine(child, 11);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 11,
+          method: "job.start",
+          params: {
+            jobId: "a23e4567-e89b-12d3-a456-426614174000",
+            toolId: "digitalSign",
+            input: {
+              filePath: join(work, "f", "doc.pdf"),
+              p12Path,
+              passphrase: "secret",
+              reason: "Smoke",
+            },
+          },
+        }) + "\n"
+      );
+      const signResult = await signResp;
+      expect(signResult.error).toBeUndefined();
+      const signedPath = signResult.result.outputPath as string;
+      expect(signedPath.endsWith("signed.pdf")).toBe(true);
+      expect(existsSync(signedPath)).toBe(true);
+
+      // validateSignature returns a DataResult through the stdio path.
+      const valResp = rpcLine(child, 12);
+      child.stdin!.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 12,
+          method: "job.start",
+          params: {
+            jobId: "b23e4567-e89b-12d3-a456-426614174000",
+            toolId: "validateSignature",
+            input: { filePath: signedPath },
+          },
+        }) + "\n"
+      );
+      const valResult = await valResp;
+      expect(valResult.error).toBeUndefined();
+      expect(valResult.result.outputPath).toBeUndefined();
+      expect(valResult.result.data.valid).toBe(true);
+      expect(valResult.result.data.signer.subject).toContain("CN=PogoPDF Smoke Signer");
+
+      child.stdin!.end();
+      await new Promise((r) => child.once("exit", r));
+    } finally {
+      child.kill();
+    }
+  }, 60000);
 
   // editText needs the PyMuPDF wasm assets; skip loudly when the package is not
   // installed rather than failing on an environment gap.
