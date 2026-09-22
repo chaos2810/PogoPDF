@@ -5,7 +5,7 @@ import { FontOutlineInputSchema, TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import type { ProgressParams } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { assertNotCancelled } from "../organize/organize";
-import { gsError, runGs } from "./gsbin";
+import { gsError, runGs, GS_PASSWORD_PATTERN } from "./gsbin";
 
 /** Full gswin64c argument list for the font-outline conversion (pure, for testing). */
 export function buildFontOutlineArgs(inputPath: string, outputPath: string): string[] {
@@ -24,9 +24,6 @@ function assertInputExists(filePath: string): void {
     throw gsError(`File not found: ${filePath}`, TOOL_ERROR_CODES.CORRUPT_PDF);
   }
 }
-
-/** Ghostscript's own wording for an encrypted input (see pdftoa.ts for why anchored). */
-const PASSWORD_PATTERN = /requires a password for access/i;
 
 /**
  * Converts page text to vector outlines with Ghostscript's `-dNoOutputFonts`,
@@ -63,7 +60,7 @@ export async function runFontOutline(
   // As with PDF/A, gs reports an encrypted input on the report streams yet
   // still exits 0 and leaves a blank file behind.
   const report = `${stdout}\n${stderr}`;
-  if (PASSWORD_PATTERN.test(report)) {
+  if (GS_PASSWORD_PATTERN.test(report)) {
     throw gsError(
       "This PDF is encrypted; remove the password before outlining the fonts",
       TOOL_ERROR_CODES.ENCRYPTED_PDF

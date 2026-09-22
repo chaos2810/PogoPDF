@@ -15,6 +15,13 @@ const SPAWN_FAILED_MESSAGE = "Ghostscript failed to start";
 const STDERR_TAIL = 400;
 
 /**
+ * Ghostscript's exact wording when an input needs a password. Anchored to the
+ * full sentence so a path containing "password" can never match, and shared by
+ * both gs-backed tools so the contract stays in sync.
+ */
+export const GS_PASSWORD_PATTERN = /requires a password for access/i;
+
+/**
  * Directory of this module. esbuild's CJS output rewrites `import.meta.url` to
  * `__filename` (a plain Windows path), which `fileURLToPath` rejects, so accept
  * both shapes rather than assuming an ESM URL.

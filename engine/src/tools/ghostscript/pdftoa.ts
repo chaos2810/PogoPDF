@@ -5,7 +5,7 @@ import { PdfToPdfAInputSchema, TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import type { ProgressParams } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { assertNotCancelled } from "../organize/organize";
-import { gsError, runGs } from "./gsbin";
+import { gsError, runGs, GS_PASSWORD_PATTERN } from "./gsbin";
 
 /** "1b"/"2b"/"3b" -> the -dPDFA= number. */
 const PDFA_PART: Record<string, string> = { "1b": "1", "2b": "2", "3b": "3" };
@@ -67,14 +67,6 @@ function assertInputExists(filePath: string): void {
 }
 
 /**
- * Ghostscript's own wording for an encrypted input ("requires a password for
- * access"). Anchored to that phrase rather than a bare /password/i: the report
- * echoes the input path, so a corrupt file named e.g. "my-password-reset.pdf"
- * would otherwise be misread as encrypted.
- */
-const PASSWORD_PATTERN = /requires a password for access/i;
-
-/**
  * Converts a PDF to PDF/A with Ghostscript. `pdfaVersion` selects the part
  * (1b/2b/3b). The OutputIntent prefix file supplies the catalog /OutputIntents
  * the standard requires; its absence (an ICC read failure) aborts the run.
@@ -123,7 +115,7 @@ export async function runPdfToPdfA(
   // leaves a blank file behind, so the exit code alone cannot tell success from
   // this failure (verified against gs 10.08.0).
   const report = `${stdout}\n${stderr}`;
-  if (PASSWORD_PATTERN.test(report)) {
+  if (GS_PASSWORD_PATTERN.test(report)) {
     throw gsError(
       "This PDF is encrypted; remove the password before converting to PDF/A",
       TOOL_ERROR_CODES.ENCRYPTED_PDF
