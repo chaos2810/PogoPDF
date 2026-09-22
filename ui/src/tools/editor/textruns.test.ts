@@ -7,10 +7,11 @@ import {
   type TextRun,
 } from "./textruns";
 
-// A horizontal 24pt run at unrotated baseline (50, 50) on a 200x100 page whose
-// /Rotate is 90: pdf.js keeps the item in unrotated user space and applies the
-// rotation only through the viewport, which is exactly what these helpers rely
-// on. The transform matrices are the real ones measured from a pdf-lib fixture.
+// A 20pt run at unrotated baseline (20, 15) on a 200x100 page. pdf.js keeps
+// text items in unrotated user space regardless of /Rotate, so the transform
+// matrices are the real ones measured from a pdf-lib fixture. The glyph box is
+// padded 15% of the font size beyond the nominal ascent/descent so tall glyph
+// tops survive the engine's redaction coverage.
 const ITEM: TextItemLike = {
   str: "Edit",
   transform: [20, 0, 0, 20, 20, 15],
@@ -20,21 +21,33 @@ const ITEM: TextItemLike = {
 const STYLE = { ascent: 0.718, descent: -0.207 };
 
 describe("quadFromItem", () => {
-  it("maps an unrotated run to a top-down quad", () => {
-    // mediaHeight 100 flips the baseline: topUser = 15 + 0.718*20 = 29.36,
-    // so y = 100 - 29.36 = 70.64; h = (0.718 - -0.207)*20 = 18.5.
+  it("maps an unrotated run to a padded top-down quad", () => {
+    // mediaHeight 100 flips the baseline: topUser = 15 + 0.718*20 + 3 = 32.36,
+    // so y = 100 - 32.36 = 67.64; h = 18.5 + 6 = 24.5 (15% pad each side).
     const q = quadFromItem(ITEM, STYLE, 100);
     expect(q).not.toBeNull();
     expect(q!.x).toBeCloseTo(20, 2);
-    expect(q!.y).toBeCloseTo(70.64, 2);
+    expect(q!.y).toBeCloseTo(67.64, 2);
     expect(q!.w).toBeCloseTo(34.46, 2);
-    expect(q!.h).toBeCloseTo(18.5, 2);
+    expect(q!.h).toBeCloseTo(24.5, 2);
   });
 
-  it("is independent of page rotation (the transform is unrotated)", () => {
-    // The same item on a /Rotate 90 page yields the same engine quad; only the
-    // display projection differs.
-    expect(quadFromItem(ITEM, STYLE, 100)).toEqual(quadFromItem(ITEM, STYLE, 100));
+  it("projects a /Rotate 90 run identically to /Rotate 0 through displayRectFromItem", () => {
+    // A 90-degree page is a pure axis swap: the quad's user-space geometry
+    // is unchanged (pdf.js keeps the item unrotated) and the displayed rect
+    // is just the padded glyph box in the rotated frame.
+    const q0 = quadFromItem(ITEM, STYLE, 100)!;
+    expect(q0.x).toBeCloseTo(20, 2);
+    expect(q0.y).toBeCloseTo(67.64, 2);
+    expect(q0.w).toBeCloseTo(34.46, 2);
+    expect(q0.h).toBeCloseTo(24.5, 2);
+    const d90 = displayRectFromItem(ITEM, STYLE, [0, 1, 1, 0, 0, 0])!;
+    // [0,1,1,0,0,0] maps user (x,y) to displayed (y,x), so the box spans
+    // the padded baseline y span [7.86, 32.36] in x and the run's x span in y.
+    expect(d90.x).toBeCloseTo(7.86, 1);
+    expect(d90.y).toBeCloseTo(20, 1);
+    expect(d90.w).toBeCloseTo(24.5, 1);
+    expect(d90.h).toBeCloseTo(34.46, 1);
   });
 
   it("returns null for empty text and rotated (skewed) text", () => {
@@ -44,7 +57,8 @@ describe("quadFromItem", () => {
 
   it("falls back to default ascent/descent when the style is absent", () => {
     const q = quadFromItem(ITEM, undefined, 100)!;
-    expect(q.h).toBeCloseTo(20, 2);
+    // (0.8 - -0.2)*20 + 6 = 26.
+    expect(q.h).toBeCloseTo(26, 2);
   });
 });
 
@@ -55,21 +69,21 @@ describe("displayRectFromItem", () => {
       str: "Mark", transform: [10, 0, 0, 10, 30, 25], width: 22.22, fontName: "f",
     };
     const d = displayRectFromItem(item, STYLE, [1, 0, 0, -1, 0, 100])!;
-    // topUser = 25 + 0.718*10 = 32.18 -> display y = 100 - 32.18 = 67.82;
-    // the box spans the glyph extent 9.25pt tall.
+    // topUser = 25 + 0.718*10 + 1.5 = 33.68 -> display y = 100 - 33.68 = 66.32;
+    // the box spans the padded glyph extent 12.25pt tall.
     expect(d.x).toBeCloseTo(30, 2);
-    expect(d.y).toBeCloseTo(67.82, 2);
+    expect(d.y).toBeCloseTo(66.32, 2);
     expect(d.w).toBeCloseTo(22.22, 2);
-    expect(d.h).toBeCloseTo(9.25, 2);
+    expect(d.h).toBeCloseTo(12.25, 2);
   });
 
   it("projects a run through the rotate-90 viewport (page 1 of the fixture)", () => {
     // viewport [0, 1, 1, 0, 0, 0] swaps the axes.
     const d = displayRectFromItem(ITEM, STYLE, [0, 1, 1, 0, 0, 0])!;
-    // The displayed rect is the rotated glyph box; width/height swap roles.
+    // The displayed rect is the rotated padded glyph box; width/height swap.
     expect(d.x).toBeGreaterThanOrEqual(0);
     expect(d.y).toBeGreaterThanOrEqual(0);
-    expect(d.w).toBeCloseTo(18.5, 1);
+    expect(d.w).toBeCloseTo(24.5, 1);
     expect(d.h).toBeCloseTo(34.46, 1);
   });
 });

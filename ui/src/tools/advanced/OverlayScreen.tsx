@@ -47,7 +47,7 @@ export function OverlayScreen() {
       })}
       dropKeys={{
         multiple: "tool.overlay.baseDrop",
-        single: "tool.overlay.baseDropSingle",
+        single: "tool.overlay.baseDrop",
       }}
       options={
         <>

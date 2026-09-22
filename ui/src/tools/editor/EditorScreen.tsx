@@ -281,6 +281,9 @@ export function EditorScreen() {
     // never silently moved under the pointer.
     setDoc((d) => selectItem(d, null));
     setEditingId(null);
+    // The runs of the old page must not be hit-tested against the new page.
+    setTextRuns([]);
+    setEditTarget(null);
   };
 
   // --- pointer geometry ---

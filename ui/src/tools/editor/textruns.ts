@@ -43,7 +43,15 @@ function glyphExtent(
   if (size <= 0 || item.width <= 0) return null;
   const ascent = style?.ascent ?? 0.8;
   const descent = style?.descent ?? -0.2;
-  return { size, topUser: f + ascent * size, bottomUser: f + descent * size };
+  // Pad the line box ~15% up and down: pdf.js reports the font's nominal
+  // ascent/descent, which can sit below PyMuPDF's actual word bbox, and an
+  // unpadded quad lets glyph tops survive the engine's white redaction.
+  const pad = 0.15 * size;
+  return {
+    size,
+    topUser: f + ascent * size + pad,
+    bottomUser: f + descent * size - pad,
+  };
 }
 
 /**

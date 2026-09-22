@@ -758,12 +758,11 @@ export const zhTW: Record<Key, string> = {
 
   "tool.editor.toolTextEdit": "編輯文字",
   "tool.editor.textEditHint":
-    "點選一段文字即可就地編輯。套用後會將該段文字重寫到檔案的新副本。取代文字支援 Unicode（含中日韓文字），但中日韓文字會以內建的替代字型繪製，可能與原字型不一致。",
+    "點選一段文字即可就地編輯。套用後會將該段文字重寫到檔案的新副本。取代文字支援 Unicode（含中日韓文字），但會以內建基礎字型繪製（中日韓文字使用替代字型），可能與原字型不一致。",
   "tool.editor.textEditApply": "套用",
   "tool.editor.textEditCancel": "取消",
   "tool.editor.textEditSaving": "正在套用文字編輯…",
   "tool.editor.textEditDone": "文字編輯已寫入檔案的新副本。",
-  "tool.editor.textEditEmpty": "請輸入取代文字。",
 
   "tool.pdfToPdfA.title": "PDF 轉 PDF/A",
   "tool.pdfToPdfA.desc": "轉為適合長期保存的 PDF/A",
@@ -840,7 +839,6 @@ export const zhTW: Record<Key, string> = {
   "tool.overlay.title": "疊印 PDF",
   "tool.overlay.desc": "將一個 PDF 疊印或底印到另一個 PDF 上",
   "tool.overlay.cta": "套用疊印",
-  "tool.overlay.baseLabel": "底稿 PDF",
   "tool.overlay.overlayLabel": "疊印 PDF",
   "tool.overlay.addOverlay": "選擇疊印檔案",
   "tool.overlay.overlayRequired": "請選擇疊印檔案。",
@@ -852,7 +850,6 @@ export const zhTW: Record<Key, string> = {
   "tool.overlay.opacityInvalid": "請輸入 0.05 到 1 的不透明度",
   "tool.overlay.scaleToFit": "縮放以符合底稿頁面",
   "tool.overlay.baseDrop": "拖放底稿 PDF 到此處，或點擊瀏覽",
-  "tool.overlay.baseDropSingle": "拖放底稿 PDF 到此處，或點擊瀏覽",
   "tool.overlay.hint":
     "頁面依序配對。疊印檔頁數較少時，最後一頁會重複套用到剩餘的底稿頁面；多出的頁面會被忽略。底稿檔案永遠保持完全不透明。",
 

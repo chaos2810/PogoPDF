@@ -761,12 +761,11 @@ export const en = {
 
   "tool.editor.toolTextEdit": "Edit text",
   "tool.editor.textEditHint":
-    "Click a text run to edit it in place. Applying rewrites that run's text into a new copy of the file. The replacement accepts Unicode, including CJK, but a CJK replacement is drawn with a bundled fallback font, so it may not match the original face.",
+    "Click a text run to edit it in place. Applying rewrites that run's text into a new copy of the file. The replacement accepts Unicode, including CJK, but it is drawn with a built-in base font (a bundled fallback for CJK), so it may not match the original typeface.",
   "tool.editor.textEditApply": "Apply",
   "tool.editor.textEditCancel": "Cancel",
   "tool.editor.textEditSaving": "Applying the text edit…",
   "tool.editor.textEditDone": "The text edit was written to a new copy of the file.",
-  "tool.editor.textEditEmpty": "Enter replacement text.",
 
   "tool.pdfToPdfA.title": "PDF to PDF/A",
   "tool.pdfToPdfA.desc": "Convert to PDF/A for long term archiving",
@@ -843,7 +842,6 @@ export const en = {
   "tool.overlay.title": "Overlay PDF",
   "tool.overlay.desc": "Overlay or underlay one PDF onto another",
   "tool.overlay.cta": "Apply Overlay",
-  "tool.overlay.baseLabel": "Base PDF",
   "tool.overlay.overlayLabel": "Overlay PDF",
   "tool.overlay.addOverlay": "Choose overlay file",
   "tool.overlay.overlayRequired": "Choose an overlay file.",
@@ -855,7 +853,6 @@ export const en = {
   "tool.overlay.opacityInvalid": "Enter an opacity from 0.05 to 1",
   "tool.overlay.scaleToFit": "Scale to fit the base page",
   "tool.overlay.baseDrop": "Drop the base PDF here or click to browse",
-  "tool.overlay.baseDropSingle": "Drop the base PDF here or click to browse",
   "tool.overlay.hint":
     "Pages pair by position. When the overlay file has fewer pages its last page repeats across the remaining base pages; extra pages are ignored. The base file always stays fully opaque.",
 
