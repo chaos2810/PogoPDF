@@ -44,7 +44,14 @@ export type PyWord = {
   originY: number;
   /** Font size of the span the word belongs to. */
   size: number;
-  /** PyMuPDF base-14 font name of the span (e.g. "helv"). */
+  /**
+   * PyMuPDF base-14 font name of the span. PyMuPDF's `insert_text` accepts only
+   * these names: `helv`, `heit`, `hebo`, `hebi` (Helvetica), `cour`, `cobo`,
+   * `coit`, `cobi` (Courier), `tiro`, `tibo`, `tiit`, `tibi` (Times), `symb`
+   * (Symbol), `zadb` (ZapfDingbats). Any other name raises
+   * `ValueError: bad fontname`, so the span font is mapped through
+   * {@link BASE14_FONT_PY} rather than passed through raw.
+   */
   font: string;
 };
 
@@ -63,6 +70,34 @@ export type TextEdit = {
 
 /** PyMuPDF wheel for Python 3.13 as shipped in the package's assets directory. */
 const PYMUPDF_WHEEL = "pymupdf-1.26.3-cp313-none-pyodide_2025_0_wasm32.whl";
+
+/**
+ * Python helper shared by the extraction and edit scripts. PyMuPDF's
+ * `insert_text` accepts only the 14 base-14 names: `helv`, `heit`, `hebo`,
+ * `hebi` (Helvetica), `cour`, `cobo`, `coit`, `cobi` (Courier), `tiro`, `tibo`,
+ * `tiit`, `tibi` (Times), `symb` (Symbol), `zadb` (ZapfDingbats). Any other name
+ * (for example a raw embedded subset or "arial") raises `ValueError: bad
+ * fontname`. This maps a raw span name onto the closest valid base-14 name,
+ * falling back to `helv`, and is interpolated into both scripts so the
+ * extraction and edit paths cannot disagree.
+ */
+const BASE14_FONT_PY = `
+_BASE14 = {"helv", "heit", "hebo", "hebi", "cour", "cobo", "coit", "cobi",
+           "tiro", "tibo", "tiit", "tibi", "symb", "zadb"}
+
+def BASE14_FONT_PY(raw):
+    name = raw.split("+")[-1].lower().replace(" ", "").replace("-", "")
+    for base in ("helvetica", "courier", "times"):
+        if name.find(base) >= 0:
+            bold = "bold" in name or "black" in name
+            italic = "italic" in name or "oblique" in name
+            if base == "helvetica":
+                return "hebi" if bold and italic else "hebo" if bold else "heit" if italic else "helv"
+            if base == "courier":
+                return "cobi" if bold and italic else "cobo" if bold else "coit" if italic else "cour"
+            return "tibi" if bold and italic else "tibo" if bold else "tiit" if italic else "tiro"
+    return name if name in _BASE14 else "helv"
+`;
 
 /**
  * Directory of this module. esbuild's CJS output rewrites `import.meta.url` to
@@ -203,7 +238,12 @@ async function bootPyodide(): Promise<PyodideLike> {
   }
 }
 
-/** The shared Pyodide instance, booting it on first use. */
+/**
+ * The shared Pyodide instance, booting it on first use. Pyodide is a single
+ * interpreter, so {@link withDoc} relies on the engine's serial job queue for
+ * interpreter safety; Task 2 must keep editText on that queue rather than
+ * calling it concurrently, or two operations could interleave on one global.
+ */
 export function ensurePymupdf(): Promise<PyodideLike> {
   pyodidePromise ??= bootPyodide().catch((e) => {
     // A failed boot must not be cached, or every later job inherits the error.
@@ -246,6 +286,7 @@ export async function getPageWords(
     const pyodide = await ensurePymupdf();
     const result = await pyodide.runPythonAsync(`
 import json
+${BASE14_FONT_PY}
 page = ${docVar}[${pageIndex}]
 spans = [s for b in page.get_text("dict")["blocks"] if b.get("type") == 0
          for l in b["lines"] for s in l["spans"]]
@@ -269,12 +310,9 @@ for w in page.get_text("words"):
     # the span's left edge so the origin lands on the word itself.
     ox = origin[0] + (x0 - s["bbox"][0])
     oy = origin[1]
-    font = s["font"].split("+")[-1]
-    base = {"helvetica": "helv", "courier": "cour", "times": "tiro"}.get(
-        font.lower().replace(" ", ""), font.lower()
-    )
     out.append({"text": text, "x0": x0, "y0": y0, "x1": x1, "y1": y1,
-                "originX": ox, "originY": oy, "size": s["size"], "font": base})
+                "originX": ox, "originY": oy, "size": s["size"],
+                "font": BASE14_FONT_PY(s["font"])})
 json.dumps(out)
 `);
     return JSON.parse(result as string) as PyWord[];
@@ -305,6 +343,7 @@ import json, base64, pymupdf
 
 doc = ${docVar}
 edits = json.loads(POGO_EDITS)
+${BASE14_FONT_PY}
 
 by_page = {}
 for e in edits:
@@ -324,30 +363,40 @@ def _span_for(page, x0, y0, x1, y1):
 
 for page_index, page_edits in by_page.items():
     page = doc[page_index]
-    # Phase 1: redact every edited quad on this page.
+    # Phase 1: capture each edit's span (font, size, baseline) BEFORE redacting.
+    # Once apply_redactions() runs the span is gone, so _span_for() in phase 2
+    # would always miss and silently fall back to 11pt at the quad bottom.
+    prepared = []
     for e in page_edits:
+        q = e["quad"]
+        span = _span_for(page, q["x0"], q["y0"], q["x1"], q["y1"])
+        if span is not None:
+            base_size = span["size"]
+            fontname = e.get("fontname") or BASE14_FONT_PY(span["font"])
+            ox = span["origin"][0] + (q["x0"] - span["bbox"][0])
+            oy = span["origin"][1]
+        else:
+            base_size = 11.0
+            fontname = e.get("fontname") or "helv"
+            ox, oy = q["x0"], q["y1"]
+        prepared.append((e, base_size, fontname, ox, oy))
+
+    # White fill is a known limitation: an edited region over a coloured page
+    # background shows a white box. A background estimate would need a pixel
+    # sample, which is out of scope for the prototype.
+    for e, _, _, _, _ in prepared:
         q = e["quad"]
         rect = pymupdf.Rect(q["x0"], q["y0"], q["x1"], q["y1"])
         page.add_redact_annot(rect, fill=(1, 1, 1))
     page.apply_redactions()
-    # Phase 2: insert replacements that survived the redaction pass.
-    for e in page_edits:
+    # Phase 2: insert replacements using the captured span values.
+    for e, base_size, fontname, ox, oy in prepared:
         q = e["quad"]
-        span = _span_for(page, q["x0"], q["y0"], q["x1"], q["y1"])
-        base_size = span["size"] if span else 11.0
-        fontname = e.get("fontname") or ("helv" if span is None else
-            {"helvetica": "helv", "courier": "cour", "times": "tiro"}.get(
-                span["font"].split("+")[-1].lower().replace(" ", ""), "helv"))
         new_text = e["newText"]
         target_w = max(q["x1"] - q["x0"], 0.1)
         size = base_size
         while size > 1 and pymupdf.get_text_length(new_text, fontname=fontname, fontsize=size) > target_w:
             size -= 0.5
-        if span is not None:
-            ox = span["origin"][0] + (q["x0"] - span["bbox"][0])
-            oy = span["origin"][1]
-        else:
-            ox, oy = q["x0"], q["y1"]
         page.insert_text((ox, oy), new_text, fontsize=size, fontname=fontname, color=(0, 0, 0))
 
 out = doc.tobytes(garbage=1, deflate=True, clean=True)

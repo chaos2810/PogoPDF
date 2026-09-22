@@ -147,9 +147,10 @@ The package is `--external` to the engine bundle and is staged **whole** into
 `assets/` directory of static files that are not declared as package.json
 dependencies: the Pyodide runtime and lock file, the PyMuPDF wheel
 (`pymupdf-1.26.3-cp313-none-pyodide_2025_0_wasm32.whl`), and the supporting
-wheels it loads (pymupdf4llm, fonttools, lxml, numpy, opencv_python, pdf2docx,
-python_docx, typing_extensions). The engine loads the runtime from that
-directory at runtime.
+wheels it ships (pymupdf4llm, fonttools, lxml, numpy, opencv_python, pdf2docx,
+python_docx, typing_extensions). At boot the loader loads only the PyMuPDF
+wheel; the remaining wheels are shipped in the staged package but are not
+loaded into the interpreter until a future feature needs them.
 
 Bundled wheels and their licenses:
 

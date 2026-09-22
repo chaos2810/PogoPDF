@@ -94,7 +94,7 @@ describe.skipIf(!assets)("pymupdf text edit", () => {
         {
           page: 0,
           quad: { x0: edit.x0, y0: edit.y0, x1: edit.x1, y1: edit.y1 },
-          newText: "Edited",
+          newText: "Replacement",
         },
       ],
       out
@@ -102,7 +102,7 @@ describe.skipIf(!assets)("pymupdf text edit", () => {
 
     const text = await pageText(out);
     expect(text.split(/\s+/)).not.toContain("Edit");
-    expect(text.split(/\s+/)).toContain("Edited");
+    expect(text.split(/\s+/)).toContain("Replacement");
 
     // Page geometry is preserved: one page, same A4 size.
     const doc = await PDFDocument.load(readFileSync(out));
@@ -110,34 +110,65 @@ describe.skipIf(!assets)("pymupdf text edit", () => {
     const { width, height } = doc.getPage(0).getSize();
     expect(width).toBeCloseTo(595.28, 1);
     expect(height).toBeCloseTo(841.89, 1);
+
+    // The replacement keeps the ORIGINAL span baseline, not the quad bottom.
+    const after = await getPageWords(new Uint8Array(readFileSync(out)), 0);
+    const replacement = after.find((w) => w.text === "Replacement")!;
+    expect(replacement.originY).toBeCloseTo(edit.originY, 1);
+    expect(replacement.originX).toBeCloseTo(edit.originX, 1);
   }, TIMEOUT);
 
-  it("shrinks the font when the replacement is longer than the quad", async () => {
+  it("autofits from the original span size and keeps the baseline", async () => {
     const words = await getPageWords(new Uint8Array(readFileSync(fixture)), 0);
     const edit = words.find((w) => w.text === "Edit")!;
-    const out = join(dir, "long.pdf");
 
+    // A replacement that already fits must not be shrunk, and it must sit on
+    // the ORIGINAL span baseline, not the quad bottom (the regression degraded
+    // every replacement to 11pt at the quad bottom).
+    const shortOut = join(dir, "short.pdf");
     await editTextFile(
       fixture,
       [
         {
           page: 0,
           quad: { x0: edit.x0, y0: edit.y0, x1: edit.x1, y1: edit.y1 },
-          newText: "Replacement",
+          newText: "Hi",
         },
       ],
-      out
+      shortOut
     );
+    const shortWords = await getPageWords(
+      new Uint8Array(readFileSync(shortOut)),
+      0
+    );
+    const short = shortWords.find((w) => w.text === "Hi");
+    expect(short).toBeDefined();
+    expect(short!.size).toBeCloseTo(edit.size, 0);
+    expect(Math.abs(short!.originX - edit.x0)).toBeLessThanOrEqual(2);
+    expect(Math.abs(short!.originY - edit.originY)).toBeLessThanOrEqual(2);
 
-    // The new word is narrower than the original quad's width at the original
-    // size, i.e. the autofit shrank it instead of overflowing the neighbours.
-    const after = await getPageWords(new Uint8Array(readFileSync(out)), 0);
-    const replacement = after.find((w) => w.text === "Replacement")!;
-    expect(replacement).toBeDefined();
-    expect(replacement.size).toBeLessThan(edit.size);
-    expect(replacement.x1 - replacement.x0).toBeLessThanOrEqual(
-      edit.x1 - edit.x0 + 1
+    // "Edited" is longer than the original quad at 24pt, so the autofit shrinks
+    // it, but it fits before the 11pt fallback: a size strictly between 11 and
+    // 24 proves the shrink started from the captured original size, not 11.
+    const longOut = join(dir, "long.pdf");
+    await editTextFile(
+      fixture,
+      [
+        {
+          page: 0,
+          quad: { x0: edit.x0, y0: edit.y0, x1: edit.x1, y1: edit.y1 },
+          newText: "Edited",
+        },
+      ],
+      longOut
     );
+    const longWords = await getPageWords(new Uint8Array(readFileSync(longOut)), 0);
+    const long = longWords.find((w) => w.text === "Edited")!;
+    expect(long).toBeDefined();
+    expect(long.size).toBeLessThan(edit.size);
+    expect(long.size).toBeGreaterThan(11);
+    expect(long.x1 - long.x0).toBeLessThanOrEqual(edit.x1 - edit.x0 + 1);
+    expect(Math.abs(long.originY - edit.originY)).toBeLessThanOrEqual(2);
   }, TIMEOUT);
 
   it("round-trips bytes without touching the filesystem", async () => {
