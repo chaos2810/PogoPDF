@@ -82,4 +82,21 @@ export const registry: ToolMeta[] = [
   // the card opens the editor while the registry stays a 1:1 map of TOOL_IDS.
   // `search` is the editor's built-in search panel, so it has no card at all.
   { id: TOOL_IDS.editorSave, titleKey: "tool.editor.title", descKey: "tool.editor.desc", category: "edit", icon: "FilePen" },
+
+  // Phase 4 advanced/pro tools. editText has no card (it lives on the editor
+  // rail), so it is UI-internal like `search`; the other 14 are cards here.
+  { id: TOOL_IDS.pdfToPdfA, titleKey: "tool.pdfToPdfA.title", descKey: "tool.pdfToPdfA.desc", category: "utility", icon: "FileCheck2" },
+  { id: TOOL_IDS.fontOutline, titleKey: "tool.fontOutline.title", descKey: "tool.fontOutline.desc", category: "utility", icon: "FileType2" },
+  { id: TOOL_IDS.deskew, titleKey: "tool.deskew.title", descKey: "tool.deskew.desc", category: "utility", icon: "ScanLine" },
+  { id: TOOL_IDS.scannerEffect, titleKey: "tool.scannerEffect.title", descKey: "tool.scannerEffect.desc", category: "edit", icon: "Aperture" },
+  { id: TOOL_IDS.adjustColors, titleKey: "tool.adjustColors.title", descKey: "tool.adjustColors.desc", category: "edit", icon: "SlidersHorizontal" },
+  { id: TOOL_IDS.invertColors, titleKey: "tool.invertColors.title", descKey: "tool.invertColors.desc", category: "edit", icon: "SunMoon" },
+  { id: TOOL_IDS.posterize, titleKey: "tool.posterize.title", descKey: "tool.posterize.desc", category: "edit", icon: "Palette" },
+  { id: TOOL_IDS.backgroundColor, titleKey: "tool.backgroundColor.title", descKey: "tool.backgroundColor.desc", category: "edit", icon: "PaintBucket" },
+  { id: TOOL_IDS.changeTextColor, titleKey: "tool.changeTextColor.title", descKey: "tool.changeTextColor.desc", category: "edit", icon: "Baseline" },
+  { id: TOOL_IDS.overlay, titleKey: "tool.overlay.title", descKey: "tool.overlay.desc", category: "organize", icon: "Layers2" },
+  { id: TOOL_IDS.workflow, titleKey: "tool.workflow.title", descKey: "tool.workflow.desc", category: "utility", icon: "Workflow" },
+  { id: TOOL_IDS.digitalSign, titleKey: "tool.digitalSign.title", descKey: "tool.digitalSign.desc", category: "secure", icon: "FileKey2" },
+  { id: TOOL_IDS.validateSignature, titleKey: "tool.validateSignature.title", descKey: "tool.validateSignature.desc", category: "secure", icon: "BadgeCheck" },
+  { id: TOOL_IDS.timestamp, titleKey: "tool.timestamp.title", descKey: "tool.timestamp.desc", category: "secure", icon: "Clock" },
 ];

@@ -69,6 +69,20 @@ import { RemoveRestrictionsScreen } from "../tools/editor/RemoveRestrictionsScre
 import { SanitizeScreen } from "../tools/editor/SanitizeScreen";
 import { BatesScreen } from "../tools/editor/BatesScreen";
 import { PageLabelsScreen } from "../tools/editor/PageLabelsScreen";
+import { PdfToPdfAScreen } from "../tools/advanced/PdfToPdfAScreen";
+import { FontOutlineScreen } from "../tools/advanced/FontOutlineScreen";
+import { DeskewScreen } from "../tools/advanced/DeskewScreen";
+import { ScannerEffectScreen } from "../tools/advanced/ScannerEffectScreen";
+import { AdjustColorsScreen } from "../tools/advanced/AdjustColorsScreen";
+import { InvertColorsScreen } from "../tools/advanced/InvertColorsScreen";
+import { PosterizeScreen } from "../tools/advanced/PosterizeScreen";
+import { BackgroundColorScreen } from "../tools/advanced/BackgroundColorScreen";
+import { ChangeTextColorScreen } from "../tools/advanced/ChangeTextColorScreen";
+import { OverlayScreen } from "../tools/advanced/OverlayScreen";
+import { WorkflowBuilderScreen } from "../tools/advanced/WorkflowBuilderScreen";
+import { SignCertScreen } from "../tools/advanced/SignCertScreen";
+import { ValidateSignatureScreen } from "../tools/advanced/ValidateSignatureScreen";
+import { TimestampScreen } from "../tools/advanced/TimestampScreen";
 
 export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.merge]: MergeScreen,
@@ -135,6 +149,20 @@ export const TOOL_SCREENS: Record<string, ComponentType> = {
   [TOOL_IDS.sanitize]: SanitizeScreen,
   [TOOL_IDS.bates]: BatesScreen,
   [TOOL_IDS.pageLabels]: PageLabelsScreen,
+  [TOOL_IDS.pdfToPdfA]: PdfToPdfAScreen,
+  [TOOL_IDS.fontOutline]: FontOutlineScreen,
+  [TOOL_IDS.deskew]: DeskewScreen,
+  [TOOL_IDS.scannerEffect]: ScannerEffectScreen,
+  [TOOL_IDS.adjustColors]: AdjustColorsScreen,
+  [TOOL_IDS.invertColors]: InvertColorsScreen,
+  [TOOL_IDS.posterize]: PosterizeScreen,
+  [TOOL_IDS.backgroundColor]: BackgroundColorScreen,
+  [TOOL_IDS.changeTextColor]: ChangeTextColorScreen,
+  [TOOL_IDS.overlay]: OverlayScreen,
+  [TOOL_IDS.workflow]: WorkflowBuilderScreen,
+  [TOOL_IDS.digitalSign]: SignCertScreen,
+  [TOOL_IDS.validateSignature]: ValidateSignatureScreen,
+  [TOOL_IDS.timestamp]: TimestampScreen,
 };
 
 export function Router() {

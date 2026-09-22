@@ -16,26 +16,6 @@ const HIDDEN_FROM_UI = new Set<string>([TOOL_IDS.xpsToPdf]);
 // Like HIDDEN_FROM_UI this is permanent, not a pending screen.
 const UI_INTERNAL = new Set<string>([TOOL_IDS.search, TOOL_IDS.formFields, TOOL_IDS.editText]);
 
-// Engine ids whose UI screen has not landed yet. The Phase 4 tools shipped
-// their engine modules ahead of these screens; all fourteen get cards in the
-// same task as this list is emptied, so it is intentionally empty now.
-const PENDING_UI = new Set<string>([
-  TOOL_IDS.pdfToPdfA,
-  TOOL_IDS.fontOutline,
-  TOOL_IDS.deskew,
-  TOOL_IDS.scannerEffect,
-  TOOL_IDS.adjustColors,
-  TOOL_IDS.invertColors,
-  TOOL_IDS.posterize,
-  TOOL_IDS.backgroundColor,
-  TOOL_IDS.changeTextColor,
-  TOOL_IDS.overlay,
-  TOOL_IDS.workflow,
-  TOOL_IDS.digitalSign,
-  TOOL_IDS.validateSignature,
-  TOOL_IDS.timestamp,
-]);
-
 describe("registry", () => {
   it("has unique ids", () => {
     const ids = registry.map((t) => t.id);
@@ -44,11 +24,14 @@ describe("registry", () => {
   it("merge tool exists", () => {
     expect(registry.some((t) => t.id === "merge")).toBe(true);
   });
+  // Every engine tool now has a UI surface: the Phase 4 pending list is empty,
+  // so the coverage check is once again the plain "all ids minus the two
+  // permanent exclusions" set. A reintroduced pending list belongs here.
   it("covers exactly the known tool ids, with nothing missing or extra", () => {
     const registered = new Set(registry.map((t) => t.id));
     const known = new Set<string>(Object.values(TOOL_IDS));
     const expected = Object.values(TOOL_IDS).filter(
-      (id) => !HIDDEN_FROM_UI.has(id) && !UI_INTERNAL.has(id) && !PENDING_UI.has(id)
+      (id) => !HIDDEN_FROM_UI.has(id) && !UI_INTERNAL.has(id)
     );
     expect(expected.filter((id) => !registered.has(id))).toEqual([]);
     expect(registry.map((t) => t.id).filter((id) => !known.has(id))).toEqual([]);
