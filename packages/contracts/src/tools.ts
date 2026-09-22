@@ -1263,6 +1263,8 @@ export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
  * "$previous" (there is no previous output), and a "$previous" reference after
  * a step that returned data (not a file) is rejected. `workflow` cannot be a
  * step (nested workflows are rejected). The last step's output is the result.
+ * v1 threads "$previous" on `filePath` and `baseFilePath` only; multi-list
+ * inputs (`filePaths`, `overlayFilePath`) cannot thread yet.
  */
 export const WorkflowInputSchema = z
   .object({

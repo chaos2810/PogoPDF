@@ -57,6 +57,66 @@ describe("runWorkflow", () => {
     }
   });
 
+  it("threads $previous into baseFilePath (merge then overlay)", async () => {
+    const out = await runWorkflow(
+      {
+        steps: [
+          { toolId: "merge", input: { filePaths: [one, two] } },
+          {
+            toolId: "overlay",
+            input: { baseFilePath: "$previous", overlayFilePath: two, mode: "overlay" },
+          },
+        ],
+      },
+      ctx,
+      outDir(),
+      tools
+    );
+
+    // Merged base is 3 pages; the overlay result keeps the base's page count.
+    expect(out.endsWith("overlay.pdf")).toBe(true);
+    const doc = await PDFDocument.load(await readFile(out));
+    expect(doc.getPageCount()).toBe(3);
+  });
+
+  it("includes the first zod issue path in the invalid-input message", async () => {
+    await expect(
+      runWorkflow(
+        { steps: [{ toolId: "merge", input: { filePaths: one } }] },
+        ctx,
+        outDir(),
+        tools
+      )
+    ).rejects.toMatchObject({
+      code: -32001,
+      message: expect.stringContaining("filePaths"),
+    });
+  });
+
+  it("wraps an untyped step failure as an internal error, not INVALID_INPUT", async () => {
+    tools.set("boom", {
+      schema: tools.get("rotate")!.schema,
+      run: async () => {
+        throw new TypeError("kaboom");
+      },
+    });
+    try {
+      await expect(
+        runWorkflow(
+          { steps: [{ toolId: "boom", input: { filePath: one, angle: 90 } }] },
+          ctx,
+          outDir(),
+          tools
+        )
+      ).rejects.toMatchObject({
+        code: -32000,
+        message: expect.stringContaining("Step 1"),
+      });
+    } finally {
+      tools.delete("boom");
+    }
+  });
+
   it("reports progress per step with the toolId as the stage", async () => {
     const events: Array<{ percent: number; stage: string }> = [];
     await runWorkflow(

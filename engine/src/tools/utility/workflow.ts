@@ -1,20 +1,10 @@
-import {
-  TOOL_ERROR_CODES,
-  TOOL_IDS,
-  WorkflowInputSchema,
-} from "@pogopdf/contracts";
+import { TOOL_IDS, WorkflowInputSchema } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import type { ToolEntry, ToolRegistry } from "../registry";
-import { assertNotCancelled } from "../organize/organize";
+import { assertNotCancelled, invalidInput } from "../organize/organize";
 
 /** Marks an input field that should receive the previous step's output path. */
 const PREVIOUS = "$previous";
-
-function invalidInput(message: string): Error {
-  return Object.assign(new Error(message), {
-    code: TOOL_ERROR_CODES.INVALID_INPUT,
-  });
-}
 
 /**
  * A visual pipeline: registered tools run sequentially, each consuming the
@@ -82,21 +72,32 @@ export async function runWorkflow(
 
     const parsed = entry.schema.safeParse(stepInput);
     if (!parsed.success) {
-      throw invalidInput(`Step ${stepNo} ("${step.toolId}") has invalid input`);
+      const issue = parsed.error.issues[0];
+      const where = issue.path.length ? `${issue.path.join(".")}: ` : "";
+      throw invalidInput(
+        `Step ${stepNo} ("${step.toolId}") has invalid input: ${where}${issue.message}`
+      );
     }
 
     let result: string | string[] | object;
     try {
       result = await entry.run(parsed.data, childCtx, outDir);
     } catch (e) {
-      // Abort the whole workflow, preserving the step's typed error but naming
-      // the failing step in the message.
-      const code =
-        (e as { code?: number })?.code ?? TOOL_ERROR_CODES.INVALID_INPUT;
+      // Abort the whole workflow, naming the failing step. A typed error keeps
+      // its code; an untyped failure is a genuine bug, so surface it as an
+      // internal error rather than mislabeling it INVALID_INPUT.
       const base = e instanceof Error ? e.message : String(e);
-      throw Object.assign(new Error(`Step ${stepNo} ("${step.toolId}"): ${base}`), {
-        code,
-      });
+      const typed = (e as { code?: number })?.code;
+      if (typed !== undefined) {
+        throw Object.assign(
+          new Error(`Step ${stepNo} ("${step.toolId}"): ${base}`),
+          { code: typed }
+        );
+      }
+      throw Object.assign(
+        new Error(`Step ${stepNo} ("${step.toolId}") failed: ${base}`),
+        { code: -32000 }
+      );
     }
     previousPath = typeof result === "string" ? result : undefined;
 

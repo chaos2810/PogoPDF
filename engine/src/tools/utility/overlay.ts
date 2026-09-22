@@ -1,7 +1,7 @@
 import { PDFDocument, degrees, type PDFEmbeddedPage, type PDFPage } from "pdf-lib";
-import { OverlayInputSchema, TOOL_ERROR_CODES } from "@pogopdf/contracts";
+import { OverlayInputSchema } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
-import { assertNotCancelled, normalizeAngle } from "../organize/organize";
+import { assertNotCancelled, invalidInput, normalizeAngle } from "../organize/organize";
 import { displayedPageSize } from "../../render/pagegeometry";
 import { loadPdf, savePdf } from "../pdfdoc";
 
@@ -50,9 +50,7 @@ export async function runOverlay(
   const baseCount = base.getPageCount();
   const overlayCount = overlay.getPageCount();
   if (overlayCount === 0) {
-    throw Object.assign(new Error("Overlay document has no pages"), {
-      code: TOOL_ERROR_CODES.INVALID_INPUT,
-    });
+    throw invalidInput("Overlay document has no pages");
   }
 
   for (let i = 0; i < baseCount; i++) {
