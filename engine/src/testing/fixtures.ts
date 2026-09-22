@@ -159,3 +159,40 @@ export async function makeSkewedPdf(path: string, degrees: number): Promise<stri
   writeFileSync(path, await doc.save());
   return path;
 }
+
+/**
+ * The makeSkewedPdf fixture plus a black square near the bottom-right corner.
+ * The square sits farther from the page centre than any text glyph, so its
+ * distance from the centre measures the content scale of a deskewed output: a
+ * shrink would pull every landmark toward the centre.
+ */
+export async function makeSkewedMarkedPdf(path: string, degrees: number): Promise<string> {
+  const doc0 = await PDFDocument.create();
+  const font = await doc0.embedFont(StandardFonts.Helvetica);
+  const page0 = doc0.addPage([595.28, 841.89]);
+  page0.drawText("The quick brown fox jumps over the lazy dog", {
+    x: 50,
+    y: 750,
+    size: 24,
+    font,
+  });
+  page0.drawRectangle({ x: 500, y: 60, width: 40, height: 40, color: rgb(0, 0, 0) });
+  const base = `${path}.base.pdf`;
+  writeFileSync(base, await doc0.save());
+
+  const renderer = await getPdfRenderer(base);
+  let rotated: Buffer;
+  try {
+    const canvas = await renderer.renderPage(0, 150);
+    const png = await encodeCanvas(canvas, "png");
+    rotated = await sharp(png).rotate(degrees, { background: "#ffffff" }).png().toBuffer();
+  } finally {
+    await renderer.close();
+  }
+  const doc = await PDFDocument.create();
+  const image = await doc.embedPng(rotated);
+  const page = doc.addPage([595.28, 841.89]);
+  page.drawImage(image, { x: 0, y: 0, width: 595.28, height: 841.89 });
+  writeFileSync(path, await doc.save());
+  return path;
+}

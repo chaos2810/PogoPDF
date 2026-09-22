@@ -10,6 +10,7 @@ import {
   fixtureDir,
   makePdf,
   makePdfWithRect,
+  makeSkewedMarkedPdf,
   makeSkewedPdf,
 } from "../../testing/fixtures";
 import { getPdfRenderer } from "../../render/renderpdf";
@@ -103,6 +104,40 @@ async function interiorSamples(
   }
 }
 
+/**
+ * Centroid of ink darker than 128 on page 0 at 72dpi: the marked fixture's
+ * landmark square is the only solid mass that dark, so its position and the
+ * page dimensions measure where content landed.
+ */
+async function darkCentroid(
+  path: string
+): Promise<{ x: number; y: number; w: number; h: number }> {
+  const renderer = await getPdfRenderer(path);
+  try {
+    const canvas = await renderer.renderPage(0, 72);
+    const { data } = canvas
+      .getContext("2d")
+      .getImageData(0, 0, canvas.width, canvas.height);
+    let sx = 0;
+    let sy = 0;
+    let n = 0;
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const i = (y * canvas.width + x) * 4;
+        const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+        if (luma < 128) {
+          sx += x;
+          sy += y;
+          n++;
+        }
+      }
+    }
+    return { x: sx / n, y: sy / n, w: canvas.width, h: canvas.height };
+  } finally {
+    await renderer.close();
+  }
+}
+
 describe("runDeskew", () => {
   let dir: string;
 
@@ -118,7 +153,9 @@ describe("runDeskew", () => {
   });
 
   it("reports an upright page as a zero angle", async () => {
-    const upright = await makePdf(join(dir, "upright.pdf"), 1);
+    const upright = await makePdf(join(dir, "upright.pdf"), 1, {
+      text: "The quick brown fox jumps over the lazy dog",
+    });
     expect(Math.abs(await detectOn(upright))).toBeLessThanOrEqual(0.5);
     const out = await runDeskew({ filePath: upright }, ctx, outDir());
     expect(await detectOn(out)).toBe(0);
@@ -131,6 +168,18 @@ describe("runDeskew", () => {
     expect(doc.getPageCount()).toBe(1);
     expect(doc.getPage(0).getWidth()).toBeCloseTo(595.28, 1);
     expect(doc.getPage(0).getHeight()).toBeCloseTo(841.89, 1);
+  });
+
+  it("preserves content scale (a landmark holds its distance from the page centre)", async () => {
+    const skewed = await makeSkewedMarkedPdf(join(dir, "skew-marked.pdf"), 3);
+    const out = await runDeskew({ filePath: skewed }, ctx, outDir());
+    const before = await darkCentroid(skewed);
+    const after = await darkCentroid(out);
+    const radius = (c: { x: number; y: number; w: number; h: number }) =>
+      Math.hypot(c.x - c.w / 2, c.y - c.h / 2);
+    // Rotation about the centre leaves the landmark radius unchanged; a contain
+    // resize would shrink it (about 7 percent) and fail this bound.
+    expect(Math.abs(radius(after) - radius(before)) / radius(before)).toBeLessThan(0.02);
   });
 
   it("reports progress per page, ending at 100", async () => {

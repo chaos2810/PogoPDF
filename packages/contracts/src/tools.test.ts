@@ -1456,7 +1456,7 @@ describe("FontOutlineInputSchema", () => {
 });
 
 describe("TOOL_IDS", () => {
-  it("contains all 70 tools with values equal to their keys", () => {
+  it("contains all 77 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
@@ -1516,8 +1516,11 @@ describe("AdjustColorsInputSchema", () => {
     expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, gamma: 0.09 }).success).toBe(false);
     expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, gamma: 3.01 }).success).toBe(false);
   });
-  it("rejects a non-integer brightness", () => {
-    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, brightness: 1.5 }).success).toBe(false);
+  it("accepts fractional knob values", () => {
+    const parsed = AdjustColorsInputSchema.parse({ filePath: PDF, brightness: 1.5, contrast: -0.5, saturation: 12.25 });
+    expect(parsed.brightness).toBe(1.5);
+    expect(parsed.contrast).toBe(-0.5);
+    expect(parsed.saturation).toBe(12.25);
   });
   it("rejects unknown keys via .strict()", () => {
     expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, hue: 10 }).success).toBe(false);

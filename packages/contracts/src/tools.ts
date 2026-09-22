@@ -1162,9 +1162,9 @@ export type ScannerEffectInput = z.infer<typeof ScannerEffectInputSchema>;
 export const AdjustColorsInputSchema = z
   .object({
     filePath: z.string().min(1),
-    brightness: z.number().int().min(-100).max(100).default(0),
-    contrast: z.number().int().min(-100).max(100).default(0),
-    saturation: z.number().int().min(-100).max(100).default(0),
+    brightness: z.number().min(-100).max(100).default(0),
+    contrast: z.number().min(-100).max(100).default(0),
+    saturation: z.number().min(-100).max(100).default(0),
     gamma: z.number().min(0.1).max(3).default(1),
   })
   .strict();

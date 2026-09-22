@@ -2,8 +2,8 @@ import { PDFDocument } from "pdf-lib";
 import { RasterizeInputSchema } from "@pogopdf/contracts";
 import type { RpcCtx } from "../../rpc/dispatcher";
 import { encodeCanvas } from "../../render/encode";
-import { assertNotCancelled, normalizeAngle } from "../organize/organize";
-import { displayedPageSize } from "../../render/pagegeometry";
+import { assertNotCancelled } from "../organize/organize";
+import { addFullPageImage } from "../../render/pagegeometry";
 import { loadPdf, savePdf } from "../pdfdoc";
 import { openRenderer } from "../convertout/shared";
 
@@ -32,16 +32,7 @@ export async function runRasterize(
       const image = await out.embedPng(png);
 
       // The raster already carries the page's /Rotate, so use the displayed box.
-      const { width, height } = src.getPage(i).getSize();
-      const rotation = normalizeAngle(src.getPage(i).getRotation().angle);
-      const displayed = displayedPageSize(rotation, width, height);
-      const page = out.addPage([displayed.width, displayed.height]);
-      page.drawImage(image, {
-        x: 0,
-        y: 0,
-        width: page.getWidth(),
-        height: page.getHeight(),
-      });
+      addFullPageImage(out, src, i, image);
 
       const done = i + 1;
       ctx.notifyProgress({

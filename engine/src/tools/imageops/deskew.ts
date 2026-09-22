@@ -113,14 +113,24 @@ async function detectPageSkew(filePath: string): Promise<number> {
   }
 }
 
-/** Rotate a pixmap's PNG bytes by `angle` degrees without changing its size. */
+/**
+ * Rotate a pixmap's PNG bytes by `angle` degrees and crop back to the original
+ * size. sharp expands the canvas to fit the rotated raster, so resizing to the
+ * original dimensions would shrink content; cropping from the centre instead
+ * preserves the content scale (the exposed corners are white anyway).
+ */
 async function rotatePixmap(pix: Pixmap, angle: number): Promise<Buffer> {
   const png = Buffer.from(pix.asPNG());
   const width = pix.getWidth();
   const height = pix.getHeight();
-  return sharp(png)
+  const rotated = await sharp(png)
     .rotate(angle, { background: "#ffffff" })
-    .resize(width, height, { fit: "contain", background: "#ffffff" })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  const left = Math.round((rotated.info.width - width) / 2);
+  const top = Math.round((rotated.info.height - height) / 2);
+  return sharp(rotated.data)
+    .extract({ left, top, width, height })
     .png()
     .toBuffer();
 }

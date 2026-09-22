@@ -6,8 +6,8 @@ import type { RpcCtx } from "../../rpc/dispatcher";
 import { loadMupdf } from "../../render/mupdfengine";
 import { corrupt } from "../errors";
 import { loadPdf, savePdf } from "../pdfdoc";
-import { assertNotCancelled, normalizeAngle } from "../organize/organize";
-import { displayedPageSize } from "../../render/pagegeometry";
+import { assertNotCancelled } from "../organize/organize";
+import { addFullPageImage } from "../../render/pagegeometry";
 
 /** The raster resolution used for every image-ops rebuild. */
 export const IMAGE_DPI = 150;
@@ -95,16 +95,7 @@ export async function rebuildRasterPdf(
       }
 
       const image = await out.embedPng(png);
-      const { width, height } = src.getPage(i).getSize();
-      const rotation = normalizeAngle(src.getPage(i).getRotation().angle);
-      const displayed = displayedPageSize(rotation, width, height);
-      const outPage = out.addPage([displayed.width, displayed.height]);
-      outPage.drawImage(image, {
-        x: 0,
-        y: 0,
-        width: outPage.getWidth(),
-        height: outPage.getHeight(),
-      });
+      addFullPageImage(out, src, i, image);
 
       const done = i + 1;
       ctx.notifyProgress({

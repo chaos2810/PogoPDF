@@ -59,6 +59,6 @@ export async function runScannerEffect(
 ): Promise<string> {
   const { filePath, preset } = ScannerEffectInputSchema.parse(input);
   return rebuildRasterPdf(filePath, ctx, outDir, "scanned.pdf", "scanner-effect", {}, (pix) =>
-    applyPreset(pix, preset as Preset)
+    applyPreset(pix, preset)
   );
 }

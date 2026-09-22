@@ -5,6 +5,9 @@
  * helpers convert between the two spaces.
  */
 
+import type { PDFDocument, PDFImage } from "pdf-lib";
+import { normalizeAngle } from "../tools/organize/organize";
+
 /** The page's size as displayed by a viewer under its (canonical) /Rotate. */
 export function displayedPageSize(
   rotationDeg: number,
@@ -13,6 +16,30 @@ export function displayedPageSize(
 ): { width: number; height: number } {
   const swaps = rotationDeg === 90 || rotationDeg === 270;
   return { width: swaps ? hPt : wPt, height: swaps ? wPt : hPt };
+}
+
+/**
+ * Add a page to `out` sized to source page `pageIndex` as displayed (its
+ * /Rotate applied) and draw `image` full-page over it. Used by every raster
+ * rebuild: the raster already carries the rotation, so the output page must use
+ * the displayed dimensions, not the raw MediaBox.
+ */
+export function addFullPageImage(
+  out: PDFDocument,
+  src: PDFDocument,
+  pageIndex: number,
+  image: PDFImage
+): void {
+  const { width, height } = src.getPage(pageIndex).getSize();
+  const rotation = normalizeAngle(src.getPage(pageIndex).getRotation().angle);
+  const displayed = displayedPageSize(rotation, width, height);
+  const page = out.addPage([displayed.width, displayed.height]);
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: page.getWidth(),
+    height: page.getHeight(),
+  });
 }
 
 /**
