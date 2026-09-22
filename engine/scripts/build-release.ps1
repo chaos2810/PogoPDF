@@ -58,6 +58,24 @@ function resolveDir(spec) {
       /* try the next anchor */
     }
   }
+  if (!resolved) {
+    // Some packages (e.g. @bentopdf/pymupdf-wasm) declare an exports map with
+    // only an "import" condition and no "./package.json" subpath, so every
+    // anchor above throws ERR_PACKAGE_PATH_NOT_EXPORTED. Fall back to locating
+    // the directory directly in the node_modules trees that Node would search
+    // from the engine package (the engine dir, then each ancestor).
+    let dir = path.resolve(process.argv[2]);
+    while (true) {
+      const candidate = path.join(dir, "node_modules", spec, "package.json");
+      if (fs.existsSync(candidate)) {
+        resolved = path.join(path.dirname(candidate), "package.json");
+        break;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
   if (!resolved) throw new Error("cannot resolve entry for " + spec);
   let dir = path.dirname(resolved);
   while (true) {
@@ -81,8 +99,11 @@ function resolveDir(spec) {
 // its wasm file relative to its own dist directory. tesseract.js is external
 // because it spawns a worker thread from `src/worker-script/node/index.js`
 // beside its own package dir, a path that does not exist once esbuild inlines
-// the main module into engine.cjs.
-const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom", "mupdf", "tesseract.js"];
+// the main module into engine.cjs. @bentopdf/pymupdf-wasm is external because
+// the engine loads its Pyodide runtime (`pyodide.js`) and wheel assets from an
+// absolute path inside the package's own `assets/` directory at runtime; the
+// package is copied whole so those static assets (not package.json deps) ship.
+const roots = ["sharp", "@napi-rs/canvas", "pdfkit", "jsdom", "mupdf", "tesseract.js", "@bentopdf/pymupdf-wasm"];
 const extras = ["@img/sharp-win32-x64", "@img/colour", "detect-libc",
                 "@napi-rs/canvas-win32-x64-msvc"];
 const seen = new Set();

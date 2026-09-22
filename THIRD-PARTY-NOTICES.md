@@ -48,6 +48,7 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | tesseract language data (eng, chi_tra, chi_sim, jpn, kor, deu, fra, spa) | tessdata_fast, main | Apache-2.0 |
 | qpdf (qpdf.exe + qpdf29.dll + MSVC runtime DLLs) | 11.10.1 | Apache-2.0 |
 | mupdf (MuPDF.js wasm) | 1.28.1 | **AGPL-3.0-or-later** |
+| @bentopdf/pymupdf-wasm (Pyodide + PyMuPDF and bundled wheels) | 0.11.16 | **AGPL-3.0-only** |
 | LibreOffice (headless `soffice`) | 26.2.6 | **MPL-2.0** with LGPL-3.0-or-later components |
 
 `engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
@@ -86,9 +87,9 @@ dompurify's MPL path, weak-copyleft. The AGPL engines land in Phase 2 (see the s
 
 ## Planned AGPL engines (Phase 2+)
 
-PyMuPDF and Ghostscript are AGPL-3.0-or-later and will ship in the engine from
-Phase 2 onward. Their notices will be added here as each lands. mupdf, the
-first AGPL component to land, is recorded in the section below.
+Ghostscript is AGPL-3.0-or-later and will ship in the engine when its integration
+lands. Its notice will be added here at that point. mupdf and PyMuPDF, the AGPL
+components that have landed, are recorded in the sections below.
 
 ## AGPL-3.0-or-later component: MuPDF.js
 
@@ -122,6 +123,58 @@ Note: the official MuPDF.js wasm build compiles the XPS module out
 read XPS/OXPS; the `xpsToPdf` tool reports a typed unsupported-format error.
 This is recorded so the capability gap is not mistaken for a license or
 packaging omission.
+
+## AGPL-3.0-only component: PyMuPDF compiled to WebAssembly
+
+PogoPDF's engine uses **`@bentopdf/pymupdf-wasm`**, version 0.11.16, for in-place
+PDF text editing (the `editText` tool). The package is a WebAssembly build of
+**PyMuPDF** (the Python bindings for Artifex's MuPDF) produced by BentoPDF. It
+does not link a thin wasm binding directly: it embeds **Pyodide** (a full
+CPython interpreter compiled to WebAssembly) plus a set of Python wheels.
+
+- PyMuPDF: Copyright (C) 2004-2026 Artifex Software, Inc.
+- PyMuPDF license: **AGPL-3.0-only**,
+  <https://www.gnu.org/licenses/agpl-3.0.html>; commercial licensing is offered
+  separately by Artifex.
+- Package source: <https://github.com/alam00000/bentopdf-pymupdf-wasm>
+  (npm: <https://www.npmjs.com/package/@bentopdf/pymupdf-wasm>)
+- Pyodide: <https://pyodide.org>, MPL-2.0 (the runtime under the package's
+  `assets/` directory: `pyodide.js`, `pyodide.asm.js`, `pyodide.asm.wasm`,
+  `python_stdlib.zip`, `pyodide-lock.json`)
+
+The package is `--external` to the engine bundle and is staged **whole** into
+`engine-deps-<id>/node_modules/@bentopdf/pymupdf-wasm/`, including its
+`assets/` directory of static files that are not declared as package.json
+dependencies: the Pyodide runtime and lock file, the PyMuPDF wheel
+(`pymupdf-1.26.3-cp313-none-pyodide_2025_0_wasm32.whl`), and the supporting
+wheels it loads (pymupdf4llm, fonttools, lxml, numpy, opencv_python, pdf2docx,
+python_docx, typing_extensions). The engine loads the runtime from that
+directory at runtime.
+
+Bundled wheels and their licenses:
+
+| Wheel | License |
+|---|---|
+| pymupdf | AGPL-3.0 or commercial (dual-licensed by Artifex) |
+| pymupdf4llm | AGPL-3.0 or commercial (dual-licensed by Artifex) |
+| pdf2docx | GPL-3.0 |
+| opencv-python | Apache-2.0 |
+| numpy | BSD-3-Clause |
+| lxml | BSD-3-Clause |
+| fonttools | MIT |
+| python-docx | MIT |
+| typing_extensions | PSF-2.0 |
+
+Each wheel carries its own license metadata under its `.dist-info` directory in
+the Pyodide site-packages; the complete corresponding source for the shipped
+PyMuPDF build is the `@bentopdf/pymupdf-wasm` package together with the PyMuPDF
+source at <https://github.com/pymupdf/PyMuPDF>.
+
+Because PyMuPDF is AGPL-3.0-only and PogoPDF loads it at runtime inside its
+engine process, the combined work is distributed under the terms of the AGPL,
+consistent with PogoPDF's own AGPL-3.0 license (see [LICENSE](LICENSE)). The
+package's license text ships at
+`node_modules/@bentopdf/pymupdf-wasm/LICENSE`.
 
 ## LGPL-3.0-or-later component: libvips (via sharp)
 

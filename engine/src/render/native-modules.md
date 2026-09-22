@@ -23,6 +23,7 @@ read files relative to their own package directory at runtime:
 | `jsdom` | MIT | `fs.readFileSync(path.resolve(__dirname, '../../../browser/default-stylesheet.css'))` at module load |
 | `mupdf` | **AGPL-3.0-or-later** | ESM-only with a top-level `await import("node:fs")` plus `await libmupdf_wasm(...)`, which CJS output cannot express; loads `dist/mupdf-wasm.wasm` relative to its own dist dir |
 | `tesseract.js` | Apache-2.0 | spawns a `worker_threads` worker from `src/worker-script/node/index.js` resolved relative to its own package dir; esbuild inlines the main module's `__dirname` into `dist/`, so the worker path resolves to a non-existent `worker-script/` beside `engine.cjs` (verified: `Cannot find module '...\worker-script\node\index.js'`). It then lazily `require()`s the matching `tesseract.js-core` wasm variant from its own package dir |
+| `@bentopdf/pymupdf-wasm` | **AGPL-3.0-only** (PyMuPDF; Pyodide is MPL-2.0) | not a plain JS package: it ships a Pyodide runtime (`assets/pyodide.js`, `pyodide.asm.{js,wasm}`, `python_stdlib.zip`, `pyodide-lock.json`) plus Python wheels as **static assets** that are not `package.json` dependencies. The engine loads them at runtime from an absolute path in the package's `assets/` directory |
 
 All of these are marked `--external` and their transitive dependency trees are
 staged into `engine-deps-<id>/node_modules/` (see `build-release.ps1`, which
@@ -37,6 +38,27 @@ The official MuPDF.js wasm build compiles the XPS module out
 EPUB/FB2/comic content but not XPS; `xpsToPdf` reports a typed
 unsupported-format error. A future custom wasm build with `xps=yes` would close
 that gap without any code change beyond dropping the typed-error branch.
+
+`@bentopdf/pymupdf-wasm` backs in-place text editing (`engine/src/textedit/pymupdf.ts`).
+It is a Pyodide distribution rather than a thin wasm binding: the module boots
+Pyodide, loads the PyMuPDF wheel, and drives PyMuPDF through `runPythonAsync`.
+The package's own wrapper is bypassed (it accepts only a Blob and its Windows
+asset-path math mishandles file URLs). Two details are load-bearing:
+
+- Pyodide's `pyodide.js` detects Node and evaluates `pyodide.asm.js` as an ES
+  module inside a `"type": "module"` package, where Emscripten's generated code
+  expects the CommonJS globals `require` and `__dirname`. The module installs
+  those shims for the duration of the boot and restores them afterwards.
+- The Pyodide runtime and wheels are copied whole because they are static files
+  under `assets/`, not `dependencies` of the package. The package also declares
+  an `exports` map with no `./package.json` subpath, so `build-release.ps1`'s
+  dependency walk (which resolves entry points) cannot discover it by name; the
+  walk falls back to locating `node_modules/@bentopdf/pymupdf-wasm` directly in
+  the Node search path. A recursive copy then stages the full 56 MB tree.
+- The engine finds the assets through `findPymupdfAssets()`, which checks
+  `POGOPDF_PYMUPDF_ASSETS`, the dev checkout's `node_modules`, the release cwd's
+  `node_modules/...`, and `engine-deps-<hash>` siblings of the exe. A missing
+  directory fails typed with UNSUPPORTED_FORMAT rather than a crash.
 
 `qpdf` is not a Node package at all: `build-release.ps1` stages the whole
 `engine/qpdf-bin/` directory (`qpdf.exe` + `qpdf29.dll` + the MSVC runtime DLLs;
@@ -113,6 +135,9 @@ This is why the release engine is a two-part payload rather than one blob.
     - the transitive dependency trees of `pdfkit` and `jsdom` (both `--external`;
       ~48 MB, including `fontkit`, `linebreak`, `png-js`, `@noble/*` and
       `parse5`, `css-tree`, `undici`, `tough-cookie`, `whatwg-*`)
+    - `node_modules/@bentopdf/pymupdf-wasm/` staged whole (~56 MB), including its
+      `assets/` Pyodide runtime and wheels, so `findPymupdfAssets()` finds them
+      from the release cwd
     - `qpdf/qpdf.exe` + `qpdf/qpdf29.dll` + the MSVC runtime DLLs, staged from
       `engine/qpdf-bin/` so `resolveQpdf()` finds them under the release cwd
     - `lo/program/soffice.exe` + the rest of the trimmed LibreOffice tree, staged
@@ -134,21 +159,24 @@ esbuild src/engine.ts --bundle --platform=node --target=node22 \
   --outfile=dist/engine.cjs \
   --external:sharp --external:@napi-rs/canvas \
   --external:pdfkit --external:jsdom --external:mupdf --external:tesseract.js \
+  --external:@bentopdf/pymupdf-wasm \
   --define:import.meta.url=__filename
 ```
 
 - `--external:sharp` / `--external:@napi-rs/canvas` keep them as runtime
   `require()` calls (the only two packages with un-bundleable `.node` files).
 - `--external:pdfkit` / `--external:jsdom` / `--external:mupdf` /
-  `--external:tesseract.js` keep them on disk because of the runtime file loads
-  listed above; inlining pdfkit or jsdom makes the bundle throw at import
-  (pdfkit: `ERR_INVALID_URL`, jsdom: `ENOENT .../default-stylesheet.css`),
-  inlining mupdf fails the build outright (esbuild: "Top-level await is
-  currently not supported with the cjs output format"), and inlining
-  tesseract.js produces a bundle whose OCR worker path points at a
-  non-existent `worker-script/` directory. `--packages=external` is deliberately
-  **not** used: pdf.js, pdf-lib, jszip and zod bundle fine and keep the exe
-  self-contained apart from these six.
+  `--external:tesseract.js` / `--external:@bentopdf/pymupdf-wasm` keep them on
+  disk because of the runtime file loads listed above; inlining pdfkit or jsdom
+  makes the bundle throw at import (pdfkit: `ERR_INVALID_URL`, jsdom:
+  `ENOENT .../default-stylesheet.css`), inlining mupdf fails the build outright
+  (esbuild: "Top-level await is currently not supported with the cjs output
+  format"), and inlining tesseract.js produces a bundle whose OCR worker path
+  points at a non-existent `worker-script/` directory. pymupdf-wasm must stay on
+  disk because the engine loads its `assets/` runtime and wheels from an
+  absolute package path. `--packages=external` is deliberately **not** used:
+  pdf.js, pdf-lib, jszip and zod bundle fine and keep the exe self-contained
+  apart from these seven.
 - `--define:import.meta.url=__filename` matters: esbuild's CJS output stubs
   `import.meta` to `{}`, so pdf.js's `createRequire(import.meta.url)` would throw
   `ERR_INVALID_ARG_VALUE` and silently degrade (no `@napi-rs/canvas` polyfill, no

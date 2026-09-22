@@ -7,11 +7,12 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "esbuild src/engine.ts --bundle --platform=node --target=node22 --outfile=dist/engine.cjs --external:sharp --external:@napi-rs/canvas --external:pdfkit --external:jsdom --external:mupdf --external:tesseract.js --define:import.meta.url=__filename",
+    "build": "esbuild src/engine.ts --bundle --platform=node --target=node22 --outfile=dist/engine.cjs --external:sharp --external:@napi-rs/canvas --external:pdfkit --external:jsdom --external:mupdf --external:tesseract.js --external:@bentopdf/pymupdf-wasm --define:import.meta.url=__filename",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@bentopdf/pymupdf-wasm": "^0.11.16",
     "@napi-rs/canvas": "^1.0.9",
     "@pogopdf/contracts": "*",
     "csv-parse": "^7.0.2",
