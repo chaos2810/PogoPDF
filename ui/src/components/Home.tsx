@@ -15,24 +15,27 @@ export function Home() {
 
   return (
     <main style={{ padding: 24, width: "100%", maxWidth: 1200, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800 }}>{t("app.tagline", lang)}</h1>
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={t("home.search", lang)}
-        style={{
-          width: "100%", maxWidth: 520, marginTop: 16, padding: "10px 14px",
-          borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
-          background: "var(--card)", color: "var(--text)", fontSize: 14,
-          boxShadow: "var(--shadow-card)",
-        }}
-      />
+      <div style={{ textAlign: "center" }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800 }}>{t("app.tagline", lang)}</h1>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("home.search", lang)}
+          style={{
+            width: "100%", maxWidth: 520, marginTop: 16, padding: "10px 14px",
+            borderRadius: "var(--radius-pill)", border: "1px solid var(--border)",
+            background: "var(--card)", color: "var(--text)", fontSize: 14,
+            boxShadow: "var(--shadow-card)",
+          }}
+        />
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginTop: 24 }}>
         {visible.map((tool) => (
           <button
             key={tool.id}
             onClick={() => navigate({ kind: "tool", toolId: tool.id })}
             style={{
+              display: "flex", flexDirection: "column", alignItems: "flex-start",
               textAlign: "left", padding: 16, borderRadius: "var(--radius-tile)",
               border: "1px solid var(--border)", background: "var(--card)",
               color: "var(--text)", cursor: "pointer",
