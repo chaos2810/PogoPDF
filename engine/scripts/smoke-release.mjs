@@ -1,17 +1,22 @@
-﻿// Smoke-test a staged release engine: ping, a pdfToImages job, an OCR job, and
-// a protect -> unlock roundtrip backed by the staged qpdf. When LibreOffice is
-// staged (deps/lo/program/soffice.exe) an office conversion case also runs.
+﻿// Smoke-test a staged release engine: ping, a pdfToImages job, an OCR job, a
+// protect -> unlock roundtrip backed by the staged qpdf, and a sign -> validate
+// roundtrip (the signing stack is bundled, so no external tool gates it). When
+// LibreOffice is staged (deps/lo/program/soffice.exe) an office conversion case
+// runs, and when Ghostscript is staged (deps/gs/bin/gswin64c.exe) a pdfToPdfA
+// case runs. The timestamp tool is not covered (it needs a live network TSA).
 //
 // Usage: node engine/scripts/smoke-release.mjs <engine.exe> <fixture.pdf>
 // The engine is run against the sibling engine-deps-<id>/ directory (the same
 // layout src-tauri produces), so this exercises the SEA bootstrap, the native
-// module resolution, the release qpdf layout (deps/qpdf/), and the staged
-// LibreOffice layout (deps/lo/) without building the whole app.
+// module resolution, the release qpdf layout (deps/qpdf/), the staged
+// LibreOffice layout (deps/lo/) and the staged Ghostscript layout (deps/gs/)
+// without building the whole app.
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { PDFDocument } from "pdf-lib";
+import forge from "node-forge";
+import { PDFDocument, PDFName } from "pdf-lib";
 
 const [exe, fixture] = process.argv.slice(2);
 if (!exe || !fixture) {
@@ -48,6 +53,42 @@ const sofficeExe = join(deps, "lo", "program", "soffice.exe");
 const hasSoffice = statSync(sofficeExe, { throwIfNoEntry: false })?.isFile() === true;
 if (!hasSoffice) {
   console.warn(`[smoke] no staged LibreOffice at ${sofficeExe}; skipping the office conversion case.`);
+}
+
+// Ghostscript is staged at deps/gs/ (build-release.ps1) and resolved by
+// resolveGswin() from the release spawn cwd. Its case is optional the same way.
+const gsExe = join(deps, "gs", "bin", "gswin64c.exe");
+const hasGs = statSync(gsExe, { throwIfNoEntry: false })?.isFile() === true;
+if (!hasGs) {
+  console.warn(`[smoke] no staged Ghostscript at ${gsExe}; skipping the pdfToPdfA case.`);
+}
+
+/**
+ * A self-signed certificate and matching PKCS#12 bundle, generated here with
+ * node-forge so no binary certificate is checked in (same shape as the engine
+ * tests). `p12` is the DER bundle.
+ */
+function makeSelfSignedP12(passphrase, commonName) {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = "01";
+  cert.validity.notBefore = new Date(Date.now() - 60_000);
+  const notAfter = new Date();
+  notAfter.setFullYear(notAfter.getFullYear() + 1);
+  cert.validity.notAfter = notAfter;
+  const attrs = [
+    { name: "commonName", value: commonName },
+    { name: "organizationName", value: "PogoPDF" },
+    { shortName: "C", value: "TW" },
+  ];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  const p12Asn1 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [cert], passphrase, {
+    algorithm: "3des",
+  });
+  return Buffer.from(forge.asn1.toDer(p12Asn1).getBytes(), "binary");
 }
 
 // Load the repo's OOXML fixture builder (TypeScript) through tsx so the docx
@@ -212,6 +253,67 @@ async function main() {
     );
   }
 
+  // Signing stack roundtrip: the stack is bundled into engine.cjs (pure JS, no
+  // staging), so this always runs. A self-signed p12 is generated beside the
+  // smoke and used to sign the fixture, then validateSignature must report it
+  // valid with the signer's subject.
+  const p12Path = join(dir, "smoke-signer.p12");
+  writeFileSync(p12Path, makeSelfSignedP12("smoke-pass", "PogoPDF Smoke Signer"));
+  const signedResult = await request("job.start", {
+    jobId: uuid(7),
+    toolId: "digitalSign",
+    input: {
+      filePath: fixture,
+      p12Path,
+      passphrase: "smoke-pass",
+      reason: "Release smoke",
+    },
+  });
+  const signedPath = signedResult.outputPath;
+  if (!signedPath?.endsWith("signed.pdf")) {
+    throw new Error("digitalSign did not return signed.pdf: " + signedPath);
+  }
+  if (readFileSync(signedPath).subarray(0, 4).toString("ascii") !== "%PDF") {
+    throw new Error("signed output is not a PDF: " + signedPath);
+  }
+  const validateResult = await request("job.start", {
+    jobId: uuid(8),
+    toolId: "validateSignature",
+    input: { filePath: signedPath },
+  });
+  if (validateResult.outputPath !== undefined) {
+    throw new Error("validateSignature returned a file path instead of a data result");
+  }
+  if (validateResult.data?.valid !== true) {
+    throw new Error("validateSignature did not report the signature valid");
+  }
+  if (!/CN=PogoPDF Smoke Signer/.test(validateResult.data.signer?.subject ?? "")) {
+    throw new Error("unexpected signer subject: " + validateResult.data.signer?.subject);
+  }
+  rmSync(p12Path, { force: true });
+
+  // Ghostscript-backed PDF/A conversion: proves the STAGED gs/ tree resolves
+  // from the release spawn cwd (resolveGswin) and that gswin64c.exe launches
+  // with its sibling gsdll64.dll and Resource/ files. A lone exe could not run.
+  // Skipped (loudly) when no gs/ was staged.
+  let gsSummary = "pdfToPdfA skipped (no staged Ghostscript)";
+  if (hasGs) {
+    const pdfaResult = await request("job.start", {
+      jobId: uuid(9),
+      toolId: "pdfToPdfA",
+      input: { filePath: fixture, pdfaVersion: "2b" },
+    });
+    const pdfaPath = pdfaResult.outputPath;
+    if (!pdfaPath?.endsWith("pdfa.pdf")) {
+      throw new Error("pdfToPdfA did not return pdfa.pdf: " + pdfaPath);
+    }
+    const pdfaDoc = await PDFDocument.load(readFileSync(pdfaPath));
+    if (pdfaDoc.catalog.get(PDFName.of("OutputIntents")) === undefined) {
+      throw new Error("pdfToPdfA output has no /OutputIntents entry");
+    }
+    gsSummary = `pdfToPdfA (${pdfaDoc.getPageCount()} page(s), OutputIntent verified)`;
+  }
+
   // LibreOffice-backed conversion: craft a minimal docx, convert it through the
   // STAGED lo/ tree, then prove the output is a real PDF whose text is
   // extractable. This exercises build-release's trimmed lo/ layout end-to-end:
@@ -265,7 +367,9 @@ async function main() {
   console.log(
     `PASS: ping + pdfToImages (${raster.outputPaths.length} page(s)) + ocr ` +
       `(${ocr.outputPaths.length} txt) + protect/unlock ` +
-      `roundtrip (${unlocked.getPageCount()} page(s)) + ${officeSummary} via ${depsName}`
+      `roundtrip (${unlocked.getPageCount()} page(s)) + sign/validate ` +
+      `roundtrip (${validateResult.data.signer.subject}) + ${gsSummary} + ` +
+      `${officeSummary} via ${depsName}`
   );
 }
 

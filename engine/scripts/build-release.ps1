@@ -242,6 +242,28 @@ process.stdout.write(JSON.stringify(out));
         Write-Warning "lo-bin not found: the release will omit LibreOffice and officeToPdf (docx/xlsx/pptx/odt/...) will fail at runtime with 'LibreOffice not found'. Run engine/scripts/fetch-libreoffice.ps1 and rebuild."
     }
 
+    # Ghostscript (AGPL-3.0) backs pdfToPdfA and fontOutline. The whole trimmed
+    # tree is staged at gs/, because resolveGswin (ghostscript/gsbin.ts) resolves
+    # <deps>/gs/bin/gswin64c.exe from the release spawn cwd, and gswin64c.exe is a
+    # launcher that loads gsdll64.dll plus its Resource/, lib/ and iccprofiles/
+    # trees from paths relative to its own bin/ directory; a lone exe could not
+    # launch. The source tree lives at gs-bin/ (fetch-ghostscript.ps1), so it is
+    # renamed on the way in. A missing tree warns loudly and skips, matching
+    # qpdf/ocr-data/lo: the release still builds, the gs tools fail typed at
+    # runtime, and the smoke test's gs case is skipped with a note.
+    $gsSrc = Join-Path (Resolve-Path .).Path "gs-bin"
+    $gsDest = Join-Path $deps "gs"
+    if (Test-Path (Join-Path $gsSrc "bin\gswin64c.exe")) {
+        New-Item -ItemType Directory -Force -Path $gsDest | Out-Null
+        Copy-Item (Join-Path $gsSrc "*") $gsDest -Recurse
+        $gsStats = Get-ChildItem $gsDest -Recurse -File | Measure-Object Length -Sum
+        $gsMb = "{0:N1} MB" -f ($gsStats.Sum / 1MB)
+        Write-Output "gs: staged $($gsStats.Count) file(s), $gsMb at gs/ in the deps tar"
+    }
+    else {
+        Write-Warning "gs-bin not found: the release will omit Ghostscript and pdfToPdfA/fontOutline will fail at runtime with 'Ghostscript not found'. Run engine/scripts/fetch-ghostscript.ps1 and rebuild."
+    }
+
     # Archive the tree (bsdtar ships with Windows 10+). Extracted at runtime by
     # the Rust app into %LOCALAPPDATA%\PogoPDF\bin\engine-<hash>\.
     $depsTar = Join-Path (Resolve-Path .).Path "dist\engine-deps.tar"
