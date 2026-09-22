@@ -17,7 +17,7 @@ use sidecar::SidecarState;
 #[cfg(windows)]
 fn show_fatal_error(msg: &str) {
     #[link(name = "user32")]
-    extern "system" {
+    unsafe extern "system" {
         fn MessageBoxW(
             hwnd: *mut core::ffi::c_void,
             text: *const u16,
