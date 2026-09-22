@@ -1302,7 +1302,8 @@ export type DigitalSignInput = z.infer<typeof DigitalSignInputSchema>;
 /**
  * Structural CMS verification of the last signature in a document. `trustStorePath`
  * points at a PEM file holding one or more certificates; when supplied, the
- * signer's issuer chain is walked against it and `trusted` reports the result.
+ * signer's certificate name is matched against the store entries (a name-level
+ * comparison, NOT a full chain-path validation) and `trusted` reports the result.
  * There is NO revocation checking (no CRL/OCSP fetch): the result is structural
  * integrity plus chain display, which is documented in the UI hint.
  */

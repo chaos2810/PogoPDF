@@ -5,12 +5,13 @@ import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
 import { corrupt, typedError } from "../errors";
 
 /**
- * Bytes reserved for the CMS signature inside the placeholder. A single 2048-bit
- * certificate plus signed attributes is about 1.3 KB; a later RFC 3161 timestamp
- * token adds about 1.2 KB to the same CMS. 16 KB (32 KB of hex) leaves generous
- * headroom for a small certificate chain.
+ * Bytes reserved for the CMS signature inside the placeholder. The library
+ * writes raw NUL characters into the /Contents hex string, so the FILE hole is
+ * this many bytes and the usable CMS capacity is half of it (each CMS byte is
+ * two hex chars). 32768 file bytes -> 16384 CMS bytes: headroom for a small
+ * certificate chain plus a later RFC 3161 timestamp token on the same CMS.
  */
-export const SIGNATURE_PLACEHOLDER_BYTES = 16384;
+export const SIGNATURE_PLACEHOLDER_BYTES = 32768;
 
 /** The id-aa-signatureTimeStampToken attribute (RFC 3161 section 2.4.2). */
 export const OID_SIGNATURE_TIMESTAMP_TOKEN = "1.2.840.113549.1.9.16.2.14";

@@ -21,12 +21,16 @@ function mapSignerError(e: unknown, p12Path: string): Error {
   if (/mac could not be verified|invalid password|password/i.test(message)) {
     return typedError("Wrong P12 passphrase", TOOL_ERROR_CODES.INVALID_INPUT);
   }
-  if (/certificate that matches|keybag|no bags/i.test(message)) {
+  if (/certificate that matches|keybag|no bags|PKCS.?12 parsing failed/i.test(message)) {
     return corrupt(`The P12 file has no usable certificate and private key: ${p12Path}`);
   }
-  return e instanceof Error
-    ? e
-    : typedError(`Signing failed: ${message}`, TOOL_ERROR_CODES.CORRUPT_PDF);
+  if (/exceeds placeholder/i.test(message)) {
+    return typedError(
+      `The signing key or its chain is too large for the reserved signature space (${message})`,
+      TOOL_ERROR_CODES.UNSUPPORTED_FORMAT
+    );
+  }
+  return typedError(`Signing failed: ${message}`, TOOL_ERROR_CODES.CORRUPT_PDF);
 }
 
 /**
