@@ -34,4 +34,10 @@ describe("engine tool registry coverage", () => {
       expect(typeof entry.schema?.safeParse, id).toBe("function");
     }
   });
+
+  it("registers all 82 tool ids", () => {
+    tools = new Map();
+    registerTools(tools);
+    expect(tools.size).toBe(82);
+  });
 });

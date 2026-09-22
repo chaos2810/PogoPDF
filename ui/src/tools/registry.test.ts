@@ -21,6 +21,8 @@ const UI_INTERNAL = new Set<string>([TOOL_IDS.search, TOOL_IDS.formFields]);
 // in the engine at Task 3 and get their screens in Task 8 as well. The image-ops
 // suite ships in the engine at Task 4 and likewise gets its screens in Task 8.
 // overlay and workflow ship in the engine at Task 5; both get screens in Task 8.
+// digitalSign, validateSignature and timestamp ship in the engine at Task 6 and
+// get their screens in Task 8 too.
 const PENDING_UI = new Set<string>([
   TOOL_IDS.editText,
   TOOL_IDS.pdfToPdfA,
@@ -34,6 +36,9 @@ const PENDING_UI = new Set<string>([
   TOOL_IDS.changeTextColor,
   TOOL_IDS.overlay,
   TOOL_IDS.workflow,
+  TOOL_IDS.digitalSign,
+  TOOL_IDS.validateSignature,
+  TOOL_IDS.timestamp,
 ]);
 
 describe("registry", () => {

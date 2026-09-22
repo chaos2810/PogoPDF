@@ -30,6 +30,7 @@ import {
   DeskewInputSchema, ScannerEffectInputSchema, AdjustColorsInputSchema,
   InvertColorsInputSchema, PosterizeInputSchema, BackgroundColorInputSchema,
   ChangeTextColorInputSchema, OverlayInputSchema, WorkflowInputSchema,
+  DigitalSignInputSchema, ValidateSignatureInputSchema, TimestampInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -1456,11 +1457,11 @@ describe("FontOutlineInputSchema", () => {
 });
 
 describe("TOOL_IDS", () => {
-  it("contains all 79 tools with values equal to their keys", () => {
+  it("contains all 82 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(79);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(82);
   });
 });
 
@@ -1655,5 +1656,81 @@ describe("WorkflowInputSchema", () => {
   });
   it("rejects unknown top-level keys via .strict()", () => {
     expect(WorkflowInputSchema.safeParse({ steps: [], name: "x" }).success).toBe(false);
+  });
+});
+
+describe("DigitalSignInputSchema", () => {
+  const base = { filePath: PDF, p12Path: "C:\\cert.p12", passphrase: "secret" };
+  it("accepts paths + passphrase with optional signature fields", () => {
+    const parsed = DigitalSignInputSchema.parse({
+      ...base, name: "Ada", reason: "Approved", location: "Taipei",
+    });
+    expect(parsed.name).toBe("Ada");
+    expect(parsed.reason).toBe("Approved");
+    expect(parsed.location).toBe("Taipei");
+  });
+  it("accepts an omitted passphrase (empty string)", () => {
+    expect(DigitalSignInputSchema.safeParse({ ...base, passphrase: "" }).success).toBe(true);
+  });
+  it("rejects a missing passphrase", () => {
+    expect(DigitalSignInputSchema.safeParse({ filePath: PDF, p12Path: "c.p12" }).success).toBe(false);
+  });
+  it("rejects a missing p12Path", () => {
+    expect(DigitalSignInputSchema.safeParse({ filePath: PDF, passphrase: "x" }).success).toBe(false);
+  });
+  it("rejects an empty p12Path", () => {
+    expect(DigitalSignInputSchema.safeParse({ ...base, p12Path: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(DigitalSignInputSchema.safeParse({ ...base, subFilter: "x" }).success).toBe(false);
+  });
+});
+
+describe("ValidateSignatureInputSchema", () => {
+  it("accepts filePath alone", () => {
+    expect(ValidateSignatureInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("accepts filePath with a trust store", () => {
+    expect(
+      ValidateSignatureInputSchema.safeParse({ filePath: PDF, trustStorePath: "C:\\chain.pem" }).success
+    ).toBe(true);
+  });
+  it("rejects an empty trustStorePath", () => {
+    expect(
+      ValidateSignatureInputSchema.safeParse({ filePath: PDF, trustStorePath: "" }).success
+    ).toBe(false);
+  });
+  it("rejects an empty filePath", () => {
+    expect(ValidateSignatureInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(ValidateSignatureInputSchema.safeParse({ filePath: PDF, checkRevocation: true }).success).toBe(false);
+  });
+});
+
+describe("TimestampInputSchema", () => {
+  it("accepts filePath with an http(s) TSA url", () => {
+    expect(
+      TimestampInputSchema.safeParse({ filePath: PDF, tsaUrl: "https://tsa.example.com" }).success
+    ).toBe(true);
+    expect(
+      TimestampInputSchema.safeParse({ filePath: PDF, tsaUrl: "http://localhost:8080" }).success
+    ).toBe(true);
+  });
+  it("rejects a non-url tsaUrl", () => {
+    expect(TimestampInputSchema.safeParse({ filePath: PDF, tsaUrl: "not a url" }).success).toBe(false);
+  });
+  it("rejects a missing tsaUrl", () => {
+    expect(TimestampInputSchema.safeParse({ filePath: PDF }).success).toBe(false);
+  });
+  it("rejects an empty filePath", () => {
+    expect(
+      TimestampInputSchema.safeParse({ filePath: "", tsaUrl: "https://tsa.example.com" }).success
+    ).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(
+      TimestampInputSchema.safeParse({ filePath: PDF, tsaUrl: "https://t", hashAlgorithm: "sha256" }).success
+    ).toBe(false);
   });
 });

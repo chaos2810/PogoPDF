@@ -51,6 +51,23 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | Ghostscript (`gswin64c.exe` console binary + `gsdll64.dll` + resources) | 10.08.0 | **AGPL-3.0-or-later** |
 | @bentopdf/pymupdf-wasm (Pyodide + PyMuPDF and bundled wheels) | 0.11.16 | **AGPL-3.0-only** |
 | LibreOffice (headless `soffice`) | 26.2.6 | **MPL-2.0** with LGPL-3.0-or-later components |
+| @signpdf/placeholder-pdf-lib | 3.3.0 | MIT |
+| @signpdf/signer-p12 | 3.3.0 | MIT |
+| @signpdf/signpdf | 3.3.0 | MIT |
+| @signpdf/utils | 3.3.0 | MIT |
+| node-forge | 1.4.0 | BSD-3-Clause OR GPL-2.0 |
+| pkijs | 3.4.1 | BSD-3-Clause |
+| asn1js | 3.0.10 | BSD-3-Clause |
+| bytestreamjs | 2.0.1 | BSD-3-Clause |
+| pvtsutils | 1.3.6 | MIT |
+| pvutils | 1.2.0 | MIT |
+| @noble/hashes | 1.8.0 | MIT |
+
+The digital-signature stack (`@signpdf/*`, `node-forge`, `pkijs` and its ASN.1
+support packages) is pure JavaScript and is bundled directly into `engine.cjs`;
+none of it is staged as a separate file or `--external`. It backs `digitalSign`,
+`validateSignature` and `timestamp`. `node-forge` is used under its
+BSD-3-Clause option (`node-forge` is dual-licensed BSD-3-Clause OR GPL-2.0).
 
 `engine.cjs`, `pdf.worker.mjs` and pdfjs-dist's `standard_fonts/` directory are
 copied into `engine-deps-<id>/`; `qpdf.exe` and its runtime DLLs are copied into

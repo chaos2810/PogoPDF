@@ -80,6 +80,9 @@ export const TOOL_IDS = {
   changeTextColor: "changeTextColor",
   overlay: "overlay",
   workflow: "workflow",
+  digitalSign: "digitalSign",
+  validateSignature: "validateSignature",
+  timestamp: "timestamp",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -1272,6 +1275,74 @@ export const WorkflowInputSchema = z
   })
   .strict();
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
+
+/**
+ * X.509 digital signature via a PKCS#12 bundle. The passphrase transits the RPC
+ * boundary as a plain string, the same discipline the protect/unlock tools use
+ * for their passwords: it is never placed on a command line (signing is
+ * in-process), is not written to disk, and is not logged.
+ *
+ * The engine reads the .p12 from disk, adds a PAdES placeholder to the document,
+ * and signs the document's byte range with the certificate's private key. The
+ * detached PKCS#7 signature is embedded in the placeholder. The optional
+ * name/reason/location become the visible signature dictionary fields.
+ */
+export const DigitalSignInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    p12Path: z.string().min(1),
+    passphrase: z.string(),
+    name: z.string().optional(),
+    reason: z.string().optional(),
+    location: z.string().optional(),
+  })
+  .strict();
+export type DigitalSignInput = z.infer<typeof DigitalSignInputSchema>;
+
+/**
+ * Structural CMS verification of the last signature in a document. `trustStorePath`
+ * points at a PEM file holding one or more certificates; when supplied, the
+ * signer's issuer chain is walked against it and `trusted` reports the result.
+ * There is NO revocation checking (no CRL/OCSP fetch): the result is structural
+ * integrity plus chain display, which is documented in the UI hint.
+ */
+export const ValidateSignatureInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    trustStorePath: z.string().min(1).optional(),
+  })
+  .strict();
+export type ValidateSignatureInput = z.infer<typeof ValidateSignatureInputSchema>;
+
+/**
+ * RFC 3161 document timestamp. The engine builds a TimeStampReq over the
+ * document's signed bytes and POSTs it to `tsaUrl`. A NETWORK call to the TSA
+ * server is the one online operation in the engine; it is opt-in per run and
+ * documented in the UI hint. When the document already carries a signature the
+ * token is added as the id-aa-signatureTimeStampToken unsigned attribute of the
+ * last signer; otherwise a standalone document timestamp is added.
+ */
+export const TimestampInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    tsaUrl: z.string().url(),
+  })
+  .strict();
+export type TimestampInput = z.infer<typeof TimestampInputSchema>;
+
+/** Result data for validateSignature (the engine's SignatureData). */
+export type SignatureData = {
+  valid: boolean;
+  signer?: {
+    subject: string;
+    issuer: string;
+    serial: string;
+    notAfter: string;
+  };
+  reason?: string;
+  certificates: number;
+  trusted?: boolean;
+};
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),
