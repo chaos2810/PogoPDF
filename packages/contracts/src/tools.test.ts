@@ -29,7 +29,7 @@ import {
   PdfToPdfAInputSchema, FontOutlineInputSchema,
   DeskewInputSchema, ScannerEffectInputSchema, AdjustColorsInputSchema,
   InvertColorsInputSchema, PosterizeInputSchema, BackgroundColorInputSchema,
-  ChangeTextColorInputSchema,
+  ChangeTextColorInputSchema, OverlayInputSchema, WorkflowInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -1456,11 +1456,11 @@ describe("FontOutlineInputSchema", () => {
 });
 
 describe("TOOL_IDS", () => {
-  it("contains all 77 tools with values equal to their keys", () => {
+  it("contains all 79 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(77);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(79);
   });
 });
 
@@ -1584,5 +1584,76 @@ describe("ChangeTextColorInputSchema", () => {
   });
   it("rejects unknown keys via .strict()", () => {
     expect(ChangeTextColorInputSchema.safeParse({ filePath: PDF, threshold: 100 }).success).toBe(false);
+  });
+});
+
+describe("OverlayInputSchema", () => {
+  const base = { baseFilePath: PDF, overlayFilePath: "C:\\b.pdf" };
+  it("accepts overlay and underlay modes", () => {
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "overlay" }).success).toBe(true);
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "underlay" }).success).toBe(true);
+  });
+  it("rejects an unknown mode", () => {
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "blend" }).success).toBe(false);
+  });
+  it("defaults opacity to 1 and scaleToFit to false", () => {
+    const v = OverlayInputSchema.parse({ ...base, mode: "overlay" });
+    expect(v.opacity).toBe(1);
+    expect(v.scaleToFit).toBe(false);
+  });
+  it("accepts the opacity bounds 0.05 and 1", () => {
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "overlay", opacity: 0.05 }).success).toBe(true);
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "overlay", opacity: 1 }).success).toBe(true);
+  });
+  it("rejects opacity outside 0.05..1", () => {
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "overlay", opacity: 0.04 }).success).toBe(false);
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "overlay", opacity: 1.01 }).success).toBe(false);
+  });
+  it("requires both file paths", () => {
+    expect(OverlayInputSchema.safeParse({ baseFilePath: PDF, mode: "overlay" }).success).toBe(false);
+    expect(OverlayInputSchema.safeParse({ overlayFilePath: PDF, mode: "overlay" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(OverlayInputSchema.safeParse({ ...base, mode: "overlay", blend: true }).success).toBe(false);
+  });
+});
+
+describe("WorkflowInputSchema", () => {
+  it("accepts a single-step workflow", () => {
+    expect(
+      WorkflowInputSchema.safeParse({
+        steps: [{ toolId: "rotate", input: { filePath: PDF, angle: 90 } }],
+      }).success
+    ).toBe(true);
+  });
+  it("accepts a multi-step workflow of up to 20 steps", () => {
+    const steps = Array.from({ length: 20 }, () => ({
+      toolId: "rotate",
+      input: { filePath: PDF, angle: 90 },
+    }));
+    expect(WorkflowInputSchema.safeParse({ steps }).success).toBe(true);
+  });
+  it("rejects an empty steps array", () => {
+    expect(WorkflowInputSchema.safeParse({ steps: [] }).success).toBe(false);
+  });
+  it("rejects more than 20 steps", () => {
+    const steps = Array.from({ length: 21 }, () => ({
+      toolId: "rotate",
+      input: { filePath: PDF, angle: 90 },
+    }));
+    expect(WorkflowInputSchema.safeParse({ steps }).success).toBe(false);
+  });
+  it("rejects a step without an input object", () => {
+    expect(WorkflowInputSchema.safeParse({ steps: [{ toolId: "rotate" }] }).success).toBe(false);
+  });
+  it("rejects unknown step keys via .strict()", () => {
+    expect(
+      WorkflowInputSchema.safeParse({
+        steps: [{ toolId: "rotate", input: {}, label: "x" }],
+      }).success
+    ).toBe(false);
+  });
+  it("rejects unknown top-level keys via .strict()", () => {
+    expect(WorkflowInputSchema.safeParse({ steps: [], name: "x" }).success).toBe(false);
   });
 });

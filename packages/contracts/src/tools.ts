@@ -78,6 +78,8 @@ export const TOOL_IDS = {
   posterize: "posterize",
   backgroundColor: "backgroundColor",
   changeTextColor: "changeTextColor",
+  overlay: "overlay",
+  workflow: "workflow",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -1214,6 +1216,60 @@ export const ChangeTextColorInputSchema = z
   })
   .strict();
 export type ChangeTextColorInput = z.infer<typeof ChangeTextColorInputSchema>;
+
+/**
+ * Two-document page composition. `overlay` draws the overlay document's pages
+ * ON TOP of the base (z-order: base first, then overlay); `underlay` draws the
+ * underlay FIRST and the base on top, so the base's opaque areas hide it.
+ *
+ * Page pairing is positional: overlay/underlay page i pairs with base page i.
+ * When the second document has fewer pages the last one repeats to cover the
+ * remaining base pages; when it has more, the extra pages are ignored.
+ *
+ * `scaleToFit` scales each secondary page down or up to the base page's
+ * displayed frame (preserving aspect ratio) and centers it; false draws it at
+ * 1:1 at the displayed origin. `opacity` applies to the secondary document only
+ * (the base is always drawn fully opaque).
+ */
+export const OverlayInputSchema = z
+  .object({
+    baseFilePath: z.string().min(1),
+    overlayFilePath: z.string().min(1),
+    mode: z.enum(["overlay", "underlay"]),
+    opacity: z.number().min(0.05).max(1).default(1),
+    scaleToFit: z.boolean().default(false),
+  })
+  .strict();
+export type OverlayInput = z.infer<typeof OverlayInputSchema>;
+
+/**
+ * One step of a workflow: a registered tool id plus that tool's input object.
+ * `toolId` is a plain string (not an enum) so the registry stays the single
+ * source of truth; the engine looks each id up and rejects the unknown ones.
+ */
+export const WorkflowStepSchema = z
+  .object({
+    toolId: z.string().min(1),
+    input: z.record(z.unknown()),
+  })
+  .strict();
+export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
+
+/**
+ * A visual pipeline: steps run sequentially IN-PROCESS (no RPC re-entry), each
+ * consuming the previous step's output. A step's input MAY set `filePath` or
+ * `baseFilePath` to the literal string "$previous"; it is replaced by the
+ * previous step's output path before the step runs. Step 1 cannot use
+ * "$previous" (there is no previous output), and a "$previous" reference after
+ * a step that returned data (not a file) is rejected. `workflow` cannot be a
+ * step (nested workflows are rejected). The last step's output is the result.
+ */
+export const WorkflowInputSchema = z
+  .object({
+    steps: z.array(WorkflowStepSchema).min(1).max(20),
+  })
+  .strict();
+export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),

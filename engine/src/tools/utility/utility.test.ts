@@ -382,11 +382,13 @@ describe("runRasterize", () => {
 });
 
 describe("utility registry", () => {
-  it("registers comparePdfs, pdfsToZip and rasterize", () => {
+  it("registers comparePdfs, pdfsToZip, rasterize, overlay and workflow", () => {
     const tools = new Map();
     registerTools(tools);
     expect(tools.has("comparePdfs")).toBe(true);
     expect(tools.has("pdfsToZip")).toBe(true);
     expect(tools.has("rasterize")).toBe(true);
+    expect(tools.has("overlay")).toBe(true);
+    expect(tools.has("workflow")).toBe(true);
   });
 });
