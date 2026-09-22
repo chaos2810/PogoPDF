@@ -15,11 +15,10 @@ const HIDDEN_FROM_UI = new Set<string>([TOOL_IDS.xpsToPdf]);
 // permanent, not a pending screen.
 const UI_INTERNAL = new Set<string>([TOOL_IDS.search, TOOL_IDS.formFields]);
 
-// The remaining Phase 3 engine ids (forms, sign, stamps, cleanup) had no UI
-// screen before Task 8; the ten screen ids now live in the registry, so this
-// set is empty. It stays declared so a future engine-only id can be listed here
-// (with a comment) instead of weakening the coverage check.
-const PENDING_UI = new Set<string>([]);
+// Engine ids whose UI screen has not landed yet. editText ships in the engine
+// (Phase 4 Task 2); its editor text-edit mode lands in Task 8, so it is listed
+// here rather than weakening the coverage check.
+const PENDING_UI = new Set<string>([TOOL_IDS.editText]);
 
 describe("registry", () => {
   it("has unique ids", () => {

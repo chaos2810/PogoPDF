@@ -4,7 +4,10 @@ import type { ChildProcess } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef, StandardFonts } from "pdf-lib";
+import { findPymupdfAssets, getPageWords } from "./textedit/pymupdf";
+import { getPdfRenderer } from "./render/renderpdf";
+import { extractPageText } from "./render/textextract";
 
 const ENGINE_DIR = join(import.meta.dirname, "..");
 
@@ -343,6 +346,82 @@ describe("engine stdio smoke", () => {
       child.kill();
     }
   }, 30000);
+
+  // editText needs the PyMuPDF wasm assets; skip loudly when the package is not
+  // installed rather than failing on an environment gap.
+  const pymupdfAssets = findPymupdfAssets();
+
+  it.skipIf(!pymupdfAssets)(
+    "edits text end-to-end through the spawned engine",
+    async () => {
+      const work = mkdtempSync(join(tmpdir(), "pogo-smoke-"));
+      mkdirSync(join(work, "f"), { recursive: true });
+      const srcPath = join(work, "f", "text.pdf");
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const page = doc.addPage([595.28, 841.89]);
+      page.drawText("Hello Edit World", { x: 72, y: 700, size: 24, font });
+      writeFileSync(srcPath, await doc.save());
+
+      // The UI supplies the quad; here it comes from the same extractor the UI
+      // would feed from mupdf, proving the schema quad maps onto the edit path.
+      const word = (await getPageWords(new Uint8Array(readFileSync(srcPath)), 0)).find(
+        (w) => w.text === "Edit"
+      )!;
+
+      const child = startEngine();
+      try {
+        const resp = rpcLine(child, 9);
+        child.stdin!.write(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 9,
+            method: "job.start",
+            params: {
+              jobId: "823e4567-e89b-12d3-a456-426614174000",
+              toolId: "editText",
+              input: {
+                filePath: srcPath,
+                edits: [
+                  {
+                    page: 1,
+                    quad: {
+                      x: word.x0,
+                      y: word.y0,
+                      w: word.x1 - word.x0,
+                      h: word.y1 - word.y0,
+                    },
+                    newText: "Smoke",
+                  },
+                ],
+              },
+            },
+          }) + "\n"
+        );
+        const result = await resp;
+        expect(result.error).toBeUndefined();
+        expect(result.result.jobId).toBe("823e4567-e89b-12d3-a456-426614174000");
+        const outPath = result.result.outputPath as string;
+        expect(outPath.endsWith("edited.pdf")).toBe(true);
+        expect(existsSync(outPath)).toBe(true);
+
+        const renderer = await getPdfRenderer(outPath);
+        try {
+          const text = await extractPageText(await renderer.getPage(0));
+          expect(text.split(/\s+/)).toContain("Smoke");
+          expect(text.split(/\s+/)).not.toContain("Edit");
+        } finally {
+          await renderer.close();
+        }
+
+        child.stdin!.end();
+        await new Promise((r) => child.once("exit", r));
+      } finally {
+        child.kill();
+      }
+    },
+    120000
+  );
 
   it("rejects invalid tool input via the central job.start schema check", async () => {
     const child = startEngine();

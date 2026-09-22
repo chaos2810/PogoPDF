@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { unsupported } from "../tools/errors";
+import { TOOL_ERROR_CODES } from "@pogopdf/contracts";
+import { typedError, unsupported } from "../tools/errors";
 
 /**
  * PyMuPDF compiled to WebAssembly (`@bentopdf/pymupdf-wasm`), used for in-place
@@ -319,17 +320,37 @@ json.dumps(out)
   });
 }
 
+/** Callbacks the tool threads into the Python edit loop. */
+export type EditRunOptions = {
+  /** Called after each edit is inserted with (done, total). */
+  onEdit?: (done: number, total: number) => void;
+  /** Polled between edits; a true return aborts with a typed CANCELLED. */
+  shouldCancel?: () => boolean;
+};
+
+/** Marker PyMuPDF raises as a RuntimeError so the TS layer can map it. */
+const CANCEL_MARKER = "__POGO_CANCELLED__";
+const UNSUPPORTED_MARKER = "__POGO_UNSUPPORTED__";
+
 /**
  * Redact each edit's quad and insert its replacement text at the quad's baseline
  * start. All redactions for a page are applied before any insertion so the
  * inserted glyphs are not themselves erased. The font size starts at the
  * original span size and shrinks until the text fits the original quad width.
  *
+ * Fonts: the span-derived base-14 name is used when it can render every
+ * character. Base-14 fonts silently substitute placeholder dots for anything
+ * outside their encoding, and PyMuPDF's bundled CJK font is the only other font
+ * shipped (no font files are staged), so text the base font cannot render falls
+ * back to that bundled font, embedded and subset per document. Text neither font
+ * covers raises a typed UNSUPPORTED_FORMAT error instead of corrupting output.
+ *
  * Returns the edited PDF bytes; the caller owns saving them.
  */
 export async function editTextBytes(
   pdfBytes: Uint8Array,
-  edits: TextEdit[]
+  edits: TextEdit[],
+  options: EditRunOptions = {}
 ): Promise<Uint8Array> {
   if (edits.length === 0) return pdfBytes;
 
@@ -338,12 +359,70 @@ export async function editTextBytes(
     // Replacement text is arbitrary, so it crosses as JSON in a global rather
     // than interpolated into the source; only the generated doc handle is.
     pyodide.globals.set("POGO_EDITS", JSON.stringify(edits));
-    const result = await pyodide.runPythonAsync(`
+    const onEdit = options.onEdit;
+    const shouldCancel = options.shouldCancel;
+    pyodide.globals.set("pogo_on_edit", (done: number, total: number) => {
+      onEdit?.(done, total);
+    });
+    pyodide.globals.set("pogo_should_cancel", () => shouldCancel?.() ?? false);
+    try {
+      const result = await pyodide.runPythonAsync(`
 import json, base64, pymupdf
 
 doc = ${docVar}
 edits = json.loads(POGO_EDITS)
 ${BASE14_FONT_PY}
+
+# The bundled Droid Sans Fallback font is the only wide-coverage font shipped;
+# it is written into the wasm FS lazily and embedded under a non-reserved name.
+_CJK_NAME = "PogoCJK"
+_CJK_PATH = "/pogo_cjk.ttf"
+_cjk_ready = [False]
+_support_cache = {}
+_total = len(edits)
+_done = 0
+
+def _ensure_cjk_font():
+    if not _cjk_ready[0]:
+        open(_CJK_PATH, "wb").write(pymupdf.Font("china-s").buffer)
+        _cjk_ready[0] = True
+
+def _supports(fontname, fontfile, text):
+    for ch in dict.fromkeys(text):
+        if ch.isspace():
+            continue
+        key = (fontname, fontfile, ch)
+        ok = _support_cache.get(key)
+        if ok is None:
+            d = pymupdf.open()
+            p = d.new_page(width=200, height=200)
+            try:
+                if fontfile:
+                    p.insert_text((20, 100), ch, fontsize=20, fontname="F0", fontfile=fontfile)
+                else:
+                    p.insert_text((20, 100), ch, fontsize=20, fontname=fontname)
+                # A font without the glyph still inserts a placeholder, so the
+                # round-trip read is the only honest encodability test.
+                ok = p.get_text().strip() == ch
+            except Exception:
+                ok = False
+            d.close()
+            _support_cache[key] = ok
+        if not ok:
+            return False
+    return True
+
+def _choose_font(base_font, text):
+    if _supports(base_font, None, text):
+        return (base_font, None)
+    _ensure_cjk_font()
+    if _supports("F0", _CJK_PATH, text):
+        return (_CJK_NAME, _CJK_PATH)
+    bad = "".join(sorted({c for c in text
+                          if not c.isspace()
+                          and not _supports(base_font, None, c)
+                          and not _supports("F0", _CJK_PATH, c)}))
+    raise RuntimeError("${UNSUPPORTED_MARKER}" + bad)
 
 by_page = {}
 for e in edits:
@@ -369,41 +448,90 @@ for page_index, page_edits in by_page.items():
     prepared = []
     for e in page_edits:
         q = e["quad"]
+        # Resolve the font here too: inserting into the scratch doc must not run
+        # after the real page is redacted (it would not, but keeping font choice
+        # in phase 1 makes unsupported text fail before any output is degraded).
         span = _span_for(page, q["x0"], q["y0"], q["x1"], q["y1"])
         if span is not None:
             base_size = span["size"]
-            fontname = e.get("fontname") or BASE14_FONT_PY(span["font"])
+            base_font = e.get("fontname") or BASE14_FONT_PY(span["font"])
             ox = span["origin"][0] + (q["x0"] - span["bbox"][0])
             oy = span["origin"][1]
         else:
             base_size = 11.0
-            fontname = e.get("fontname") or "helv"
+            base_font = e.get("fontname") or "helv"
             ox, oy = q["x0"], q["y1"]
-        prepared.append((e, base_size, fontname, ox, oy))
+        fontname, fontfile = _choose_font(base_font, e["newText"])
+        prepared.append((e, base_size, fontname, fontfile, ox, oy))
 
     # White fill is a known limitation: an edited region over a coloured page
     # background shows a white box. A background estimate would need a pixel
     # sample, which is out of scope for the prototype.
-    for e, _, _, _, _ in prepared:
+    for e, _, _, _, _, _ in prepared:
         q = e["quad"]
         rect = pymupdf.Rect(q["x0"], q["y0"], q["x1"], q["y1"])
         page.add_redact_annot(rect, fill=(1, 1, 1))
     page.apply_redactions()
     # Phase 2: insert replacements using the captured span values.
-    for e, base_size, fontname, ox, oy in prepared:
+    for e, base_size, fontname, fontfile, ox, oy in prepared:
         q = e["quad"]
         new_text = e["newText"]
         target_w = max(q["x1"] - q["x0"], 0.1)
+        measure = pymupdf.Font(fontfile=fontfile) if fontfile else pymupdf.Font(fontname)
         size = base_size
-        while size > 1 and pymupdf.get_text_length(new_text, fontname=fontname, fontsize=size) > target_w:
+        while size > 1 and measure.text_length(new_text, fontsize=size) > target_w:
             size -= 0.5
-        page.insert_text((ox, oy), new_text, fontsize=size, fontname=fontname, color=(0, 0, 0))
+        if fontfile:
+            page.insert_text((ox, oy), new_text, fontsize=size, fontname=fontname,
+                             fontfile=fontfile, color=(0, 0, 0))
+        else:
+            page.insert_text((ox, oy), new_text, fontsize=size, fontname=fontname,
+                             color=(0, 0, 0))
+        _done += 1
+        pogo_on_edit(_done, _total)
+        if pogo_should_cancel():
+            raise RuntimeError("${CANCEL_MARKER}")
+
+# Subset the embedded fallback font so a CJK edit adds a few KB, not the full
+# multi-megabyte font. Base-14-only documents never embed anything.
+if _cjk_ready[0]:
+    try:
+        doc.subset_fonts()
+    except Exception:
+        pass
 
 out = doc.tobytes(garbage=1, deflate=True, clean=True)
 base64.b64encode(out).decode("ascii")
 `);
-    return Uint8Array.from(Buffer.from(result as string, "base64"));
+      return Uint8Array.from(Buffer.from(result as string, "base64"));
+    } catch (e) {
+      throw mapEditError(e);
+    }
   });
+}
+
+/**
+ * Map a PyMuPDF/Pyodide failure onto the engine's typed errors. The Python
+ * loop raises the cancel and unsupported markers; encrypted documents surface
+ * when PyMuPDF reads an encrypted page ("document closed or encrypted").
+ */
+function mapEditError(e: unknown): Error {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes(CANCEL_MARKER)) {
+    return typedError("Job cancelled", TOOL_ERROR_CODES.CANCELLED);
+  }
+  if (msg.includes(UNSUPPORTED_MARKER)) {
+    const chars = msg.slice(msg.indexOf(UNSUPPORTED_MARKER) + UNSUPPORTED_MARKER.length).trim();
+    return unsupported(
+      chars
+        ? `The bundled fonts cannot render these characters: ${chars}`
+        : "The bundled fonts cannot render the replacement text"
+    );
+  }
+  if (/encrypt/i.test(msg)) {
+    return typedError("Encrypted PDFs are not supported by editText", TOOL_ERROR_CODES.ENCRYPTED_PDF);
+  }
+  return e instanceof Error ? e : new Error(msg);
 }
 
 /**
@@ -413,10 +541,11 @@ base64.b64encode(out).decode("ascii")
 export async function editTextFile(
   path: string,
   edits: TextEdit[],
-  outPath: string
+  outPath: string,
+  options: EditRunOptions = {}
 ): Promise<string> {
   const bytes = readFileSync(path);
-  const out = await editTextBytes(new Uint8Array(bytes), edits);
+  const out = await editTextBytes(new Uint8Array(bytes), edits, options);
   writeFileSync(outPath, out);
   return outPath;
 }

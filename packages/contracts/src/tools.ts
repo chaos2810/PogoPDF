@@ -68,6 +68,7 @@ export const TOOL_IDS = {
   sanitize: "sanitize",
   bates: "bates",
   pageLabels: "pageLabels",
+  editText: "editText",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -1058,6 +1059,46 @@ export const PageLabelsInputSchema = z
   })
   .strict();
 export type PageLabelsInput = z.infer<typeof PageLabelsInputSchema>;
+
+/**
+ * In-place text edit: each edit names a word-sized quad and its replacement.
+ *
+ * Coordinate convention: `quad` is in the page's UNROTATED page space in points,
+ * the frame PyMuPDF (and mupdf's StructuredText) reports: origin at the page's
+ * top-left, x grows right, y grows DOWN. `x`/`y` are the quad's top-left corner
+ * and `w`/`h` extend right and down. The engine converts this into PyMuPDF's
+ * `(x0, y0, x1, y1)` rect directly (`x1 = x + w`, `y1 = y + h`); a click on a
+ * displayed (rotated) page must be mapped back to unrotated space first.
+ *
+ * `newText` is any non-empty Unicode string. PyMuPDF's `insert_text` accepts
+ * arbitrary text, and the engine verifies CJK honestly rather than imposing a
+ * Latin-1 schema limit (unlike page-drawn tools such as pageNumbers).
+ */
+export const EditTextInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    edits: z
+      .array(
+        z
+          .object({
+            page: z.number().int().min(1),
+            quad: z
+              .object({
+                x: z.number(),
+                y: z.number(),
+                w: z.number(),
+                h: z.number(),
+              })
+              .strict(),
+            newText: z.string().min(1),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict();
+export type EditTextInput = z.infer<typeof EditTextInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),

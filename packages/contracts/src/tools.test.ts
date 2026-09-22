@@ -25,7 +25,7 @@ import {
   FormCreateInputSchema, SignInputSchema, StampInputSchema,
   RemoveAnnotationsInputSchema, RemoveBlankPagesInputSchema,
   RemoveRestrictionsInputSchema, SanitizeInputSchema, BatesNumberInputSchema,
-  PageLabelsInputSchema,
+  PageLabelsInputSchema, EditTextInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -1355,11 +1355,75 @@ describe("PageLabelsInputSchema", () => {
   });
 });
 
+describe("EditTextInputSchema", () => {
+  const edit = {
+    page: 1,
+    quad: { x: 10, y: 20, w: 40, h: 12 },
+    newText: "Changed",
+  };
+  it("accepts one edit with a quad and non-empty text", () => {
+    expect(EditTextInputSchema.safeParse({ filePath: PDF, edits: [edit] }).success).toBe(true);
+  });
+  it("accepts multiple edits across pages", () => {
+    expect(
+      EditTextInputSchema.safeParse({
+        filePath: PDF,
+        edits: [edit, { ...edit, page: 2, newText: "Other" }],
+      }).success
+    ).toBe(true);
+  });
+  it("accepts CJK replacement text (no Latin-1 schema limit)", () => {
+    // PyMuPDF's insert_text takes Unicode; whether CJK renders is verified by
+    // the engine probe, not by the schema. The schema must not forbid it.
+    expect(
+      EditTextInputSchema.safeParse({
+        filePath: PDF,
+        edits: [{ ...edit, newText: "第一章" }],
+      }).success
+    ).toBe(true);
+  });
+  it("rejects an empty edits array", () => {
+    expect(EditTextInputSchema.safeParse({ filePath: PDF, edits: [] }).success).toBe(false);
+  });
+  it("rejects more than 200 edits", () => {
+    const edits = Array.from({ length: 201 }, () => edit);
+    expect(EditTextInputSchema.safeParse({ filePath: PDF, edits }).success).toBe(false);
+  });
+  it("rejects empty newText", () => {
+    expect(
+      EditTextInputSchema.safeParse({ filePath: PDF, edits: [{ ...edit, newText: "" }] }).success
+    ).toBe(false);
+  });
+  it("rejects page below 1", () => {
+    expect(
+      EditTextInputSchema.safeParse({ filePath: PDF, edits: [{ ...edit, page: 0 }] }).success
+    ).toBe(false);
+  });
+  it("rejects a non-integer page", () => {
+    expect(
+      EditTextInputSchema.safeParse({ filePath: PDF, edits: [{ ...edit, page: 1.5 }] }).success
+    ).toBe(false);
+  });
+  it("rejects a quad missing a field", () => {
+    expect(
+      EditTextInputSchema.safeParse({
+        filePath: PDF,
+        edits: [{ page: 1, quad: { x: 10, y: 20, w: 40 }, newText: "Changed" }],
+      }).success
+    ).toBe(false);
+  });
+  it("rejects an unknown key via .strict()", () => {
+    expect(
+      EditTextInputSchema.safeParse({ filePath: PDF, edits: [edit], keepFont: true }).success
+    ).toBe(false);
+  });
+});
+
 describe("TOOL_IDS", () => {
-  it("contains all 67 tools with values equal to their keys", () => {
+  it("contains all 68 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(67);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(68);
   });
 });
