@@ -2,6 +2,8 @@ import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
+import { getPdfRenderer } from "../render/renderpdf";
+import { encodeCanvas } from "../render/encode";
 
 // A genuine AES-128 encrypted PDF (2 blank pages, user+owner password "secret").
 // pdf-lib cannot create encrypted PDFs, so this is a checked-in literal. Generated
@@ -129,5 +131,31 @@ export async function makePdfWithRect(
   }
   const bytes = await doc.save();
   writeFileSync(path, bytes);
+  return path;
+}
+
+/**
+ * A one-page A4 PDF whose content is a text render rotated by `degrees`, i.e. a
+ * synthetic deskew fixture. The source text page is rasterized at 150dpi, spun
+ * with sharp, then embedded as a full-page image.
+ */
+export async function makeSkewedPdf(path: string, degrees: number): Promise<string> {
+  const base = await makePdf(`${path}.base.pdf`, 1, {
+    text: "The quick brown fox jumps over the lazy dog",
+  });
+  const renderer = await getPdfRenderer(base);
+  let rotated: Buffer;
+  try {
+    const canvas = await renderer.renderPage(0, 150);
+    const png = await encodeCanvas(canvas, "png");
+    rotated = await sharp(png).rotate(degrees, { background: "#ffffff" }).png().toBuffer();
+  } finally {
+    await renderer.close();
+  }
+  const doc = await PDFDocument.create();
+  const image = await doc.embedPng(rotated);
+  const page = doc.addPage([595.28, 841.89]);
+  page.drawImage(image, { x: 0, y: 0, width: 595.28, height: 841.89 });
+  writeFileSync(path, await doc.save());
   return path;
 }

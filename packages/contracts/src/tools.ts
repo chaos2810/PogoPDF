@@ -71,6 +71,13 @@ export const TOOL_IDS = {
   editText: "editText",
   pdfToPdfA: "pdfToPdfA",
   fontOutline: "fontOutline",
+  deskew: "deskew",
+  scannerEffect: "scannerEffect",
+  adjustColors: "adjustColors",
+  invertColors: "invertColors",
+  posterize: "posterize",
+  backgroundColor: "backgroundColor",
+  changeTextColor: "changeTextColor",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -1122,6 +1129,91 @@ export const FontOutlineInputSchema = z
   })
   .strict();
 export type FontOutlineInput = z.infer<typeof FontOutlineInputSchema>;
+
+/**
+ * Straightens a scanned page: the engine detects the page's skew from a 72dpi
+ * grayscale raster (projection-profile / row-ink-variance search over candidate
+ * angles) and counter-rotates every page, rebuilding it at its displayed size.
+ */
+export const DeskewInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type DeskewInput = z.infer<typeof DeskewInputSchema>;
+
+/**
+ * Scanner-style look. bw thresholds to pure black/white, gray desaturates with
+ * a contrast lift, faded lifts blacks for a washed-out photocopy feel.
+ */
+export const ScannerEffectInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    preset: z.enum(["bw", "gray", "faded"]).default("gray"),
+  })
+  .strict();
+export type ScannerEffectInput = z.infer<typeof ScannerEffectInputSchema>;
+
+/**
+ * Color correction knobs, all neutral at their defaults. brightness/contrast/
+ * saturation are percentage-style offsets in -100..100; gamma is a multiplier
+ * over the 1.0 identity (0.1..3). The engine applies them to each page raster.
+ */
+export const AdjustColorsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    brightness: z.number().int().min(-100).max(100).default(0),
+    contrast: z.number().int().min(-100).max(100).default(0),
+    saturation: z.number().int().min(-100).max(100).default(0),
+    gamma: z.number().min(0.1).max(3).default(1),
+  })
+  .strict();
+export type AdjustColorsInput = z.infer<typeof AdjustColorsInputSchema>;
+
+/** Inverts every page's colors (a true per-channel invert, not luminance). */
+export const InvertColorsInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type InvertColorsInput = z.infer<typeof InvertColorsInputSchema>;
+
+/** Quantizes each page's raster to `levels` steps per channel (2..32). */
+export const PosterizeInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    levels: z.number().int().min(2).max(32).default(4),
+  })
+  .strict();
+export type PosterizeInput = z.infer<typeof PosterizeInputSchema>;
+
+/** Fills the page background with a solid color behind the existing content. */
+export const BackgroundColorInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "color must be a #RRGGBB hex string")
+      .default("#FFFFFF"),
+  })
+  .strict();
+export type BackgroundColorInput = z.infer<typeof BackgroundColorInputSchema>;
+
+/**
+ * Approximate text recolor: the raster path tints the page's dark pixels
+ * toward `color` (a documented approximation; it cannot isolate true glyph
+ * pixels from dark graphics). See runChangeTextColor for the exact scope.
+ */
+export const ChangeTextColorInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "color must be a #RRGGBB hex string")
+      .default("#000000"),
+  })
+  .strict();
+export type ChangeTextColorInput = z.infer<typeof ChangeTextColorInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),

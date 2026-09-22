@@ -27,6 +27,9 @@ import {
   RemoveRestrictionsInputSchema, SanitizeInputSchema, BatesNumberInputSchema,
   PageLabelsInputSchema, EditTextInputSchema,
   PdfToPdfAInputSchema, FontOutlineInputSchema,
+  DeskewInputSchema, ScannerEffectInputSchema, AdjustColorsInputSchema,
+  InvertColorsInputSchema, PosterizeInputSchema, BackgroundColorInputSchema,
+  ChangeTextColorInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -1457,6 +1460,126 @@ describe("TOOL_IDS", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(70);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(77);
+  });
+});
+
+describe("DeskewInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(DeskewInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(DeskewInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(DeskewInputSchema.safeParse({ filePath: PDF, angle: 3 }).success).toBe(false);
+  });
+});
+
+describe("ScannerEffectInputSchema", () => {
+  it("defaults preset to gray", () => {
+    expect(ScannerEffectInputSchema.parse({ filePath: PDF }).preset).toBe("gray");
+  });
+  it("accepts each preset", () => {
+    for (const preset of ["bw", "gray", "faded"] as const) {
+      expect(ScannerEffectInputSchema.safeParse({ filePath: PDF, preset }).success).toBe(true);
+    }
+  });
+  it("rejects an unknown preset", () => {
+    expect(ScannerEffectInputSchema.safeParse({ filePath: PDF, preset: "sepia" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(ScannerEffectInputSchema.safeParse({ filePath: PDF, preset: "gray", grain: 4 }).success).toBe(false);
+  });
+});
+
+describe("AdjustColorsInputSchema", () => {
+  it("defaults every knob to neutral", () => {
+    const parsed = AdjustColorsInputSchema.parse({ filePath: PDF });
+    expect(parsed.brightness).toBe(0);
+    expect(parsed.contrast).toBe(0);
+    expect(parsed.saturation).toBe(0);
+    expect(parsed.gamma).toBe(1);
+  });
+  it("accepts the extreme ends of every range", () => {
+    expect(AdjustColorsInputSchema.safeParse({
+      filePath: PDF, brightness: -100, contrast: 100, saturation: -100, gamma: 0.1,
+    }).success).toBe(true);
+    expect(AdjustColorsInputSchema.safeParse({
+      filePath: PDF, brightness: 100, contrast: -100, saturation: 100, gamma: 3,
+    }).success).toBe(true);
+  });
+  it("rejects values outside their ranges", () => {
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, brightness: 101 }).success).toBe(false);
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, contrast: -101 }).success).toBe(false);
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, saturation: 101 }).success).toBe(false);
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, gamma: 0.09 }).success).toBe(false);
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, gamma: 3.01 }).success).toBe(false);
+  });
+  it("rejects a non-integer brightness", () => {
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, brightness: 1.5 }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(AdjustColorsInputSchema.safeParse({ filePath: PDF, hue: 10 }).success).toBe(false);
+  });
+});
+
+describe("InvertColorsInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(InvertColorsInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(InvertColorsInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(InvertColorsInputSchema.safeParse({ filePath: PDF, pages: "1" }).success).toBe(false);
+  });
+});
+
+describe("PosterizeInputSchema", () => {
+  it("defaults levels to 4", () => {
+    expect(PosterizeInputSchema.parse({ filePath: PDF }).levels).toBe(4);
+  });
+  it("accepts the range bounds 2 and 32", () => {
+    expect(PosterizeInputSchema.safeParse({ filePath: PDF, levels: 2 }).success).toBe(true);
+    expect(PosterizeInputSchema.safeParse({ filePath: PDF, levels: 32 }).success).toBe(true);
+  });
+  it("rejects levels outside 2..32", () => {
+    expect(PosterizeInputSchema.safeParse({ filePath: PDF, levels: 1 }).success).toBe(false);
+    expect(PosterizeInputSchema.safeParse({ filePath: PDF, levels: 33 }).success).toBe(false);
+  });
+  it("rejects a non-integer levels", () => {
+    expect(PosterizeInputSchema.safeParse({ filePath: PDF, levels: 4.5 }).success).toBe(false);
+  });
+});
+
+describe("BackgroundColorInputSchema", () => {
+  it("defaults color to white", () => {
+    expect(BackgroundColorInputSchema.parse({ filePath: PDF }).color).toBe("#FFFFFF");
+  });
+  it("accepts a lowercase hex color", () => {
+    expect(BackgroundColorInputSchema.safeParse({ filePath: PDF, color: "#1c1c1a" }).success).toBe(true);
+  });
+  it("rejects a malformed color", () => {
+    expect(BackgroundColorInputSchema.safeParse({ filePath: PDF, color: "white" }).success).toBe(false);
+    expect(BackgroundColorInputSchema.safeParse({ filePath: PDF, color: "#fff" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(BackgroundColorInputSchema.safeParse({ filePath: PDF, opacity: 0.5 }).success).toBe(false);
+  });
+});
+
+describe("ChangeTextColorInputSchema", () => {
+  it("defaults color to black", () => {
+    expect(ChangeTextColorInputSchema.parse({ filePath: PDF }).color).toBe("#000000");
+  });
+  it("accepts an explicit hex color", () => {
+    expect(ChangeTextColorInputSchema.safeParse({ filePath: PDF, color: "#DC2626" }).success).toBe(true);
+  });
+  it("rejects a malformed color", () => {
+    expect(ChangeTextColorInputSchema.safeParse({ filePath: PDF, color: "red" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(ChangeTextColorInputSchema.safeParse({ filePath: PDF, threshold: 100 }).success).toBe(false);
   });
 });

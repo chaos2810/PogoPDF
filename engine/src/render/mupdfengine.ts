@@ -18,7 +18,12 @@ type MupdfModule = typeof import("mupdf");
  */
 let modulePromise: Promise<MupdfModule> | undefined;
 
-function loadMupdf(): Promise<MupdfModule> {
+/**
+ * Load (once) and return the mupdf module handle. Image-ops handlers render
+ * PDF pages through mupdf's Pixmap API, so they share this cache with the
+ * rich-content path rather than importing the wasm bundle a second time.
+ */
+export function loadMupdf(): Promise<MupdfModule> {
   modulePromise ??= import("mupdf");
   return modulePromise;
 }
