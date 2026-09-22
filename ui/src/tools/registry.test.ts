@@ -17,8 +17,13 @@ const UI_INTERNAL = new Set<string>([TOOL_IDS.search, TOOL_IDS.formFields]);
 
 // Engine ids whose UI screen has not landed yet. editText ships in the engine
 // (Phase 4 Task 2); its editor text-edit mode lands in Task 8, so it is listed
-// here rather than weakening the coverage check.
-const PENDING_UI = new Set<string>([TOOL_IDS.editText]);
+// here rather than weakening the coverage check. pdfToPdfA and fontOutline ship
+// in the engine at Task 3 and get their screens in Task 8 as well.
+const PENDING_UI = new Set<string>([
+  TOOL_IDS.editText,
+  TOOL_IDS.pdfToPdfA,
+  TOOL_IDS.fontOutline,
+]);
 
 describe("registry", () => {
   it("has unique ids", () => {

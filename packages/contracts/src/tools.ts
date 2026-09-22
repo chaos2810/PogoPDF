@@ -69,6 +69,8 @@ export const TOOL_IDS = {
   bates: "bates",
   pageLabels: "pageLabels",
   editText: "editText",
+  pdfToPdfA: "pdfToPdfA",
+  fontOutline: "fontOutline",
 } as const;
 
 export const MergeInputSchema = z.object({
@@ -1099,6 +1101,27 @@ export const EditTextInputSchema = z
   })
   .strict();
 export type EditTextInput = z.infer<typeof EditTextInputSchema>;
+
+/**
+ * PDF/A archival conversion via Ghostscript. `pdfaVersion` selects the part:
+ * 1b maps to `-dPDFA=1`, 2b to `-dPDFA=2`, 3b to `-dPDFA=3`; the "b"
+ * conformance level is what Ghostscript's output targets in every case.
+ */
+export const PdfToPdfAInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+    pdfaVersion: z.enum(["1b", "2b", "3b"]).default("2b"),
+  })
+  .strict();
+export type PdfToPdfAInput = z.infer<typeof PdfToPdfAInputSchema>;
+
+/** Converts page text to vector outlines so the PDF needs no embedded fonts. */
+export const FontOutlineInputSchema = z
+  .object({
+    filePath: z.string().min(1),
+  })
+  .strict();
+export type FontOutlineInput = z.infer<typeof FontOutlineInputSchema>;
 
 export const JobStartParamsSchema = z.object({
   jobId: z.string().uuid(),

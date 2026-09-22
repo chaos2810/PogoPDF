@@ -48,6 +48,7 @@ Node.js source distribution: <https://github.com/nodejs/node/blob/main/LICENSE>.
 | tesseract language data (eng, chi_tra, chi_sim, jpn, kor, deu, fra, spa) | tessdata_fast, main | Apache-2.0 |
 | qpdf (qpdf.exe + qpdf29.dll + MSVC runtime DLLs) | 11.10.1 | Apache-2.0 |
 | mupdf (MuPDF.js wasm) | 1.28.1 | **AGPL-3.0-or-later** |
+| Ghostscript (`gswin64c.exe` console binary + `gsdll64.dll` + resources) | 10.08.0 | **AGPL-3.0-or-later** |
 | @bentopdf/pymupdf-wasm (Pyodide + PyMuPDF and bundled wheels) | 0.11.16 | **AGPL-3.0-only** |
 | LibreOffice (headless `soffice`) | 26.2.6 | **MPL-2.0** with LGPL-3.0-or-later components |
 
@@ -87,9 +88,58 @@ dompurify's MPL path, weak-copyleft. The AGPL engines land in Phase 2 (see the s
 
 ## Planned AGPL engines (Phase 2+)
 
-Ghostscript is AGPL-3.0-or-later and will ship in the engine when its integration
-lands. Its notice will be added here at that point. mupdf and PyMuPDF, the AGPL
-components that have landed, are recorded in the sections below.
+Ghostscript has landed (Phase 4); its notice is in the section below. mupdf and
+PyMuPDF, the AGPL components that have landed, are recorded in the sections
+below.
+
+## AGPL-3.0-or-later component: Ghostscript
+
+PogoPDF's engine ships **Ghostscript** 10.08.0 for PDF/A conversion (`pdfToPdfA`)
+and font-to-outline conversion (`fontOutline`): the console binary
+`gswin64c.exe` runs `-sDEVICE=pdfwrite` with the PDF/A part flags or with
+`-dNoOutputFonts`. Ghostscript is invoked as a spawned command-line process, not
+linked into `pogopdf.exe`.
+
+- Artifex Software, Inc., <https://www.ghostscript.com>
+- License: **GNU Affero General Public License, version 3.0 or later
+  (AGPL-3.0-or-later)**, <https://www.gnu.org/licenses/agpl-3.0.html>;
+  Artifex offers alternative commercial licensing at
+  <https://www.artifex.com/licensing/>.
+- Source: <https://github.com/ArtifexSoftware/ghostpdl>
+- Release artifacts (including the Windows installer this build stages):
+  <https://github.com/ArtifexSoftware/ghostpdl-downloads/releases>
+
+`engine/scripts/fetch-ghostscript.ps1` downloads the official Windows x64 NSIS
+installer (`gs10080w64.exe`), verifies it against the release's `SHA512SUMS`
+(with the pinned SHA-512 as a fallback), extracts it, and stages a trimmed tree
+at `engine-deps-<id>/gs/`: `bin/` (`gswin64c.exe` and `gsdll64.dll`), `lib/`
+(PostScript resources), `Resource/` (fonts and CMaps), `iccprofiles/` (the sRGB
+profile the PDF/A OutputIntent embeds, read from Ghostscript's ROM filesystem at
+`%rom%iccprofiles/srgb.icc`), and `doc/COPYING` (the full AGPL-3.0 text). The
+rest of `doc/` (~22.6 MB) and `examples/` (~1.2 MB) are not shipped. The staged
+AGPL text ships at `engine-deps-<id>/gs/doc/COPYING`; the corresponding source
+for the shipped build is the GhostPDL source at the repository above.
+
+### Build-machine extraction tools (not shipped)
+
+The NSIS installer cannot be unpacked by the standalone `7zr.exe` or `7za.exe`
+builds (both report "Unsupported archive type"), and its `/S /D=` silent install
+requires elevation. The fetch script therefore downloads two more build-machine
+tools into `%TEMP%` only:
+
+- `7zr.exe` (7-Zip 26.03, **Public domain**, <https://www.7-zip.org>) unpacks the
+  official 7-Zip installer's own 7z self-extracting archive.
+- `7z.exe` + `7z.dll` (from the 7-Zip 26.03 x64 installer, **GNU LGPL** with the
+  unRAR license restriction on some code, plus BSD 2- and 3-clause licensed
+  parts) then unpack the NSIS installer.
+
+Neither tool is copied into `gs-bin/` or `engine-deps-<id>/`; both live only in
+the build machine's `%TEMP%` during the fetch. The full 7-Zip license text ships
+inside the 7-Zip installer at `License.txt`.
+
+Because Ghostscript is AGPL-3.0-or-later and PogoPDF spawns it as a separate
+process, the combined work is distributed under the terms of the AGPL, consistent
+with PogoPDF's own AGPL-3.0 license (see [LICENSE](LICENSE)).
 
 ## AGPL-3.0-or-later component: MuPDF.js
 

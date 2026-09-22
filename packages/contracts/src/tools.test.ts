@@ -26,6 +26,7 @@ import {
   RemoveAnnotationsInputSchema, RemoveBlankPagesInputSchema,
   RemoveRestrictionsInputSchema, SanitizeInputSchema, BatesNumberInputSchema,
   PageLabelsInputSchema, EditTextInputSchema,
+  PdfToPdfAInputSchema, FontOutlineInputSchema,
 } from "./tools";
 
 const PDF = "C:\\a.pdf";
@@ -1419,11 +1420,43 @@ describe("EditTextInputSchema", () => {
   });
 });
 
+describe("PdfToPdfAInputSchema", () => {
+  it("defaults pdfaVersion to 2b", () => {
+    expect(PdfToPdfAInputSchema.parse({ filePath: PDF }).pdfaVersion).toBe("2b");
+  });
+  it("accepts each version", () => {
+    for (const pdfaVersion of ["1b", "2b", "3b"] as const) {
+      expect(PdfToPdfAInputSchema.safeParse({ filePath: PDF, pdfaVersion }).success).toBe(true);
+    }
+  });
+  it("rejects an unknown version", () => {
+    expect(PdfToPdfAInputSchema.safeParse({ filePath: PDF, pdfaVersion: "4b" }).success).toBe(false);
+  });
+  it("rejects an empty filePath", () => {
+    expect(PdfToPdfAInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(PdfToPdfAInputSchema.safeParse({ filePath: PDF, colorStrategy: "CMYK" }).success).toBe(false);
+  });
+});
+
+describe("FontOutlineInputSchema", () => {
+  it("accepts filePath", () => {
+    expect(FontOutlineInputSchema.safeParse({ filePath: PDF }).success).toBe(true);
+  });
+  it("rejects an empty filePath", () => {
+    expect(FontOutlineInputSchema.safeParse({ filePath: "" }).success).toBe(false);
+  });
+  it("rejects unknown keys via .strict()", () => {
+    expect(FontOutlineInputSchema.safeParse({ filePath: PDF, pages: "1" }).success).toBe(false);
+  });
+});
+
 describe("TOOL_IDS", () => {
-  it("contains all 68 tools with values equal to their keys", () => {
+  it("contains all 70 tools with values equal to their keys", () => {
     for (const [key, value] of Object.entries(TOOL_IDS)) {
       expect(value).toBe(key);
     }
-    expect(Object.keys(TOOL_IDS)).toHaveLength(68);
+    expect(Object.keys(TOOL_IDS)).toHaveLength(70);
   });
 });

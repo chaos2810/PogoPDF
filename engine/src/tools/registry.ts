@@ -15,6 +15,7 @@ import { registerSecureTools } from "./secure/register-secure";
 import { registerUtilityTools } from "./utility/register-utility";
 import { registerEditorTools } from "./editor/register-editor";
 import { registerTextEditTools } from "./textedit/register-textedit";
+import { registerGhostscriptTools } from "./ghostscript/register-ghostscript";
 
 export type ToolEntry = {
   schema: ZodType;
@@ -43,4 +44,5 @@ export function registerTools(tools: ToolRegistry) {
   registerUtilityTools(tools);
   registerEditorTools(tools);
   registerTextEditTools(tools);
+  registerGhostscriptTools(tools);
 }
