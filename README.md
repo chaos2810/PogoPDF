@@ -15,21 +15,27 @@ PogoPDF is a free desktop app for Windows that packs 82 PDF tools into one progr
 ## What it can do
 
 **Organize**
+
 Merge, split, extract pages, delete pages, rotate, reverse, reorder pages in a visual grid, N-up, make booklets, combine single pages, alternate mix, duplex collate, add blank pages, overlay, and underlay.
 
 **Convert to PDF**
+
 Images, text, Markdown, CSV, Office documents (Word, Excel, PowerPoint), EPUB and other e-books, comics, and OCR for scanned pages.
 
 **Convert from PDF**
+
 Images, SVG, text, CBZ, and greyscale.
 
 **Edit**
+
 A full visual editor with 12 annotation types, redaction, in-place text editing, text and image watermarks, page numbers, headers and footers, cropping, color adjustments (brightness, contrast, saturation, invert, posterize, background and text color), scanner effect, deskew, forms (fill and create), stamps, and signatures.
 
 **Secure**
+
 Password protect, unlock, flatten, digital signatures, signature validation, RFC 3161 timestamps, and metadata removal.
 
 **Utility**
+
 View and edit metadata, compare two PDFs, extract tables and images, extract attachments, bookmarks and table of contents, page dimensions, page labels, Bates numbering, PDF to Markdown, prepare for AI, PDF to PDF/A, convert fonts to outlines, rasterize, PDFs to ZIP, remove blank pages, remove restrictions, sanitize, fix page size, and a workflow builder that chains tools together.
 
 ## Getting started
