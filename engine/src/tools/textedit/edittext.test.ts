@@ -259,4 +259,17 @@ describe.skipIf(!assets)("runEditText", () => {
       )
     ).rejects.toMatchObject({ code: TOOL_ERROR_CODES.CORRUPT_PDF });
   });
+
+  it("maps an out-of-range page to INVALID_INPUT", async () => {
+    await expect(
+      runEditText(
+        {
+          filePath: fixture,
+          edits: [{ page: 5, quad: { x: 1, y: 1, w: 2, h: 2 }, newText: "x" }],
+        },
+        ctx,
+        outDir()
+      )
+    ).rejects.toMatchObject({ code: TOOL_ERROR_CODES.INVALID_INPUT });
+  }, TIMEOUT);
 });

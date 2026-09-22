@@ -441,6 +441,8 @@ def _span_for(page, x0, y0, x1, y1):
     return None
 
 for page_index, page_edits in by_page.items():
+    if page_index < 0 or page_index >= len(doc):
+        raise RuntimeError("PAGE_OUT_OF_RANGE:" + str(page_index + 1) + ":" + str(len(doc)))
     page = doc[page_index]
     # Phase 1: capture each edit's span (font, size, baseline) BEFORE redacting.
     # Once apply_redactions() runs the span is gone, so _span_for() in phase 2
@@ -517,8 +519,17 @@ base64.b64encode(out).decode("ascii")
  */
 function mapEditError(e: unknown): Error {
   const msg = e instanceof Error ? e.message : String(e);
+  const typedInput = (m: string) =>
+    typedError(m, TOOL_ERROR_CODES.INVALID_INPUT);
   if (msg.includes(CANCEL_MARKER)) {
     return typedError("Job cancelled", TOOL_ERROR_CODES.CANCELLED);
+  }
+  if (msg.includes("PAGE_OUT_OF_RANGE:")) {
+    const marker = msg.slice(msg.indexOf("PAGE_OUT_OF_RANGE:"));
+    const [, page, total] = marker.split(":");
+    return typedInput(
+      `Page ${page} is out of range (document has ${total} page${total === "1" ? "" : "s"})`
+    );
   }
   if (msg.includes(UNSUPPORTED_MARKER)) {
     const chars = msg.slice(msg.indexOf(UNSUPPORTED_MARKER) + UNSUPPORTED_MARKER.length).trim();
@@ -528,7 +539,7 @@ function mapEditError(e: unknown): Error {
         : "The bundled fonts cannot render the replacement text"
     );
   }
-  if (/encrypt/i.test(msg)) {
+  if (/closed or encrypted/i.test(msg) || /needs password/i.test(msg)) {
     return typedError("Encrypted PDFs are not supported by editText", TOOL_ERROR_CODES.ENCRYPTED_PDF);
   }
   return e instanceof Error ? e : new Error(msg);
