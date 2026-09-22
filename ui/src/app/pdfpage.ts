@@ -1,5 +1,11 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { normalizeRotate } from "./pdfthumbs";
+import {
+  displayRectFromItem,
+  quadFromItem,
+  type TextItemLike,
+  type TextRun,
+} from "../tools/editor/textruns";
 
 /** A rasterized page plus the displayed-frame size that maps pt to px. */
 export type RenderedPage = {
@@ -20,6 +26,8 @@ export type PdfDocHandle = {
   /** Displayed-frame page size in PDF points (intrinsic /Rotate applied). */
   pageSize: (pageIndex: number) => Promise<PageSize>;
   render: (pageIndex: number, zoom: number) => Promise<RenderedPage>;
+  /** Text runs with both engine-space and displayed-frame geometry. */
+  textRuns: (pageIndex: number) => Promise<TextRun[]>;
   close: () => Promise<void>;
 };
 
@@ -70,6 +78,29 @@ export async function openPdfDoc(path: string): Promise<PdfDocHandle> {
         heightPt: viewport.height / zoom,
         rotate: normalizeRotate(page.rotate),
       };
+    },
+
+    async textRuns(pageIndex) {
+      const page = await doc.getPage(pageIndex + 1);
+      const content = await page.getTextContent();
+      const view = page.view as number[];
+      const mediaHeight = view[3] - view[1];
+      // The scale-1 viewport carries the page's /Rotate, so it is the exact
+      // matrix that maps unrotated user space onto the rendered page frame.
+      const viewport = page.getViewport({ scale: 1 });
+      const runs: TextRun[] = [];
+      for (const raw of content.items) {
+        if (!("str" in raw)) continue;
+        const item = raw as unknown as TextItemLike;
+        const style = content.styles[item.fontName] as
+          | { ascent?: number; descent?: number }
+          | undefined;
+        const quad = quadFromItem(item, style, mediaHeight);
+        const display = displayRectFromItem(item, style, viewport.transform);
+        if (!quad || !display) continue;
+        runs.push({ text: item.str, quad, display });
+      }
+      return runs;
     },
 
     async close() {

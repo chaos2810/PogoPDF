@@ -759,6 +759,15 @@ export const en = {
   "tool.pageLabels.prefixHint": "Shown before each label, for example A-.",
   "tool.pageLabels.hint": "This version writes one label range starting at page 1. Per-range labels are not supported yet.",
 
+  "tool.editor.toolTextEdit": "Edit text",
+  "tool.editor.textEditHint":
+    "Click a text run to edit it in place. Applying rewrites that run's text into a new copy of the file. The replacement accepts Unicode, including CJK, but a CJK replacement is drawn with a bundled fallback font, so it may not match the original face.",
+  "tool.editor.textEditApply": "Apply",
+  "tool.editor.textEditCancel": "Cancel",
+  "tool.editor.textEditSaving": "Applying the text edit…",
+  "tool.editor.textEditDone": "The text edit was written to a new copy of the file.",
+  "tool.editor.textEditEmpty": "Enter replacement text.",
+
   "common.back": "Back",
   "common.cancel": "Cancel",
   "common.saveAs": "Save As",

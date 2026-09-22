@@ -9,6 +9,7 @@ import {
   Pencil,
   Square,
   SquareSlash,
+  SpellCheck,
   Strikethrough,
   TextCursorInput,
   Type,
@@ -18,12 +19,16 @@ import { t } from "@pogopdf/i18n";
 import { useApp } from "../../app/store";
 import type { AnnotationType } from "./editorModel";
 
-export type EditorTool = "select" | AnnotationType;
+// The rail spans the persisted annotation tools plus two editor-only actions
+// that have no annotation type: the in-place text edit (editText) and the
+// built-in select tool.
+export type EditorTool = "select" | "textEdit" | AnnotationType;
 
 type IconCmp = ComponentType<{ size?: string | number; strokeWidth?: string | number }>;
 
 export const EDITOR_TOOLS: { id: EditorTool; icon: IconCmp; key: string }[] = [
   { id: "select", icon: MousePointer2, key: "tool.editor.toolSelect" },
+  { id: "textEdit", icon: SpellCheck, key: "tool.editor.toolTextEdit" },
   { id: "text", icon: Type, key: "tool.editor.toolText" },
   { id: "highlight", icon: Highlighter, key: "tool.editor.toolHighlight" },
   { id: "underline", icon: Underline, key: "tool.editor.toolUnderline" },

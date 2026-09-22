@@ -756,6 +756,15 @@ export const zhTW: Record<Key, string> = {
   "tool.pageLabels.prefixHint": "顯示於每個標籤之前，例如 A-。",
   "tool.pageLabels.hint": "本版本自第 1 頁起寫入單一標籤範圍。尚未支援分段標籤。",
 
+  "tool.editor.toolTextEdit": "編輯文字",
+  "tool.editor.textEditHint":
+    "點選一段文字即可就地編輯。套用後會將該段文字重寫到檔案的新副本。取代文字支援 Unicode（含中日韓文字），但中日韓文字會以內建的替代字型繪製，可能與原字型不一致。",
+  "tool.editor.textEditApply": "套用",
+  "tool.editor.textEditCancel": "取消",
+  "tool.editor.textEditSaving": "正在套用文字編輯…",
+  "tool.editor.textEditDone": "文字編輯已寫入檔案的新副本。",
+  "tool.editor.textEditEmpty": "請輸入取代文字。",
+
   "common.back": "返回",
   "common.cancel": "取消",
   "common.saveAs": "另存新檔",

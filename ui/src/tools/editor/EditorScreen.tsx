@@ -30,6 +30,7 @@ import {
   type Point,
 } from "./editorModel";
 import { SearchPanel, type SearchMatch } from "./SearchPanel";
+import { hitTestRun, type TextRun } from "./textruns";
 import { ToolRail, type EditorTool } from "./ToolRail";
 
 type Phase = "pick" | "loading" | "editor" | "running" | "done" | "error";
@@ -98,6 +99,17 @@ export function EditorScreen() {
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pulse, setPulse] = useState<{ page: number; x: number; y: number } | null>(null);
+
+  // In-place text edit (editText): the selected run and its inline editor. The
+  // run carries both the displayed rect (overlay/position) and the engine quad.
+  const [textRuns, setTextRuns] = useState<TextRun[]>([]);
+  const [editTarget, setEditTarget] = useState<{ page: number; run: TextRun } | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editOutput, setEditOutput] = useState<string | null>(null);
+  const [editError, setEditError] = useState("");
+  // Distinguishes the annotation save from the in-place text edit in the shared
+  // running/done overlay (they settle through the same phase machine).
+  const [jobKind, setJobKind] = useState<"save" | "textEdit" | null>(null);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -168,6 +180,12 @@ export function EditorScreen() {
       setEditingId(null);
       setMatches(null);
       setQuery("");
+      setTextRuns([]);
+      setEditTarget(null);
+      setEditText("");
+      setEditOutput(null);
+      setEditError("");
+      setJobKind(null);
       // Fit the first page to the canvas width, clamped to the zoom range.
       const avail = (pageRef.current?.clientWidth ?? 900) - 48;
       const fit = avail > 0 ? avail / size.widthPt : 1;
@@ -229,6 +247,26 @@ export function EditorScreen() {
       cancelled = true;
     };
   }, [pdf, page, zoom, phase]);
+
+  // --- text runs (in-place edit) ---
+  // Fetched per page and cached for the current page only: the runs back the
+  // click hit test and the inline editor's prefill. The page render effect
+  // clears them so a page change never leaves a stale run under the pointer.
+  useEffect(() => {
+    if (!pdf || phase !== "editor") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const runs = await pdf.textRuns(page - 1);
+        if (!cancelled) setTextRuns(runs);
+      } catch {
+        if (!cancelled) setTextRuns([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, page, phase, bitmap]);
 
   const showPulse = (m: SearchMatch) => {
     setPulse({ page: m.page, x: m.x, y: m.y });
@@ -412,6 +450,18 @@ export function EditorScreen() {
       beginSelect(start);
       return;
     }
+    if (tool === "textEdit") {
+      const run = hitTestRun(textRuns, start);
+      setDoc((d) => selectItem(d, null));
+      setEditingId(null);
+      if (!run) {
+        setEditTarget(null);
+        return;
+      }
+      setEditTarget({ page, run });
+      setEditText(run.text);
+      return;
+    }
     if (tool === "text" || tool === "freetext") {
       const defaults = defaultsFor(tool);
       const rect = { x: start.x, y: start.y, w: 160, h: tool === "text" ? 24 : 40 };
@@ -482,6 +532,7 @@ export function EditorScreen() {
     if (!filePath || !canSave) return;
     setPhase("running");
     setPercent(0);
+    setJobKind("save");
     try {
       const result = await startJob(
         "editorSave",
@@ -512,6 +563,46 @@ export function EditorScreen() {
     } catch {
       /* cancel is best-effort; the job result still settles the UI */
     }
+  };
+
+  // --- in-place text edit ---
+  const applyTextEdit = async () => {
+    if (!filePath || !editTarget || editText.trim().length === 0) return;
+    setPhase("running");
+    setPercent(0);
+    setJobKind("textEdit");
+    setEditError("");
+    try {
+      // The quad is already in the engine's unrotated top-down frame (textruns
+      // converts pdf.js's y-up transform and pagegeometry intent matches); the
+      // schema is 1-based like every other tool.
+      const result = await startJob(
+        "editText",
+        {
+          filePath,
+          edits: [{ page: editTarget.page, quad: editTarget.run.quad, newText: editText }],
+        },
+        { onJobId: (id) => { saveJobId.current = id; } }
+      );
+      if ("outputPath" in result) setEditOutput(result.outputPath);
+      setEditTarget(null);
+      setPhase("done");
+    } catch (e) {
+      if ((e as { code?: number }).code === TOOL_ERROR_CODES.CANCELLED) {
+        setPhase("editor");
+      } else {
+        setEditError(e instanceof Error ? e.message : String(e));
+        setPhase("editor");
+      }
+    } finally {
+      saveJobId.current = null;
+    }
+  };
+
+  const cancelTextEdit = () => {
+    setEditTarget(null);
+    setEditText("");
+    setEditError("");
   };
 
   const reset = () => {
@@ -711,6 +802,11 @@ export function EditorScreen() {
             setTool(next);
             if (next !== "select") setDoc((d) => selectItem(d, null));
             setEditingId(null);
+            if (next !== "textEdit") {
+              setEditTarget(null);
+              setEditText("");
+              setEditError("");
+            }
           }}
         />
 
@@ -759,6 +855,77 @@ export function EditorScreen() {
                 selectedId={doc.selectedId}
                 onHandlePointerDown={beginResize}
               />
+
+              {editTarget && editTarget.page === page && (
+                <div
+                  data-testid="editor-textedit-overlay"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute",
+                    left: toPx(editTarget.run.display.x, zoom) - 2,
+                    top: toPx(editTarget.run.display.y, zoom) - 2,
+                    padding: 4,
+                    border: "1.5px solid var(--accent)",
+                    borderRadius: 4,
+                    background: "var(--card)",
+                    boxShadow: "var(--shadow-card)",
+                    minWidth: 240,
+                    zIndex: 5,
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      autoFocus
+                      data-testid="editor-textedit-input"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void applyTextEdit();
+                        if (e.key === "Escape") cancelTextEdit();
+                      }}
+                      style={{
+                        flex: 1, minWidth: 0, padding: "6px 8px", borderRadius: 6,
+                        border: "1px solid var(--border)", background: "var(--bg)",
+                        color: "var(--text)", fontSize: 13,
+                      }}
+                    />
+                    <button
+                      data-testid="editor-textedit-apply"
+                      onClick={() => void applyTextEdit()}
+                      disabled={editText.trim().length === 0}
+                      style={{
+                        padding: "6px 12px", borderRadius: "var(--radius-pill)",
+                        fontWeight: 600, border: "none",
+                        background: editText.trim().length === 0 ? "var(--border)" : "var(--accent)",
+                        color: editText.trim().length === 0 ? "var(--muted)" : "var(--accent-contrast)",
+                        cursor: editText.trim().length === 0 ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {t("tool.editor.textEditApply", lang)}
+                    </button>
+                    <button
+                      data-testid="editor-textedit-cancel"
+                      onClick={cancelTextEdit}
+                      style={{
+                        padding: "6px 12px", borderRadius: "var(--radius-pill)",
+                        fontWeight: 600, background: "transparent",
+                        border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer",
+                      }}
+                    >
+                      {t("tool.editor.textEditCancel", lang)}
+                    </button>
+                  </div>
+                  {editError && (
+                    <div
+                      data-testid="editor-textedit-error"
+                      style={{ color: "var(--danger)", fontSize: 12, marginTop: 6 }}
+                    >
+                      {editError}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {pulse && pulse.page === page && (
                 <div
@@ -824,7 +991,7 @@ export function EditorScreen() {
               borderTop: "1px solid var(--border)", fontSize: 12, color: "var(--muted)",
             }}
           >
-            <span>{t("tool.editor.hint", lang)}</span>
+            <span>{tool === "textEdit" ? t("tool.editor.textEditHint", lang) : t("tool.editor.hint", lang)}</span>
             {hasRedact && (
               <span data-testid="editor-redact-hint" style={{ color: "var(--danger)" }}>
                 {t("tool.editor.redactHint", lang)}
@@ -868,7 +1035,12 @@ export function EditorScreen() {
           >
             {phase === "running" ? (
               <>
-                <div>{t("tool.editor.saving", lang)} {percent}%</div>
+                <div>
+                  {jobKind === "textEdit"
+                    ? t("tool.editor.textEditSaving", lang)
+                    : t("tool.editor.saving", lang)}{" "}
+                  {percent}%
+                </div>
                 <div style={{ height: 8, borderRadius: 999, background: "var(--border)", marginTop: 8 }}>
                   <div style={{ width: `${percent}%`, height: "100%", borderRadius: 999, background: "var(--accent)", transition: "width 200ms" }} />
                 </div>
@@ -883,6 +1055,23 @@ export function EditorScreen() {
                 >
                   {t("common.cancel", lang)}
                 </button>
+              </>
+            ) : jobKind === "textEdit" ? (
+              <>
+                <div style={{ fontWeight: 700 }}>{t("common.done", lang)}</div>
+                <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>
+                  {t("tool.editor.textEditDone", lang)}
+                </div>
+                {editOutput && (
+                  <SaveAsBar
+                    outputPath={editOutput}
+                    onReset={() => {
+                      setEditOutput(null);
+                      setJobKind(null);
+                      if (filePath) void load(filePath);
+                    }}
+                  />
+                )}
               </>
             ) : (
               <>
