@@ -106,6 +106,23 @@ export const STATES = [
   { name: "pagelabels-form", intent: "Page Labels with a Roman numeral style and a prefix filled in" },
   { name: "removeblank-form", intent: "Remove Blank Pages with the tolerance slider moved and the percentage readout updated" },
   { name: "restrictions-form", intent: "Remove Restrictions with the password field filled and shown as masked dots" },
+  { name: "textedit-open", intent: "PDF Editor with a real 2-page PDF loaded and the Edit text tool active: an inline editor is open over the clicked text run, prefilled with that run's text, with Apply and Cancel; the tool rail shows Edit text highlighted" },
+  { name: "pdftoa-form", intent: "PDF to PDF/A with 1 file and the PDF/A-1b level selected: the version select, the archiving hint and an enabled CTA" },
+  { name: "fontoutline-form", intent: "Font to Outline with 1 file and no options: the queue card, the outlines hint and the CTA" },
+  { name: "deskew-form", intent: "Deskew PDF with 1 file and no options: the queue card, the skew hint and the CTA" },
+  { name: "scanner-form", intent: "Scanner Effect with 1 file and the Black and white preset selected: the preset radio row, the rebuild hint and the CTA" },
+  { name: "colors-form", intent: "Adjust Colors with 1 file and brightness 20, contrast 10, saturation -10, gamma 1.2: four numeric fields, the range hint and the CTA" },
+  { name: "invert-form", intent: "Invert Colors with 1 file and no options: the queue card, the inversion hint and the CTA" },
+  { name: "posterize-form", intent: "Posterize PDF with 1 file and 6 levels: the levels field with its inline hint and the CTA" },
+  { name: "bgcolor-form", intent: "Background Color with 1 file and #FFF7E6 entered: the hex field, the fill hint and the CTA" },
+  { name: "textcolor-form", intent: "Change Text Color with 1 file and #1D4ED8 entered: the hex field, the approximation hint and the CTA" },
+  { name: "overlay-form", intent: "Overlay PDF with the base PDF queued and the overlay PDF picked, Underlay beneath selected: the second picker row with its remove chip, the placement radios, opacity, scale to fit and the CTA" },
+  { name: "overlay-invalid", intent: "Overlay PDF with only the base PDF queued and no overlay picked: the second picker is empty, the inline \"choose an overlay file\" error shows and the CTA is visibly disabled" },
+  { name: "workflow-form", intent: "Workflow Builder with 1 file and the default single step: the step row with its tool select, JSON textarea and remove chip, the Add step button, the threading hints and the CTA" },
+  { name: "workflow-steps", intent: "Workflow Builder with a second step added: two step rows each with a numbered header and remove chip, the Add step button, the JSON input fields and the CTA" },
+  { name: "signcert-form", intent: "Digital Signature with the PDF queued, a .p12 certificate picked, the passphrase filled as masked dots and name, reason and location entered: the certificate row, the masked passphrase and the CTA" },
+  { name: "validate-view", intent: "Validate Signature result card for a signed PDF: six label/value rows (valid, signer, issuer, serial, expires, certificates), the revocation caveat below them and a Back action" },
+  { name: "timestamp-form", intent: "Timestamp PDF with 1 file and an empty URL field: the URL field with its placeholder, the inline invalid-URL error, the network hint and a visibly disabled CTA" },
 ];
 
 const CHECKLIST = [
@@ -155,6 +172,13 @@ const CHECKLIST = [
   "Signature pad (sign-draw, sign-type): the pad ink is a visible dark stroke inside the pad box (not clipped to the border or outside it); in sign-type the typed name is visible in the text field and the pad is gone.",
   "Checked states (removeannotations-form, sanitize-form, removeblank-form): ticked checkboxes render a clear check mark and unticked ones render empty; the Remove Annotations All types toggle is visibly unticked while the three type boxes are ticked.",
   "Form field alignment (bates-form, pagelabels-form, stamp-form, restrictions-form): labels, controls and hints share one left edge and vertical rhythm; the password field in restrictions-form shows masked dots, never the plaintext.",
+  "Advanced bare forms (fontoutline-form, deskew-form, invert-form): the queue card sits above the drop zone with the tool hint and an enabled CTA below; nothing overlaps and the hint is legible, not clipped.",
+  "Advanced option forms (pdftoa-form, scanner-form, colors-form, posterize-form, bgcolor-form, textcolor-form, timestamp-form): the select, radio row, numeric fields and hex/URL inputs stay left-aligned on one rhythm; every hint is muted but legible; the CTA is clearly enabled when the input is valid (pdftoa/scanner/colors/bgcolor/textcolor) and visibly disabled when it is not (timestamp-form with an empty URL).",
+  "Overlay second picker (overlay-form, overlay-invalid): the overlay picker button and its picked-file row (name plus a danger-tone remove chip) render inside the form without overlapping the radios or the CTA; in overlay-invalid the empty picker shows the inline error and a faded CTA, clearly different from the valid state.",
+  "Workflow step rows (workflow-form, workflow-steps): each step is a bordered card with a numbered header, a danger remove chip at the same top-right corner, a tool select and a monospace JSON textarea; two steps in workflow-steps stack with equal width and gap; the JSON text is not clipped and the Add step button and hints sit below the rows.",
+  "Digital signature form (signcert-form): the certificate row shows the picked file name without escaping the form box; the passphrase input renders masked dots, never the plaintext; name/reason/location inputs share one left edge with the passphrase.",
+  "Validation result card (validate-view): six label/value rows share one left label column, values wrap inside the card, and the revocation caveat sits muted below the rows above the Back action. The \"Signature valid\" row must not read as a bare label with no value.",
+  "Inline text editor (textedit-open): the editor sits over the clicked text run, its input is prefilled with the run's text and is not clipped by the page edge or the canvas scroll; the Apply and Cancel buttons are fully visible and the tool rail shows Edit text highlighted.",
 ];
 
 function stateLine(s, i) {

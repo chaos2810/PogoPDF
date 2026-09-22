@@ -135,6 +135,18 @@ const DEFAULT_DATA_RESULTS: Record<string, unknown> = {
     differingPages: [3, 7, 11],
     pageSizeMismatchPages: [7],
   },
+  // Canned structural-verification result so Validate Signature renders its
+  // cert card without a real signed PDF.
+  validateSignature: {
+    valid: true,
+    signer: {
+      subject: "CN=Ada Lovelace, O=Analytical Engines Ltd, C=GB",
+      issuer: "CN=PogoPDF Test CA, O=Analytical Engines Ltd, C=GB",
+      serial: "0A:1B:2C:3D:4E:5F:60:71",
+      notAfter: "2027-07-01T09:30:00.000Z",
+    },
+    certificates: 2,
+  },
   viewBookmarks: {
     bookmarks: [
       {

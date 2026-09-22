@@ -321,6 +321,36 @@ export function collectPageMetrics() {
   });
   const dataRowCount = dataRows.length;
 
+  // --- 4e1. workflow step rows (Workflow Builder) ---
+  // Each step is a bordered card: a numbered header with a danger remove chip in
+  // its top-right corner, a tool select, and a monospace JSON textarea. The step
+  // cards must share one width and one left edge; the remove chip must sit at a
+  // constant inset in every card.
+  const workflowSteps = [...document.querySelectorAll('[data-testid^="workflow-step-"]')].map((li) => {
+    const r = li.getBoundingClientRect();
+    const remove = li.querySelector('[data-testid^="workflow-remove-"]');
+    const rr = remove?.getBoundingClientRect();
+    return {
+      cardX: +r.x.toFixed(2),
+      cardY: +r.y.toFixed(2),
+      cardWidth: +r.width.toFixed(2),
+      cardHeight: +r.height.toFixed(2),
+      removeInsetRight: rr ? +(r.x + r.width - (rr.x + rr.width)).toFixed(2) : null,
+      removeInsetTop: rr ? +(rr.y - r.y).toFixed(2) : null,
+      hasSelect: li.querySelector('select[data-testid^="workflow-tool-"]') !== null,
+      hasTextarea: li.querySelector('textarea[data-testid^="workflow-input-"]') !== null,
+    };
+  });
+  const workflowInfo = {
+    count: workflowSteps.length,
+    cards: workflowSteps,
+    widths: workflowSteps.map((s) => s.cardWidth),
+    xs: workflowSteps.map((s) => s.cardX),
+    removeInsetRights: workflowSteps.map((s) => s.removeInsetRight).filter((v) => v !== null),
+    removeInsetTops: workflowSteps.map((s) => s.removeInsetTop).filter((v) => v !== null),
+    complete: workflowSteps.every((s) => s.hasSelect && s.hasTextarea),
+  };
+
   // --- 4e2. bookmark tree rows (View Bookmarks) ---
   // The outline is a tree, so the data-row label-column check does not apply
   // (the indent is intentional). Collect each row's nesting depth (data-depth)
@@ -398,6 +428,7 @@ export function collectPageMetrics() {
   const editorSelectionEl = document.querySelector('[data-testid="editor-selection"]');
   const editorRailEl = document.querySelector('[data-testid="editor-tool-rail"]');
   const editorPulseEl = document.querySelector('[data-testid="editor-search-pulse"]');
+  const editorCanvasEl = document.querySelector('[data-testid="editor-canvas"]');
   // Sample the rendered bitmap for non-white pixels: a blank page is a real
   // regression the geometry checks cannot see. A data: URL image taints no
   // canvas, so getImageData is safe; a 64px-wide sample is plenty.
@@ -430,6 +461,7 @@ export function collectPageMetrics() {
           selected: el.getAttribute("data-selected") === "true",
           body: markBodyRect(el),
         })),
+        canvas: editorCanvasEl ? rectOf(editorCanvasEl) : null,
         selection: editorSelectionEl?.firstElementChild
           ? rectOf(editorSelectionEl.firstElementChild)
           : null,
@@ -443,6 +475,18 @@ export function collectPageMetrics() {
         results: document.querySelectorAll('[data-testid="editor-search-result"]').length,
         redactMark: document.querySelector('[data-testid="editor-redact-mark"]') !== null,
         redactHint: document.querySelector('[data-testid="editor-redact-hint"]') !== null,
+        // In-place text edit: the inline editor overlay + its prefilled input.
+        textEdit: (() => {
+          const overlay = document.querySelector('[data-testid="editor-textedit-overlay"]');
+          if (!overlay) return null;
+          const input = document.querySelector('[data-testid="editor-textedit-input"]');
+          return {
+            overlay: rectOf(overlay),
+            inputValue: input instanceof HTMLInputElement ? input.value : null,
+            hasApply: document.querySelector('[data-testid="editor-textedit-apply"]') !== null,
+            hasCancel: document.querySelector('[data-testid="editor-textedit-cancel"]') !== null,
+          };
+        })(),
       }
     : null;
 
@@ -472,6 +516,7 @@ export function collectPageMetrics() {
     cardsInfo,
     dataRows,
     dataRowCount,
+    workflowInfo,
     bookmarkRows,
     dataTables,
     gridInfo,
@@ -668,6 +713,36 @@ function checkBookmarkTreeAligned(rows) {
   };
 }
 
+// Workflow step rows: every step card shares one width and one left edge, the
+// danger remove chip sits at a constant top-right inset, and each row carries
+// both its tool select and JSON textarea. Catches a missing control or a card
+// that drifts when a second step is added.
+function checkWorkflowStepsAligned(info) {
+  if (!info || info.count === 0) return { pass: true, detail: "no workflow steps" };
+  const maxWidthSpread = Math.max(...info.widths) - Math.min(...info.widths);
+  const maxXSpread = Math.max(...info.xs) - Math.min(...info.xs);
+  const rightSpread = info.removeInsetRights.length
+    ? Math.max(...info.removeInsetRights) - Math.min(...info.removeInsetRights)
+    : 0;
+  const topSpread = info.removeInsetTops.length
+    ? Math.max(...info.removeInsetTops) - Math.min(...info.removeInsetTops)
+    : 0;
+  return {
+    pass:
+      info.complete &&
+      maxWidthSpread <= 1 &&
+      maxXSpread <= 1 &&
+      rightSpread <= 1 &&
+      topSpread <= 1,
+    count: info.count,
+    maxWidthSpread: +maxWidthSpread.toFixed(2),
+    maxXSpread: +maxXSpread.toFixed(2),
+    removeRightSpread: +rightSpread.toFixed(2),
+    removeTopSpread: +topSpread.toFixed(2),
+    complete: info.complete,
+  };
+}
+
 // Table data view (dimensions): columns line up and cells within a row do not
 // overlap (table layout is neither flex nor grid, so the generic scan misses it).
 function checkDataTablesAligned(tables) {
@@ -751,6 +826,24 @@ const CTA_EXPECTATIONS = {
   "pagelabels-form": false,
   "removeblank-form": false,
   "restrictions-form": false,
+  // Phase 4 advanced/pro tools. Every form state is valid (enabled CTA) except
+  // the ones whose whole point is an invalid input blocking the run.
+  "pdftoa-form": false,
+  "fontoutline-form": false,
+  "deskew-form": false,
+  "scanner-form": false,
+  "colors-form": false,
+  "invert-form": false,
+  "posterize-form": false,
+  "bgcolor-form": false,
+  "textcolor-form": false,
+  "overlay-form": false, // base + overlay picked → enabled
+  "overlay-invalid": true, // no overlay picked → disabled
+  "workflow-form": false,
+  "workflow-steps": false,
+  "signcert-form": false, // p12 picked → enabled
+  "timestamp-form": true, // empty URL → disabled
+  "validate-view": false,
 };
 
 // States that render a data card (View Metadata, Compare PDFs) / data table
@@ -761,11 +854,14 @@ const DATA_CARD_STATES = new Set([
   "attachments-add-form",
   "attachments-edit-view",
   "bookmarks-edit-form",
+  "validate-view",
 ]);
 const DATA_TABLE_STATES = new Set(["dimensions-view"]);
 // States that render the bookmark outline tree (nested indent instead of a
 // single label column).
 const BOOKMARK_TREE_STATES = new Set(["bookmarks-view"]);
+// Workflow Builder step-list geometry (one row vs two rows must stay aligned).
+const WORKFLOW_STATES = new Set(["workflow-form", "workflow-steps"]);
 // Editor states and which editor invariants each asserts. `page` needs a
 // rasterized bitmap; `marks`/`selection`/`search`/`redact` are per-state.
 const EDITOR_STATES = {
@@ -774,6 +870,7 @@ const EDITOR_STATES = {
   "editor-selected": { page: true, marks: true, selection: true },
   "editor-search-results": { page: true, search: true },
   "editor-redact-marked": { page: true, marks: true, redact: true },
+  "textedit-open": { page: true, rail: true, textEdit: true },
 };
 
 // States whose pick phase queues thumbnail cards. If the preview pipeline
@@ -931,6 +1028,38 @@ function checkEditorSearch(info) {
   };
 }
 
+// The inline text editor must be open over the page with the clicked run's text
+// prefilled and both actions present. The panel is also checked against the
+// canvas box: it may overhang the white page (that is the point of an inline
+// editor near an edge) but must never escape the visible canvas, which would
+// clip the input or its buttons.
+function checkEditorTextEdit(info) {
+  if (!info) return { pass: false, detail: "no editor info" };
+  const te = info.textEdit;
+  if (!te) return { pass: false, detail: "no text-edit overlay" };
+  // The canvas box was captured in editorInfo (page-side); node has no DOM.
+  const canvas = info.canvas;
+  const insideCanvas =
+    canvas &&
+    te.overlay.x >= canvas.x - 2 &&
+    te.overlay.y >= canvas.y - 2 &&
+    te.overlay.x + te.overlay.width <= canvas.x + canvas.width + 2 &&
+    te.overlay.y + te.overlay.height <= canvas.y + canvas.height + 2;
+  return {
+    pass:
+      Boolean(te.inputValue && te.inputValue.trim().length > 0) &&
+      te.hasApply &&
+      te.hasCancel &&
+      Boolean(insideCanvas),
+    prefilled: te.inputValue,
+    hasApply: te.hasApply,
+    hasCancel: te.hasCancel,
+    overlay: te.overlay,
+    canvas,
+    insideCanvas: Boolean(insideCanvas),
+  };
+}
+
 // A marked redaction must show the hatched MARKED mark AND the red warning
 // line under the canvas (the warning is the user-facing half of the state).
 function checkEditorRedactMarked(info) {
@@ -958,6 +1087,7 @@ export function evaluateState(name, state) {
     "data-rows-aligned": null, // only asserted for data-card states
     "data-table-aligned": null, // only asserted for table-shaped data states
     "bookmark-tree-aligned": null, // only asserted for bookmarks-view
+    "workflow-steps-aligned": null, // only asserted for workflow states
     "cta-disabled-visible": null, // only asserted for states in CTA_EXPECTATIONS
     "dragover-state-visible": null, // cross-state, filled in by buildReport
     "theme-tokens-correct": null, // only meaningful for home-* states
@@ -968,6 +1098,7 @@ export function evaluateState(name, state) {
     "editor-tool-rail": null, // only asserted for editor states with a rail
     "editor-search": null, // only asserted for editor-search-results
     "editor-redact-marked": null, // only asserted for editor-redact-marked
+    "editor-textedit-open": null, // only asserted for textedit-open
   };
 
   if (name === "home-light" || name === "home-dark") {
@@ -991,6 +1122,11 @@ export function evaluateState(name, state) {
   if (BOOKMARK_TREE_STATES.has(name)) {
     invariants["bookmark-tree-aligned"] = checkBookmarkTreeAligned(
       state.bookmarkRows
+    ).pass;
+  }
+  if (WORKFLOW_STATES.has(name)) {
+    invariants["workflow-steps-aligned"] = checkWorkflowStepsAligned(
+      state.workflowInfo
     ).pass;
   }
   if (CARD_STATES.has(name)) {
@@ -1023,6 +1159,11 @@ export function evaluateState(name, state) {
   }
   if (editorSpec?.redact) {
     invariants["editor-redact-marked"] = checkEditorRedactMarked(
+      state.editorInfo
+    ).pass;
+  }
+  if (editorSpec?.textEdit) {
+    invariants["editor-textedit-open"] = checkEditorTextEdit(
       state.editorInfo
     ).pass;
   }
@@ -1072,6 +1213,8 @@ export function evaluateState(name, state) {
     dataTablesAligned: checkDataTablesAligned(state.dataTables),
     bookmarkRows: state.bookmarkRows,
     bookmarkTreeAligned: checkBookmarkTreeAligned(state.bookmarkRows),
+    workflowInfo: state.workflowInfo,
+    workflowStepsAligned: checkWorkflowStepsAligned(state.workflowInfo),
     cta: state.cta,
     textNodeCount: state.textNodes.length,
     bodyBg: state.bodyBg,

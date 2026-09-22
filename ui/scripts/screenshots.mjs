@@ -190,17 +190,20 @@ async function clickTestId(page, id) {
   if (!ok) throw new Error(`No element with data-testid "${id}"`);
 }
 
-// React installs a value setter on the input prototype; assigning through it
-// then dispatching `input` is what makes a controlled component update.
+// React installs a value setter on the input/textarea prototype; assigning
+// through it then dispatching `input` is what makes a controlled component
+// update. The prototype must match the element (a textarea rejects the input
+// setter with an Illegal invocation), so pick it from the tag name.
 async function typeInto(page, id, text) {
   const ok = await page.evaluate(
     ([tid, value]) => {
       const el = document.querySelector(`[data-testid="${tid}"]`);
       if (!el) return false;
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value"
-      )?.set;
+      const proto =
+        el.tagName === "TEXTAREA"
+          ? window.HTMLTextAreaElement.prototype
+          : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
       setter?.call(el, value);
       el.dispatchEvent(new Event("input", { bubbles: true }));
       return true;
@@ -1534,6 +1537,213 @@ async function main() {
       throw new Error(`restrictions-form: password not masked (${JSON.stringify(restrictionsMasked)})`);
     }
     await shot("restrictions-form");
+
+    // ===== Phase 4 advanced/pro tools =====
+
+    // --- Editor: in-place text edit (inline editor over a clicked run) ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF Editor");
+    await loadEditorPdf();
+    await clickTestId(page, "editor-tool-textEdit");
+    await sleep(120);
+    {
+      // The fixture's first run ("Quarterly Report") sits at display
+      // (48, 52.4) size 206.6 x 31.9 on the 420 x 595 page; click its center.
+      const b = await editorPageBox();
+      await page.mouse.click(b.x + b.width * (151.3 / 420), b.y + b.height * (68.4 / 595));
+      await sleep(200);
+    }
+    {
+      const te = await page.evaluate(() => ({
+        overlay: document.querySelector('[data-testid="editor-textedit-overlay"]') !== null,
+        value: document.querySelector('[data-testid="editor-textedit-input"]')?.value ?? null,
+      }));
+      if (!te.overlay || !te.value) {
+        throw new Error(`textedit-open: inline editor did not open (${JSON.stringify(te)})`);
+      }
+    }
+    await shot("textedit-open");
+
+    // --- PDF to PDF/A: PDF/A-1b selected ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "PDF to PDF/A");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await selectByValue(page, "pdftopdfa-version", "1b");
+    await shot("pdftoa-form");
+
+    // --- Font to Outline: bare ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Font to Outline");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await shot("fontoutline-form");
+
+    // --- Deskew: bare ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Deskew PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await shot("deskew-form");
+
+    // --- Scanner Effect: black and white preset ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Scanner Effect");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickLabel(page, "scanner-preset", "Black and white");
+    await shot("scanner-form");
+
+    // --- Adjust Colors: four numeric fields ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Adjust Colors");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "adjustcolors-brightness", "20");
+    await typeInto(page, "adjustcolors-contrast", "10");
+    await typeInto(page, "adjustcolors-saturation", "-10");
+    await typeInto(page, "adjustcolors-gamma", "1.2");
+    await shot("colors-form");
+
+    // --- Invert Colors: bare ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Invert Colors");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await shot("invert-form");
+
+    // --- Posterize: 6 levels ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Posterize PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "posterize-levels", "6");
+    await shot("posterize-form");
+
+    // --- Background Color: a warm hex ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Background Color");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "bgcolor-color", "#FFF7E6");
+    await shot("bgcolor-form");
+
+    // --- Change Text Color: a blue hex + approximation hint ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Change Text Color");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await typeInto(page, "textcolor-color", "#1D4ED8");
+    await shot("textcolor-form");
+
+    // --- Overlay: base queued + overlay picked + underlay ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Overlay PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock((p) => window.__mockSetFiles(p), [SHORT[1]]);
+    await clickTestId(page, "overlay-pick");
+    await sleep(120);
+    await clickLabel(page, "overlay-mode", "Underlay beneath");
+    {
+      const overlayRows = await page.evaluate(
+        () => document.querySelectorAll('[data-testid="data-row"]').length
+      );
+      if (overlayRows !== 1) {
+        throw new Error(`overlay-form: overlay row not rendered (${overlayRows})`);
+      }
+    }
+    await shot("overlay-form");
+
+    // --- Overlay invalid: base only, no overlay picked ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Overlay PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    {
+      const invalid = await page.evaluate(() => ({
+        error: document.querySelector('[data-testid="overlay-validation"]') !== null,
+        cta: document.querySelector('[data-testid="overlay-cta"]')?.disabled ?? null,
+      }));
+      if (!invalid.error || invalid.cta !== true) {
+        throw new Error(`overlay-invalid: expected error + disabled CTA (${JSON.stringify(invalid)})`);
+      }
+    }
+    await scrollCtaIntoView(page);
+    await shot("overlay-invalid");
+
+    // --- Workflow: default single step ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Workflow Builder");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    {
+      const stepCount = await page.evaluate(
+        () => document.querySelectorAll('[data-testid^="workflow-step-"]').length
+      );
+      if (stepCount !== 1) {
+        throw new Error(`workflow-form: expected 1 default step (${stepCount})`);
+      }
+    }
+    await shot("workflow-form");
+
+    // --- Workflow: a second step added ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Workflow Builder");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await clickTestId(page, "workflow-add");
+    await sleep(120);
+    await typeInto(page, "workflow-input-1", '{\n  "filePath": "$previous",\n  "angle": 180\n}');
+    {
+      const stepCount = await page.evaluate(
+        () => document.querySelectorAll('[data-testid^="workflow-step-"]').length
+      );
+      if (stepCount !== 2) {
+        throw new Error(`workflow-steps: expected 2 steps (${stepCount})`);
+      }
+    }
+    await scrollCtaIntoView(page);
+    await shot("workflow-steps");
+
+    // --- Digital Signature: p12 picked + masked passphrase + metadata ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Digital Signature");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    await mock((p) => window.__mockSetFiles(p), ["C:\\Users\\demo\\Documents\\ada-signing.p12"]);
+    await clickTestId(page, "signcert-pick");
+    await typeInto(page, "signcert-passphrase", "correct horse battery");
+    await typeInto(page, "signcert-name", "Ada Lovelace");
+    await typeInto(page, "signcert-reason", "Quarterly report approval");
+    await typeInto(page, "signcert-location", "London");
+    {
+      const masked = await page.evaluate(() => {
+        const f = document.querySelector('[data-testid="signcert-passphrase"]');
+        return { type: f?.getAttribute("type"), value: f?.value };
+      });
+      if (masked.type !== "password" || masked.value !== "correct horse battery") {
+        throw new Error(`signcert-form: passphrase not masked (${JSON.stringify(masked)})`);
+      }
+    }
+    await shot("signcert-form");
+
+    // --- Validate Signature: canned structural result ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Validate Signature");
+    await mock((p) => window.__mockSetFiles(p), [SHORT[0]]);
+    await clickTestId(page, "validateSignature-dropzone");
+    await sleep(400);
+    {
+      const rows = await page.evaluate(
+        () => document.querySelectorAll('[data-testid="data-row"]').length
+      );
+      if (rows !== 6) {
+        throw new Error(`validate-view: expected 6 cert rows (${rows})`);
+      }
+    }
+    await shot("validate-view");
+
+    // --- Timestamp: empty URL → invalid + disabled CTA ---
+    await setPrefs(page, { "pogopdf.theme": "light", "pogopdf.lang": "en" });
+    await openTool(page, "Timestamp PDF");
+    await mock((p) => window.__mockDrop(p), [SHORT[0]]);
+    {
+      const invalid = await page.evaluate(() => ({
+        error: document.querySelector('[data-testid="timestamp-validation"]') !== null,
+        cta: document.querySelector('[data-testid="timestamp-cta"]')?.disabled ?? null,
+      }));
+      if (!invalid.error || invalid.cta !== true) {
+        throw new Error(`timestamp-form: expected error + disabled CTA (${JSON.stringify(invalid)})`);
+      }
+    }
+    await shot("timestamp-form");
   } finally {
     await browser.close();
     if (vite) {
